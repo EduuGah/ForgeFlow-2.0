@@ -49,6 +49,19 @@ Repositories abstract:
 
 UI must not directly manipulate SQLite tables or network requests.
 
+## Source boundaries
+
+Implemented source directories follow the same layer map:
+- `src/presentation`: React Native screens, navigation, visual components and theme.
+- `src/application`: use cases and repository ports consumed by the UI.
+- `src/domain`: pure entities, value types and business rules.
+- `src/data`: repository implementations/adapters behind application ports.
+- `src/composition`: dependency composition for the running app.
+
+Presentation may depend on application contracts, application may depend on
+domain types, and data may implement application ports. Domain code must remain
+independent from React, Expo, SQLite and network clients.
+
 ## Sync architecture
 
 All user-owned writes happen locally first.
