@@ -304,3 +304,18 @@ The exact PostgreSQL indexes should be verified with real query plans after impl
 ## Database migration rule
 
 Every schema change requires a versioned migration. Never edit production tables manually as a normal development workflow.
+
+## Migration foundation
+
+Migration execution is split from concrete database clients:
+- `src/data/migrations/migrationRunner.ts` validates and applies ordered migration definitions.
+- `src/data/migrations/sqliteMigrationExecutor.ts` adapts the runner to the Expo SQLite async API shape.
+- `src/data/migrations/postgresMigrationExecutor.ts` adapts the runner to a PostgreSQL client with `query`.
+
+Both local and server databases keep an internal `schema_migrations` ledger with:
+- `id`
+- `name`
+- `checksum`
+- `applied_at`
+
+The runner refuses checksum drift and unknown applied migrations so schema changes remain deterministic. FF-003 only establishes the migration system; entity tables are introduced by later schema issues.
