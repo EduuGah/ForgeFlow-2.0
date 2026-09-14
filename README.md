@@ -35,6 +35,7 @@ Plan → Train → Record → Analyze → Improve → Train again.
 ## Development rule
 
 AI must implement one issue/prompt at a time, validate the result, and finish with:
+
 - what changed;
 - validation performed;
 - known limitations;
@@ -42,3 +43,27 @@ AI must implement one issue/prompt at a time, validate the result, and finish wi
 - issue reference/closing syntax when appropriate.
 
 Never implement unrelated future work just because it is technically convenient.
+
+## App foundation
+
+The current app shell is an Expo + React Native + TypeScript project for issue `FF-001`.
+
+### Local setup
+
+```bash
+npm install
+npm run web
+```
+
+Useful checks:
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run format:check
+```
+
+### Environment
+
+Copy `.env.example` to `.env.local` for local-only values. Only `EXPO_PUBLIC_*` values are visible to the client bundle; do not put secrets there.
