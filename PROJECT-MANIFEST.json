@@ -1,0 +1,33 @@
+{
+  "project": "ForgeFlow 2.0",
+  "documents": [
+    "README.md",
+    "Docs/01-Product-Vision.md",
+    "Docs/02-Product-Requirements.md",
+    "Docs/03-User-Flows.md",
+    "Docs/04-Information-Architecture.md",
+    "Docs/05-UX-UI.md",
+    "Docs/06-Business-Rules.md",
+    "Docs/07-Technical-Architecture.md",
+    "Docs/08-Database.md",
+    "Docs/09-API.md",
+    "Docs/10-Security.md",
+    "Docs/11-Roadmap.md",
+    "Docs/12-Notifications.md",
+    "Docs/13-AI-Analysis.md",
+    "Docs/14-Testing-Strategy.md",
+    "Docs/15-Development-Workflow.md",
+    "Docs/16-GitHub-Issues.md",
+    "Docs/17-Database-Implementation-Prompt.md",
+    "Docs/18-AI-Agent-Master-Prompt.md",
+    "Docs/19-Data-Lifecycle.md",
+    "Docs/20-Definition-of-Done.md"
+  ],
+  "generated_for": "AI-assisted issue-driven development",
+  "architecture_direction": {
+    "client": "React Native + Expo + TypeScript",
+    "local_database": "SQLite",
+    "server_database": "PostgreSQL",
+    "sync": "local-first, outbox, cursor, idempotent operations, tombstones"
+  }
+}

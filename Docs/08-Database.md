@@ -1,0 +1,306 @@
+# 08 — Database Design
+
+## Database strategy
+
+ForgeFlow uses two synchronized databases:
+
+1. **Local SQLite**: operational source for the mobile UI and offline writes.
+2. **Server PostgreSQL**: canonical cloud store and cross-device synchronization source.
+
+The local schema should closely mirror the server domain model, but may contain local-only sync tables/fields.
+
+## Identity
+
+Every domain entity uses UUIDs generated client-side. This allows an entity to be created offline and later synchronized without requiring a server-generated numeric ID.
+
+## Core entities
+
+### users
+- id UUID PK
+- email
+- display_name
+- avatar_url
+- timezone
+- created_at
+- updated_at
+
+### user_profiles
+- user_id UUID PK/FK
+- height_cm nullable
+- current_weight_kg nullable
+- training_experience
+- primary_goal
+- preferred_training_frequency
+- notes
+- updated_at
+
+### exercises
+Global exercise catalog plus user-created records.
+- id UUID PK
+- owner_user_id nullable
+- name
+- description
+- equipment
+- primary_muscle_group
+- secondary_muscle_groups
+- is_system
+- created_at
+- updated_at
+- deleted_at nullable
+
+### exercise_favorites
+- id UUID PK
+- user_id
+- exercise_id
+- created_at
+
+Unique constraint: user_id + exercise_id.
+
+### workouts
+Workout definitions/templates.
+- id UUID PK
+- user_id
+- name
+- description
+- sort_order
+- is_archived
+- created_at
+- updated_at
+- deleted_at nullable
+
+### workout_exercises
+- id UUID PK
+- workout_id
+- exercise_id
+- position
+- target_sets nullable
+- target_reps_min nullable
+- target_reps_max nullable
+- target_weight nullable
+- default_rest_seconds nullable
+- notes
+- created_at
+- updated_at
+- deleted_at nullable
+
+Unique position within workout.
+
+### workout_sessions
+An actual workout execution.
+- id UUID PK
+- user_id
+- workout_id nullable
+- status: active | completed | abandoned
+- started_at
+- completed_at nullable
+- duration_seconds nullable
+- notes
+- created_at
+- updated_at
+- deleted_at nullable
+
+### session_exercises
+Snapshot of exercises performed in a session.
+- id UUID PK
+- session_id
+- exercise_id
+- position
+- created_at
+- updated_at
+- deleted_at nullable
+
+### sets
+The atomic training record.
+- id UUID PK
+- session_exercise_id
+- set_number
+- set_type: warmup | working
+- weight_kg
+- repetitions
+- rest_seconds nullable
+- completed_at nullable
+- notes nullable
+- created_at
+- updated_at
+- deleted_at nullable
+
+Index: session_exercise_id + set_number.
+
+### personal_records
+Derived/denormalized records for fast access.
+- id UUID PK
+- user_id
+- exercise_id
+- record_type: weight | volume | reps
+- value
+- source_set_id
+- achieved_at
+- created_at
+- updated_at
+
+Unique/consistent current-record strategy must be defined in the service layer. Historical PR events may be stored separately if needed.
+
+### goals
+- id UUID PK
+- user_id
+- type
+- title
+- exercise_id nullable
+- metric
+- baseline_value nullable
+- target_value
+- deadline nullable
+- status
+- created_at
+- updated_at
+- completed_at nullable
+- deleted_at nullable
+
+### goal_progress_events
+Optional audit/progress history.
+- id UUID PK
+- goal_id
+- measured_value
+- progress_percent
+- recorded_at
+- source_type
+- source_id nullable
+
+### body_weight_entries
+- id UUID PK
+- user_id
+- weight_kg
+- recorded_at
+- note nullable
+- created_at
+- updated_at
+- deleted_at nullable
+
+### meals
+- id UUID PK
+- user_id
+- meal_type
+- consumed_at
+- kcal
+- protein_g nullable
+- carbs_g nullable
+- fat_g nullable
+- photo_id nullable
+- notes nullable
+- created_at
+- updated_at
+- deleted_at nullable
+
+### media
+- id UUID PK
+- user_id
+- local_uri nullable
+- remote_url nullable
+- mime_type
+- size_bytes nullable
+- upload_status
+- checksum nullable
+- created_at
+- updated_at
+- deleted_at nullable
+
+### hydration_entries
+- id UUID PK
+- user_id
+- amount_ml
+- recorded_at
+- created_at
+- updated_at
+- deleted_at nullable
+
+### notification_preferences
+- id UUID PK
+- user_id
+- workouts_enabled
+- goals_enabled
+- prs_enabled
+- progress_enabled
+- nutrition_enabled
+- hydration_enabled
+- inactivity_enabled
+- quiet_hours_start nullable
+- quiet_hours_end nullable
+- frequency_mode
+- updated_at
+
+### notifications
+- id UUID PK
+- user_id
+- type
+- title
+- body
+- data_json nullable
+- dedupe_key nullable
+- read_at nullable
+- archived_at nullable
+- created_at
+- expires_at nullable
+
+Unique dedupe strategy is required.
+
+### achievements
+- id UUID PK
+- user_id
+- achievement_type
+- metadata_json
+- achieved_at
+- created_at
+
+### sync_operations
+Local-only table:
+- operation_id UUID PK
+- entity_type
+- entity_id
+- operation_type
+- payload_json
+- created_at
+- attempt_count
+- last_attempt_at nullable
+- last_error nullable
+- status: pending | processing | failed | completed
+
+### sync_state
+Local-only:
+- scope/key
+- server_cursor nullable
+- last_success_at nullable
+- last_error nullable
+
+## Referential integrity
+
+Server foreign keys must protect user ownership and valid references.
+
+Never allow a client to reference another user's entities.
+
+## Deletion
+
+Prefer soft deletion/tombstones for synchronized mutable entities. Physical deletion can happen only after retention/sync guarantees are satisfied.
+
+## Transactions
+
+Multi-table writes such as finishing a workout and persisting its sets must be transactional locally.
+
+Server-side operations that change several related records must also be transactional.
+
+## Indexing
+
+At minimum index:
+- user_id
+- user_id + updated_at
+- workout_id
+- session_id
+- exercise_id + achieved_at
+- goal user/status
+- notifications user/read_at/created_at
+- sync operation status/created_at
+
+The exact PostgreSQL indexes should be verified with real query plans after implementation.
+
+## Database migration rule
+
+Every schema change requires a versioned migration. Never edit production tables manually as a normal development workflow.
