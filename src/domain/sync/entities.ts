@@ -3,6 +3,7 @@ import type { EntityId, ISODateTimeString } from '../shared/types';
 export type SyncEntityType =
   | 'body_weight_entry'
   | 'exercise'
+  | 'exercise_favorite'
   | 'goal'
   | 'hydration_entry'
   | 'meal'

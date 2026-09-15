@@ -1,5 +1,6 @@
 import { initialLocalSchemaMigration } from './initialLocalSchemaMigration';
 import { initialServerSchemaMigration } from './initialServerSchemaMigration';
+import { serverExerciseFavoritesMigration } from './exerciseFavoritesMigration';
 import { localMigrations } from './localMigrations';
 import { serverMigrations } from './serverMigrations';
 
@@ -17,7 +18,10 @@ const expectedCoreTables = [
 describe('initial schema migrations', () => {
   it('registers the local and server core schema migrations', () => {
     expect(localMigrations[0]).toBe(initialLocalSchemaMigration);
-    expect(serverMigrations).toStrictEqual([initialServerSchemaMigration]);
+    expect(serverMigrations).toStrictEqual([
+      initialServerSchemaMigration,
+      serverExerciseFavoritesMigration,
+    ]);
 
     expect(initialLocalSchemaMigration).toMatchObject({
       id: '0001_initial_core_schema',

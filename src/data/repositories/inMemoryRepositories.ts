@@ -3,11 +3,14 @@ import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
   Exercise,
+  ExerciseFavorite,
   WorkoutSession,
   WorkoutTemplate,
 } from '../../domain/training/entities';
 import type {
+  ExerciseFavoriteRepository,
   ExerciseRepository,
+  ListExerciseFavoritesParams,
   GoalRepository,
   ListExercisesParams,
   ListGoalsParams,
@@ -21,6 +24,7 @@ import type {
 } from '../../application/ports/repositories';
 
 export type InMemoryRepositorySeed = Partial<{
+  exerciseFavorites: ExerciseFavorite[];
   exercises: Exercise[];
   goals: Goal[];
   syncOperations: SyncOperation[];
@@ -32,12 +36,14 @@ export type InMemoryRepositorySeed = Partial<{
 class InMemoryForgeFlowRepository
   implements
     ExerciseRepository,
+    ExerciseFavoriteRepository,
     GoalRepository,
     SyncOperationRepository,
     SyncStateRepository,
     WorkoutRepository,
     WorkoutSessionRepository
 {
+  private exerciseFavorites: ExerciseFavorite[];
   private exercises: Exercise[];
   private goals: Goal[];
   private syncOperations: SyncOperation[];
@@ -46,6 +52,7 @@ class InMemoryForgeFlowRepository
   private workoutTemplates: WorkoutTemplate[];
 
   constructor(seed: InMemoryRepositorySeed = {}) {
+    this.exerciseFavorites = seed.exerciseFavorites ?? [];
     this.exercises = seed.exercises ?? [];
     this.goals = seed.goals ?? [];
     this.syncOperations = seed.syncOperations ?? [];
@@ -84,6 +91,15 @@ class InMemoryForgeFlowRepository
     return clone(this.exercises.find((exercise) => exercise.id === id) ?? null);
   }
 
+  async findExerciseFavorite(userId: EntityId, exerciseId: EntityId) {
+    return clone(
+      this.exerciseFavorites.find(
+        (favorite) =>
+          favorite.userId === userId && favorite.exerciseId === exerciseId,
+      ) ?? null,
+    );
+  }
+
   async findGoalById(id: EntityId) {
     return clone(this.goals.find((goal) => goal.id === id) ?? null);
   }
@@ -96,6 +112,10 @@ class InMemoryForgeFlowRepository
 
   async listExercises(params: ListExercisesParams = {}) {
     const query = params.query?.trim().toLocaleLowerCase();
+    const equipment = params.equipment?.trim().toLocaleLowerCase();
+    const primaryMuscleGroup = params.primaryMuscleGroup
+      ?.trim()
+      .toLocaleLowerCase();
 
     return clone(
       this.exercises.filter((exercise) => {
@@ -111,7 +131,49 @@ class InMemoryForgeFlowRepository
           return false;
         }
 
-        if (query && !exercise.name.toLocaleLowerCase().includes(query)) {
+        if (
+          query &&
+          ![
+            exercise.name,
+            exercise.description,
+            exercise.equipment,
+            exercise.primaryMuscleGroup,
+            ...exercise.secondaryMuscleGroups,
+          ].some((value) => value?.toLocaleLowerCase().includes(query))
+        ) {
+          return false;
+        }
+
+        if (
+          equipment &&
+          exercise.equipment?.toLocaleLowerCase() !== equipment
+        ) {
+          return false;
+        }
+
+        if (
+          primaryMuscleGroup &&
+          exercise.primaryMuscleGroup.toLocaleLowerCase() !== primaryMuscleGroup
+        ) {
+          return false;
+        }
+
+        return true;
+      }),
+    );
+  }
+
+  async listExerciseFavorites(params: ListExerciseFavoritesParams) {
+    return clone(
+      this.exerciseFavorites.filter((favorite) => {
+        if (favorite.userId !== params.userId) {
+          return false;
+        }
+
+        if (
+          params.exerciseIds &&
+          !params.exerciseIds.includes(favorite.exerciseId)
+        ) {
           return false;
         }
 
@@ -235,8 +297,22 @@ class InMemoryForgeFlowRepository
     );
   }
 
+  async deleteExerciseFavorite(id: EntityId) {
+    this.exerciseFavorites = this.exerciseFavorites.filter(
+      (favorite) => favorite.id !== id,
+    );
+  }
+
   async saveExercise(exercise: Exercise) {
     this.exercises = upsertById(this.exercises, exercise, 'id');
+  }
+
+  async saveExerciseFavorite(favorite: ExerciseFavorite) {
+    this.exerciseFavorites = upsertByCompositeKey(
+      this.exerciseFavorites,
+      favorite,
+      ['userId', 'exerciseId'],
+    );
   }
 
   async saveGoal(goal: Goal) {
@@ -265,6 +341,7 @@ export function createInMemoryRepositories(
   const repository = new InMemoryForgeFlowRepository(seed);
 
   return {
+    exerciseFavorites: repository,
     exercises: repository,
     goals: repository,
     syncOperations: repository,

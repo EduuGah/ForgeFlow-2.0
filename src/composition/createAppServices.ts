@@ -4,20 +4,35 @@ import {
   registerAccount,
   restoreSession,
 } from '../application/useCases/authenticate';
+import {
+  createUserExercise,
+  listExerciseLibrary,
+  toggleExerciseFavorite,
+  type CreateUserExerciseInput,
+  type ListExerciseLibraryParams,
+} from '../application/useCases/exerciseLibrary';
 import { getHomeOverview } from '../application/useCases/getHomeOverview';
 import { InMemoryAuthRemoteGateway } from '../data/auth/inMemoryAuthGateway';
 import { MemorySecureSessionStorage } from '../data/auth/memorySecureSessionStorage';
 import { createInMemoryRepositories } from '../data/repositories/inMemoryRepositories';
+import { systemExercises } from '../data/seeds/systemExercises';
 
 const LOCAL_PREVIEW_USER_ID = 'local-preview-user';
 
 export function createAppServices() {
   const authRemote = new InMemoryAuthRemoteGateway();
   const authStorage = new MemorySecureSessionStorage();
-  const repositories = createInMemoryRepositories();
+  const repositories = createInMemoryRepositories({
+    exercises: systemExercises,
+  });
   const authDependencies = {
     remote: authRemote,
     storage: authStorage,
+  };
+  const exerciseLibraryRepositories = {
+    exerciseFavorites: repositories.exerciseFavorites,
+    exercises: repositories.exercises,
+    syncOperations: repositories.syncOperations,
   };
 
   return {
@@ -30,6 +45,31 @@ export function createAppServices() {
       restoreSession: () => restoreSession(authDependencies),
     },
     currentUserId: LOCAL_PREVIEW_USER_ID,
+    exerciseLibrary: {
+      create: (input: Omit<CreateUserExerciseInput, 'userId'>) =>
+        createUserExercise(
+          { ...input, userId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            repositories: exerciseLibraryRepositories,
+          },
+        ),
+      list: (params: Omit<ListExerciseLibraryParams, 'userId'> = {}) =>
+        listExerciseLibrary(
+          { ...params, userId: LOCAL_PREVIEW_USER_ID },
+          exerciseLibraryRepositories,
+        ),
+      toggleFavorite: (exerciseId: string) =>
+        toggleExerciseFavorite(
+          { exerciseId, userId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            repositories: exerciseLibraryRepositories,
+          },
+        ),
+    },
     homeOverview: {
       get: () =>
         getHomeOverview(
@@ -46,3 +86,18 @@ export function createAppServices() {
 }
 
 export type AppServices = ReturnType<typeof createAppServices>;
+
+function createLocalUuid() {
+  const cryptoApi = globalThis.crypto;
+
+  if (cryptoApi?.randomUUID) {
+    return cryptoApi.randomUUID();
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const randomValue = Math.floor(Math.random() * 16);
+    const value = char === 'x' ? randomValue : (randomValue & 0x3) | 0x8;
+
+    return value.toString(16);
+  });
+}

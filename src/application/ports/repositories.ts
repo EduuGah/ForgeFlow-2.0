@@ -3,14 +3,22 @@ import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
   Exercise,
+  ExerciseFavorite,
   WorkoutSession,
   WorkoutTemplate,
 } from '../../domain/training/entities';
 
 export type ListExercisesParams = {
+  equipment?: string;
   includeDeleted?: boolean;
+  primaryMuscleGroup?: string;
   query?: string;
   userId?: EntityId;
+};
+
+export type ListExerciseFavoritesParams = {
+  exerciseIds?: EntityId[];
+  userId: EntityId;
 };
 
 export type ListWorkoutTemplatesParams = {
@@ -34,6 +42,18 @@ export interface ExerciseRepository {
   findExerciseById(id: EntityId): Promise<Exercise | null>;
   listExercises(params?: ListExercisesParams): Promise<Exercise[]>;
   saveExercise(exercise: Exercise): Promise<void>;
+}
+
+export interface ExerciseFavoriteRepository {
+  deleteExerciseFavorite(id: EntityId): Promise<void>;
+  findExerciseFavorite(
+    userId: EntityId,
+    exerciseId: EntityId,
+  ): Promise<ExerciseFavorite | null>;
+  listExerciseFavorites(
+    params: ListExerciseFavoritesParams,
+  ): Promise<ExerciseFavorite[]>;
+  saveExerciseFavorite(favorite: ExerciseFavorite): Promise<void>;
 }
 
 export interface WorkoutRepository {
@@ -81,6 +101,7 @@ export interface SyncStateRepository {
 }
 
 export type RepositoryProvider = {
+  exerciseFavorites: ExerciseFavoriteRepository;
   exercises: ExerciseRepository;
   goals: GoalRepository;
   syncOperations: SyncOperationRepository;
