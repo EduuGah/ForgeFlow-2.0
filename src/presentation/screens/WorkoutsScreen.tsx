@@ -1,8 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Star } from 'lucide-react-native';
+import type { ReactNode } from 'react';
+import {
+  Archive,
+  Copy,
+  PenLine,
+  Plus,
+  Search,
+  Star,
+  Trash2,
+} from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { ExerciseLibraryItem } from '../../application/useCases/exerciseLibrary';
+import type {
+  WorkoutExercisePlanInput,
+  WorkoutTemplateSummary,
+} from '../../application/useCases/workoutCrud';
 import { useAppServices } from '../../composition/AppServicesProvider';
 import { AppScreen, EmptyState, Section } from '../components/AppScreen';
 import { colors, radius, spacing, typography } from '../theme/tokens';
@@ -15,8 +28,16 @@ type ExerciseLibraryState =
   | { status: 'loading' }
   | { status: 'ready'; value: ExerciseLibraryItem[] };
 
+type WorkoutListState =
+  | { status: 'error' }
+  | { status: 'loading' }
+  | { status: 'ready'; value: WorkoutTemplateSummary[] };
+
+type ViewMode = 'library' | 'workouts';
+
 export function WorkoutsScreen() {
   const services = useAppServices();
+  const [viewMode, setViewMode] = useState<ViewMode>('workouts');
   const [query, setQuery] = useState('');
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string | null>(
     null,
@@ -28,15 +49,55 @@ export function WorkoutsScreen() {
   const [library, setLibrary] = useState<ExerciseLibraryState>({
     status: 'loading',
   });
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [workouts, setWorkouts] = useState<WorkoutListState>({
+    status: 'loading',
+  });
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const [isExerciseCreateOpen, setIsExerciseCreateOpen] = useState(false);
+  const [isWorkoutFormOpen, setIsWorkoutFormOpen] = useState(false);
+  const [editingWorkoutId, setEditingWorkoutId] = useState<string | null>(null);
+  const [workoutName, setWorkoutName] = useState('');
+  const [workoutDescription, setWorkoutDescription] = useState('');
+  const [selectedWorkoutExerciseIds, setSelectedWorkoutExerciseIds] = useState<
+    string[]
+  >([]);
+  const [targetSets, setTargetSets] = useState('3');
+  const [targetRepsMin, setTargetRepsMin] = useState('8');
+  const [targetRepsMax, setTargetRepsMax] = useState('12');
+  const [targetWeightKg, setTargetWeightKg] = useState('');
+  const [defaultRestSeconds, setDefaultRestSeconds] = useState('90');
+  const [workoutFormError, setWorkoutFormError] = useState<string | null>(null);
   const [createName, setCreateName] = useState('');
   const [createMuscleGroup, setCreateMuscleGroup] = useState('');
   const [createEquipment, setCreateEquipment] = useState('');
   const [createDescription, setCreateDescription] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
+  const [exerciseFormError, setExerciseFormError] = useState<string | null>(
+    null,
+  );
   const [pendingExerciseId, setPendingExerciseId] = useState<string | null>(
     null,
   );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    services.workouts
+      .list(includeArchived)
+      .then((value) => {
+        if (isMounted) {
+          setWorkouts({ status: 'ready', value });
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setWorkouts({ status: 'error' });
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [includeArchived, services]);
 
   useEffect(() => {
     let isMounted = true;
@@ -75,8 +136,14 @@ export function WorkoutsScreen() {
     setLibrary({ status: 'ready', value });
   };
 
+  const refreshWorkouts = async () => {
+    const value = await services.workouts.list(includeArchived);
+
+    setWorkouts({ status: 'ready', value });
+  };
+
   const handleCreateExercise = async () => {
-    setFormError(null);
+    setExerciseFormError(null);
 
     try {
       await services.exerciseLibrary.create({
@@ -89,10 +156,12 @@ export function WorkoutsScreen() {
       setCreateMuscleGroup('');
       setCreateEquipment('');
       setCreateDescription('');
-      setIsCreateOpen(false);
+      setIsExerciseCreateOpen(false);
       await refreshLibrary();
     } catch {
-      setFormError('Informe nome e grupo muscular com pelo menos 2 letras.');
+      setExerciseFormError(
+        'Informe nome e grupo muscular com pelo menos 2 letras.',
+      );
     }
   };
 
@@ -107,148 +176,492 @@ export function WorkoutsScreen() {
     }
   };
 
+  const handleToggleWorkoutExercise = (exerciseId: string) => {
+    setSelectedWorkoutExerciseIds((selectedIds) =>
+      selectedIds.includes(exerciseId)
+        ? selectedIds.filter((selectedId) => selectedId !== exerciseId)
+        : [...selectedIds, exerciseId],
+    );
+  };
+
+  const openCreateWorkoutForm = () => {
+    setEditingWorkoutId(null);
+    setWorkoutName('');
+    setWorkoutDescription('');
+    setSelectedWorkoutExerciseIds([]);
+    setTargetSets('3');
+    setTargetRepsMin('8');
+    setTargetRepsMax('12');
+    setTargetWeightKg('');
+    setDefaultRestSeconds('90');
+    setWorkoutFormError(null);
+    setIsWorkoutFormOpen((isOpen) => !isOpen);
+  };
+
+  const openEditWorkoutForm = (workout: WorkoutTemplateSummary) => {
+    const firstExercise = workout.exercises[0];
+
+    setEditingWorkoutId(workout.id);
+    setWorkoutName(workout.name);
+    setWorkoutDescription(workout.description ?? '');
+    setSelectedWorkoutExerciseIds(
+      workout.exercises.map((exercise) => exercise.exerciseId),
+    );
+    setTargetSets(formatOptionalNumber(firstExercise?.targetSets, '3'));
+    setTargetRepsMin(formatOptionalNumber(firstExercise?.targetRepsMin, '8'));
+    setTargetRepsMax(formatOptionalNumber(firstExercise?.targetRepsMax, '12'));
+    setTargetWeightKg(formatOptionalNumber(firstExercise?.targetWeightKg, ''));
+    setDefaultRestSeconds(
+      formatOptionalNumber(firstExercise?.defaultRestSeconds, '90'),
+    );
+    setWorkoutFormError(null);
+    setIsWorkoutFormOpen(true);
+  };
+
+  const handleSaveWorkout = async () => {
+    setWorkoutFormError(null);
+
+    if (selectedWorkoutExerciseIds.length === 0) {
+      setWorkoutFormError('Selecione pelo menos um exercicio.');
+      return;
+    }
+
+    const exercises = selectedWorkoutExerciseIds.map(
+      (exerciseId): WorkoutExercisePlanInput => ({
+        defaultRestSeconds: parseOptionalNumber(defaultRestSeconds),
+        exerciseId,
+        targetRepsMax: parseOptionalNumber(targetRepsMax),
+        targetRepsMin: parseOptionalNumber(targetRepsMin),
+        targetSets: parseOptionalNumber(targetSets),
+        targetWeightKg: parseOptionalNumber(targetWeightKg),
+      }),
+    );
+
+    try {
+      if (editingWorkoutId) {
+        await services.workouts.update(editingWorkoutId, {
+          description: workoutDescription,
+          exercises,
+          name: workoutName,
+        });
+      } else {
+        await services.workouts.create({
+          description: workoutDescription,
+          exercises,
+          name: workoutName,
+        });
+      }
+
+      setIsWorkoutFormOpen(false);
+      setEditingWorkoutId(null);
+      await refreshWorkouts();
+    } catch {
+      setWorkoutFormError('Revise nome, exercicios e metas planejadas.');
+    }
+  };
+
+  const handleDuplicateWorkout = async (workoutId: string) => {
+    await services.workouts.duplicate(workoutId);
+    await refreshWorkouts();
+  };
+
+  const handleArchiveWorkout = async (
+    workoutId: string,
+    isArchived: boolean,
+  ) => {
+    await services.workouts.archive(workoutId, !isArchived);
+    await refreshWorkouts();
+  };
+
+  const handleDeleteWorkout = async (workoutId: string) => {
+    await services.workouts.delete(workoutId);
+    await refreshWorkouts();
+  };
+
   const exerciseCount = library.status === 'ready' ? library.value.length : 0;
+  const workoutCount = workouts.status === 'ready' ? workouts.value.length : 0;
 
   return (
     <AppScreen
       action={
         <Pressable
           accessibilityRole="button"
-          onPress={() => setIsCreateOpen((value) => !value)}
+          onPress={
+            viewMode === 'workouts'
+              ? openCreateWorkoutForm
+              : () => setIsExerciseCreateOpen((value) => !value)
+          }
           style={styles.iconButton}
         >
           <Plus color={colors.surface} size={20} strokeWidth={2.4} />
         </Pressable>
       }
       eyebrow="Treinos"
-      title="Biblioteca de exercicios"
+      title={
+        viewMode === 'workouts'
+          ? 'Templates de treino'
+          : 'Biblioteca de exercicios'
+      }
     >
-      <Section title="Encontrar exercicio">
-        <View style={styles.searchBox}>
-          <Search color={colors.textSubtle} size={18} strokeWidth={2.2} />
-          <TextInput
-            accessibilityLabel="Buscar exercicios"
-            onChangeText={setQuery}
-            placeholder="Buscar por nome, grupo ou equipamento"
-            placeholderTextColor={colors.textSubtle}
-            style={styles.searchInput}
-            value={query}
-          />
-        </View>
-        <FilterRow
-          label="Grupo"
-          onSelect={setSelectedMuscleGroup}
-          options={muscleGroups}
-          selectedValue={selectedMuscleGroup}
+      <View style={styles.segmentedControl}>
+        <SegmentButton
+          isActive={viewMode === 'workouts'}
+          label="Treinos"
+          onPress={() => setViewMode('workouts')}
         />
-        <FilterRow
-          label="Equipamento"
-          onSelect={setSelectedEquipment}
-          options={equipmentOptions}
-          selectedValue={selectedEquipment}
+        <SegmentButton
+          isActive={viewMode === 'library'}
+          label="Exercicios"
+          onPress={() => setViewMode('library')}
         />
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setFavoritesOnly((value) => !value)}
-          style={[styles.favoriteFilter, favoritesOnly && styles.activeChip]}
-        >
-          <Star
-            color={favoritesOnly ? colors.surface : colors.accent}
-            fill={favoritesOnly ? colors.surface : 'transparent'}
-            size={16}
-          />
-          <Text
-            style={[
-              styles.favoriteFilterText,
-              favoritesOnly && styles.activeChipText,
-            ]}
-          >
-            Somente favoritos
-          </Text>
-        </Pressable>
-      </Section>
+      </View>
 
-      {isCreateOpen ? (
-        <Section title="Criar exercicio">
-          <View style={styles.formPanel}>
-            <TextInput
-              accessibilityLabel="Nome do exercicio"
-              onChangeText={setCreateName}
-              placeholder="Nome"
-              placeholderTextColor={colors.textSubtle}
-              style={styles.input}
-              value={createName}
-            />
-            <TextInput
-              accessibilityLabel="Grupo muscular principal"
-              onChangeText={setCreateMuscleGroup}
-              placeholder="Grupo muscular principal"
-              placeholderTextColor={colors.textSubtle}
-              style={styles.input}
-              value={createMuscleGroup}
-            />
-            <TextInput
-              accessibilityLabel="Equipamento"
-              onChangeText={setCreateEquipment}
-              placeholder="Equipamento opcional"
-              placeholderTextColor={colors.textSubtle}
-              style={styles.input}
-              value={createEquipment}
-            />
-            <TextInput
-              accessibilityLabel="Instrucao do exercicio"
-              multiline
-              onChangeText={setCreateDescription}
-              placeholder="Instrucao opcional"
-              placeholderTextColor={colors.textSubtle}
-              style={[styles.input, styles.textArea]}
-              value={createDescription}
-            />
-            {formError ? (
-              <Text style={styles.errorText}>{formError}</Text>
-            ) : null}
+      {viewMode === 'workouts' ? (
+        <>
+          <Section title="Editor">
             <Pressable
               accessibilityRole="button"
-              onPress={handleCreateExercise}
+              onPress={openCreateWorkoutForm}
               style={styles.primaryButton}
             >
-              <Text style={styles.primaryButtonText}>Salvar exercicio</Text>
+              <Text style={styles.primaryButtonText}>
+                {isWorkoutFormOpen ? 'Fechar editor' : 'Novo treino'}
+              </Text>
             </Pressable>
-          </View>
-        </Section>
-      ) : null}
-
-      <Section title={`Resultados (${exerciseCount})`}>
-        {library.status === 'loading' ? (
-          <EmptyState
-            body="Carregando o catalogo local de exercicios."
-            title="Buscando biblioteca"
-          />
-        ) : null}
-        {library.status === 'error' ? (
-          <EmptyState
-            body="Nao foi possivel carregar a biblioteca local."
-            title="Erro ao carregar"
-          />
-        ) : null}
-        {library.status === 'ready' && library.value.length === 0 ? (
-          <EmptyState
-            body="Ajuste os filtros ou crie um exercicio proprio."
-            title="Nenhum exercicio encontrado"
-          />
-        ) : null}
-        {library.status === 'ready'
-          ? library.value.map((exercise) => (
-              <ExerciseRow
-                exercise={exercise}
-                isPending={pendingExerciseId === exercise.id}
-                key={exercise.id}
-                onToggleFavorite={handleToggleFavorite}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setIncludeArchived((value) => !value)}
+              style={[
+                styles.favoriteFilter,
+                includeArchived && styles.activeChip,
+              ]}
+            >
+              <Archive
+                color={includeArchived ? colors.surface : colors.accent}
+                size={16}
               />
-            ))
-          : null}
-      </Section>
+              <Text
+                style={[
+                  styles.favoriteFilterText,
+                  includeArchived && styles.activeChipText,
+                ]}
+              >
+                Mostrar arquivados
+              </Text>
+            </Pressable>
+          </Section>
+
+          {isWorkoutFormOpen ? (
+            <Section
+              title={editingWorkoutId ? 'Editar treino' : 'Criar treino'}
+            >
+              <View style={styles.formPanel}>
+                <TextInput
+                  accessibilityLabel="Nome do treino"
+                  onChangeText={setWorkoutName}
+                  placeholder="Nome do treino"
+                  placeholderTextColor={colors.textSubtle}
+                  style={styles.input}
+                  value={workoutName}
+                />
+                <TextInput
+                  accessibilityLabel="Descricao do treino"
+                  onChangeText={setWorkoutDescription}
+                  placeholder="Descricao opcional"
+                  placeholderTextColor={colors.textSubtle}
+                  style={styles.input}
+                  value={workoutDescription}
+                />
+                <View style={styles.inlineInputs}>
+                  <NumberField
+                    label="Sets"
+                    onChangeText={setTargetSets}
+                    value={targetSets}
+                  />
+                  <NumberField
+                    label="Rep min"
+                    onChangeText={setTargetRepsMin}
+                    value={targetRepsMin}
+                  />
+                  <NumberField
+                    label="Rep max"
+                    onChangeText={setTargetRepsMax}
+                    value={targetRepsMax}
+                  />
+                </View>
+                <View style={styles.inlineInputs}>
+                  <NumberField
+                    label="Carga kg"
+                    onChangeText={setTargetWeightKg}
+                    value={targetWeightKg}
+                  />
+                  <NumberField
+                    label="Descanso s"
+                    onChangeText={setDefaultRestSeconds}
+                    value={defaultRestSeconds}
+                  />
+                </View>
+                <Text style={styles.filterLabel}>Exercicios do treino</Text>
+                <View style={styles.exercisePicker}>
+                  {library.status === 'ready'
+                    ? library.value.map((exercise) => {
+                        const isSelected = selectedWorkoutExerciseIds.includes(
+                          exercise.id,
+                        );
+
+                        return (
+                          <Pressable
+                            accessibilityRole="button"
+                            key={exercise.id}
+                            onPress={() =>
+                              handleToggleWorkoutExercise(exercise.id)
+                            }
+                            style={[
+                              styles.pickExerciseButton,
+                              isSelected && styles.activeChip,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.chipText,
+                                isSelected && styles.activeChipText,
+                              ]}
+                            >
+                              {exercise.name}
+                            </Text>
+                          </Pressable>
+                        );
+                      })
+                    : null}
+                </View>
+                {workoutFormError ? (
+                  <Text style={styles.errorText}>{workoutFormError}</Text>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={handleSaveWorkout}
+                  style={styles.primaryButton}
+                >
+                  <Text style={styles.primaryButtonText}>Salvar treino</Text>
+                </Pressable>
+              </View>
+            </Section>
+          ) : null}
+
+          <Section title={`Treinos salvos (${workoutCount})`}>
+            {workouts.status === 'loading' ? (
+              <EmptyState
+                body="Carregando templates locais."
+                title="Buscando treinos"
+              />
+            ) : null}
+            {workouts.status === 'error' ? (
+              <EmptyState
+                body="Nao foi possivel carregar os treinos locais."
+                title="Erro ao carregar"
+              />
+            ) : null}
+            {workouts.status === 'ready' && workouts.value.length === 0 ? (
+              <EmptyState
+                body="Crie seu primeiro treino e escolha os exercicios planejados."
+                title="Nenhum treino salvo"
+              />
+            ) : null}
+            {workouts.status === 'ready'
+              ? workouts.value.map((workout) => (
+                  <WorkoutRow
+                    key={workout.id}
+                    onArchive={handleArchiveWorkout}
+                    onDelete={handleDeleteWorkout}
+                    onDuplicate={handleDuplicateWorkout}
+                    onEdit={openEditWorkoutForm}
+                    workout={workout}
+                  />
+                ))
+              : null}
+          </Section>
+        </>
+      ) : (
+        <>
+          <Section title="Encontrar exercicio">
+            <View style={styles.searchBox}>
+              <Search color={colors.textSubtle} size={18} strokeWidth={2.2} />
+              <TextInput
+                accessibilityLabel="Buscar exercicios"
+                onChangeText={setQuery}
+                placeholder="Buscar por nome, grupo ou equipamento"
+                placeholderTextColor={colors.textSubtle}
+                style={styles.searchInput}
+                value={query}
+              />
+            </View>
+            <FilterRow
+              label="Grupo"
+              onSelect={setSelectedMuscleGroup}
+              options={muscleGroups}
+              selectedValue={selectedMuscleGroup}
+            />
+            <FilterRow
+              label="Equipamento"
+              onSelect={setSelectedEquipment}
+              options={equipmentOptions}
+              selectedValue={selectedEquipment}
+            />
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setFavoritesOnly((value) => !value)}
+              style={[
+                styles.favoriteFilter,
+                favoritesOnly && styles.activeChip,
+              ]}
+            >
+              <Star
+                color={favoritesOnly ? colors.surface : colors.accent}
+                fill={favoritesOnly ? colors.surface : 'transparent'}
+                size={16}
+              />
+              <Text
+                style={[
+                  styles.favoriteFilterText,
+                  favoritesOnly && styles.activeChipText,
+                ]}
+              >
+                Somente favoritos
+              </Text>
+            </Pressable>
+          </Section>
+
+          {isExerciseCreateOpen ? (
+            <Section title="Criar exercicio">
+              <View style={styles.formPanel}>
+                <TextInput
+                  accessibilityLabel="Nome do exercicio"
+                  onChangeText={setCreateName}
+                  placeholder="Nome"
+                  placeholderTextColor={colors.textSubtle}
+                  style={styles.input}
+                  value={createName}
+                />
+                <TextInput
+                  accessibilityLabel="Grupo muscular principal"
+                  onChangeText={setCreateMuscleGroup}
+                  placeholder="Grupo muscular principal"
+                  placeholderTextColor={colors.textSubtle}
+                  style={styles.input}
+                  value={createMuscleGroup}
+                />
+                <TextInput
+                  accessibilityLabel="Equipamento"
+                  onChangeText={setCreateEquipment}
+                  placeholder="Equipamento opcional"
+                  placeholderTextColor={colors.textSubtle}
+                  style={styles.input}
+                  value={createEquipment}
+                />
+                <TextInput
+                  accessibilityLabel="Instrucao do exercicio"
+                  multiline
+                  onChangeText={setCreateDescription}
+                  placeholder="Instrucao opcional"
+                  placeholderTextColor={colors.textSubtle}
+                  style={[styles.input, styles.textArea]}
+                  value={createDescription}
+                />
+                {exerciseFormError ? (
+                  <Text style={styles.errorText}>{exerciseFormError}</Text>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={handleCreateExercise}
+                  style={styles.primaryButton}
+                >
+                  <Text style={styles.primaryButtonText}>Salvar exercicio</Text>
+                </Pressable>
+              </View>
+            </Section>
+          ) : null}
+
+          <Section title={`Resultados (${exerciseCount})`}>
+            {library.status === 'loading' ? (
+              <EmptyState
+                body="Carregando o catalogo local de exercicios."
+                title="Buscando biblioteca"
+              />
+            ) : null}
+            {library.status === 'error' ? (
+              <EmptyState
+                body="Nao foi possivel carregar a biblioteca local."
+                title="Erro ao carregar"
+              />
+            ) : null}
+            {library.status === 'ready' && library.value.length === 0 ? (
+              <EmptyState
+                body="Ajuste os filtros ou crie um exercicio proprio."
+                title="Nenhum exercicio encontrado"
+              />
+            ) : null}
+            {library.status === 'ready'
+              ? library.value.map((exercise) => (
+                  <ExerciseRow
+                    exercise={exercise}
+                    isPending={pendingExerciseId === exercise.id}
+                    key={exercise.id}
+                    onToggleFavorite={handleToggleFavorite}
+                  />
+                ))
+              : null}
+          </Section>
+        </>
+      )}
     </AppScreen>
+  );
+}
+
+type SegmentButtonProps = {
+  isActive: boolean;
+  label: string;
+  onPress: () => void;
+};
+
+function SegmentButton({ isActive, label, onPress }: SegmentButtonProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={[styles.segmentButton, isActive && styles.activeSegmentButton]}
+    >
+      <Text
+        style={[
+          styles.segmentButtonText,
+          isActive && styles.activeSegmentButtonText,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+type NumberFieldProps = {
+  label: string;
+  onChangeText: (value: string) => void;
+  value: string;
+};
+
+function NumberField({ label, onChangeText, value }: NumberFieldProps) {
+  return (
+    <View style={styles.numberField}>
+      <Text style={styles.filterLabel}>{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        keyboardType="numeric"
+        onChangeText={onChangeText}
+        placeholder="-"
+        placeholderTextColor={colors.textSubtle}
+        style={styles.input}
+        value={value}
+      />
+    </View>
   );
 }
 
@@ -287,6 +700,70 @@ function FilterRow({
             </Pressable>
           );
         })}
+      </View>
+    </View>
+  );
+}
+
+type WorkoutRowProps = {
+  onArchive: (workoutId: string, isArchived: boolean) => void;
+  onDelete: (workoutId: string) => void;
+  onDuplicate: (workoutId: string) => void;
+  onEdit: (workout: WorkoutTemplateSummary) => void;
+  workout: WorkoutTemplateSummary;
+};
+
+function WorkoutRow({
+  onArchive,
+  onDelete,
+  onDuplicate,
+  onEdit,
+  workout,
+}: WorkoutRowProps) {
+  return (
+    <View style={styles.workoutRow}>
+      <View style={styles.exerciseBody}>
+        <View style={styles.exerciseTitleRow}>
+          <Text style={styles.exerciseName}>{workout.name}</Text>
+          <Text style={styles.sourceLabel}>
+            {workout.isArchived ? 'Arquivado' : 'Ativo'}
+          </Text>
+        </View>
+        {workout.description ? (
+          <Text style={styles.exerciseDescription}>{workout.description}</Text>
+        ) : null}
+        <Text style={styles.exerciseMeta}>
+          {workout.exerciseCount} exercicio
+          {workout.exerciseCount === 1 ? '' : 's'}
+        </Text>
+        {workout.exercises.map((exercise) => (
+          <Text key={exercise.id} style={styles.exerciseDescription}>
+            {exercise.position + 1}. {exercise.exerciseName}
+            {formatPlan(exercise)}
+          </Text>
+        ))}
+      </View>
+      <View style={styles.rowActions}>
+        <IconAction
+          icon={<PenLine color={colors.accent} size={18} />}
+          label="Editar"
+          onPress={() => onEdit(workout)}
+        />
+        <IconAction
+          icon={<Copy color={colors.accent} size={18} />}
+          label="Duplicar"
+          onPress={() => onDuplicate(workout.id)}
+        />
+        <IconAction
+          icon={<Archive color={colors.accent} size={18} />}
+          label={workout.isArchived ? 'Reativar' : 'Arquivar'}
+          onPress={() => onArchive(workout.id, workout.isArchived)}
+        />
+        <IconAction
+          icon={<Trash2 color={colors.danger} size={18} />}
+          label="Excluir"
+          onPress={() => onDelete(workout.id)}
+        />
       </View>
     </View>
   );
@@ -338,12 +815,73 @@ function ExerciseRow({
   );
 }
 
+type IconActionProps = {
+  icon: ReactNode;
+  label: string;
+  onPress: () => void;
+};
+
+function IconAction({ icon, label, onPress }: IconActionProps) {
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={styles.favoriteButton}
+    >
+      {icon}
+    </Pressable>
+  );
+}
+
+function formatOptionalNumber(
+  value: number | null | undefined,
+  fallback: string,
+) {
+  return typeof value === 'number' ? String(value) : fallback;
+}
+
+function formatPlan(exercise: WorkoutTemplateSummary['exercises'][number]) {
+  const targetSets = exercise.targetSets ? `${exercise.targetSets}x` : '';
+  const targetReps =
+    exercise.targetRepsMin && exercise.targetRepsMax
+      ? `${exercise.targetRepsMin}-${exercise.targetRepsMax}`
+      : '';
+  const rest = exercise.defaultRestSeconds
+    ? `, ${exercise.defaultRestSeconds}s`
+    : '';
+
+  if (!targetSets && !targetReps && !rest) {
+    return '';
+  }
+
+  return ` (${targetSets}${targetReps}${rest})`;
+}
+
+function parseOptionalNumber(value: string) {
+  const normalized = value.trim().replace(',', '.');
+
+  if (!normalized) {
+    return null;
+  }
+
+  const parsed = Number(normalized);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 const styles = StyleSheet.create({
   activeChip: {
     backgroundColor: colors.accent,
     borderColor: colors.accent,
   },
   activeChipText: {
+    color: colors.surface,
+  },
+  activeSegmentButton: {
+    backgroundColor: colors.accent,
+  },
+  activeSegmentButtonText: {
     color: colors.surface,
   },
   chip: {
@@ -384,6 +922,11 @@ const styles = StyleSheet.create({
     ...typography.subtitle,
     color: colors.text,
     flex: 1,
+  },
+  exercisePicker: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   exerciseRow: {
     alignItems: 'center',
@@ -450,6 +993,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 44,
   },
+  inlineInputs: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
   input: {
     ...typography.body,
     backgroundColor: colors.background,
@@ -457,6 +1004,17 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     color: colors.text,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  numberField: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  pickExerciseButton: {
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
@@ -471,6 +1029,13 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.surface,
     fontWeight: '800',
+  },
+  rowActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    justifyContent: 'flex-end',
+    width: 92,
   },
   searchBox: {
     alignItems: 'center',
@@ -490,6 +1055,26 @@ const styles = StyleSheet.create({
     minHeight: 42,
     padding: 0,
   },
+  segmentButton: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    flex: 1,
+    paddingVertical: spacing.sm,
+  },
+  segmentButtonText: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '800',
+  },
+  segmentedControl: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    padding: spacing.xs,
+  },
   sourceLabel: {
     ...typography.caption,
     backgroundColor: colors.successSoft,
@@ -502,5 +1087,15 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 76,
     textAlignVertical: 'top',
+  },
+  workoutRow: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: spacing.md,
   },
 });
