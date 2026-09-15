@@ -6,6 +6,12 @@ Use a secure modern authentication mechanism appropriate to the selected backend
 
 Use platform secure storage for credentials/session secrets.
 
+FF-008 introduces authentication behind application ports:
+- `AuthRemoteGateway` owns register, login, refresh and logout calls.
+- `SecureSessionStorage` is the only application contract allowed to persist session secrets.
+- The preview implementation is in-memory only and does not use AsyncStorage.
+- A production adapter must back `SecureSessionStorage` with platform secure storage before release builds.
+
 ## Authorization
 
 Every server query/mutation must be scoped to the authenticated user.
