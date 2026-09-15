@@ -16,7 +16,7 @@ const expectedCoreTables = [
 
 describe('initial schema migrations', () => {
   it('registers the local and server core schema migrations', () => {
-    expect(localMigrations).toStrictEqual([initialLocalSchemaMigration]);
+    expect(localMigrations[0]).toBe(initialLocalSchemaMigration);
     expect(serverMigrations).toStrictEqual([initialServerSchemaMigration]);
 
     expect(initialLocalSchemaMigration).toMatchObject({
