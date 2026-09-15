@@ -44,6 +44,10 @@ cases. Workout composition is handled by later workout CRUD issues.
 - Save as template
 - Start workout
 
+FF-011 implements workout template CRUD: create, edit, duplicate, archive,
+soft delete, add/reorder/remove exercises, and planned targets for sets, reps,
+weight and rest. Starting an active workout remains scoped to FF-012.
+
 ### Active workout
 For each set:
 - set number
