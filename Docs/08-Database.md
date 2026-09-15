@@ -319,3 +319,19 @@ Both local and server databases keep an internal `schema_migrations` ledger with
 - `applied_at`
 
 The runner refuses checksum drift and unknown applied migrations so schema changes remain deterministic. FF-003 only establishes the migration system; entity tables are introduced by later schema issues.
+
+## Initial schema migration
+
+FF-004 introduces the first local and server schema migrations for the core training model:
+- `users`
+- `user_profiles`
+- `exercises`
+- `workouts`
+- `workout_exercises`
+- `workout_sessions`
+- `session_exercises`
+- `sets`
+
+Both SQLite and PostgreSQL migrations use the same table names and relationship shape. Local SQLite stores UUIDs and timestamps as `TEXT`, boolean flags as checked integers, and `secondary_muscle_groups` as JSON text. Server PostgreSQL stores UUIDs as `UUID`, timestamps as `TIMESTAMPTZ`, boolean flags as `BOOLEAN`, and `secondary_muscle_groups` as `TEXT[]`.
+
+FF-004 intentionally does not add local sync metadata tables. `sync_operations` and `sync_state` remain reserved for FF-005.

@@ -15,6 +15,9 @@ describe('createSQLiteMigrationExecutor', () => {
     });
 
     expect(connection.execAsync).toHaveBeenCalledWith(
+      'PRAGMA foreign_keys = ON;',
+    );
+    expect(connection.execAsync).toHaveBeenCalledWith(
       expect.stringContaining('CREATE TABLE IF NOT EXISTS schema_migrations'),
     );
     expect(connection.runAsync).toHaveBeenCalledWith(

@@ -18,15 +18,17 @@ export function createSQLiteMigrationExecutor(
   database: SQLiteMigrationConnection,
 ): MigrationExecutor {
   return {
-    ensureMigrationTable: () =>
-      database.execAsync(`
+    ensureMigrationTable: async () => {
+      await database.execAsync('PRAGMA foreign_keys = ON;');
+      await database.execAsync(`
         CREATE TABLE IF NOT EXISTS schema_migrations (
           id TEXT PRIMARY KEY NOT NULL,
           name TEXT NOT NULL,
           checksum TEXT NOT NULL,
           applied_at TEXT NOT NULL
         );
-      `),
+      `);
+    },
     execute: (statement) => database.execAsync(statement),
     getAppliedMigrations: () =>
       database.getAllAsync<SQLiteAppliedMigrationRow>(`

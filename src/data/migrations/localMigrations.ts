@@ -1,3 +1,6 @@
 import type { MigrationDefinition } from './types';
+import { initialLocalSchemaMigration } from './initialLocalSchemaMigration';
 
-export const localMigrations = [] satisfies readonly MigrationDefinition[];
+export const localMigrations = [
+  initialLocalSchemaMigration,
+] satisfies readonly MigrationDefinition[];
