@@ -28,6 +28,12 @@ Pure domain logic:
 - deletion/tombstone
 - photo upload retry
 
+FF-007 adds the first recovery-focused sync tests around the application sync use case:
+- offline writes stay pending after network failure and complete after reconnect
+- timeout after a server-side apply can be retried with the same operation ID
+- duplicate local operation IDs collapse before sync
+- pulled server changes advance the cursor and do not duplicate on a later reconnect
+
 ## End-to-end
 
 Critical journeys:
