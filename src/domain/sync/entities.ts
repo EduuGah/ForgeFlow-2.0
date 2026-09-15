@@ -8,8 +8,12 @@ export type SyncEntityType =
   | 'meal'
   | 'media'
   | 'notification_preference'
+  | 'session_exercise'
   | 'set'
+  | 'user'
+  | 'user_profile'
   | 'workout'
+  | 'workout_exercise'
   | 'workout_session';
 
 export type SyncOperationType = 'delete' | 'upsert';
@@ -34,5 +38,6 @@ export type SyncState = {
   key: string;
   lastError: string | null;
   lastSuccessAt: ISODateTimeString | null;
+  scope: string;
   serverCursor: string | null;
 };

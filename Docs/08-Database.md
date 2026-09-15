@@ -335,3 +335,13 @@ FF-004 introduces the first local and server schema migrations for the core trai
 Both SQLite and PostgreSQL migrations use the same table names and relationship shape. Local SQLite stores UUIDs and timestamps as `TEXT`, boolean flags as checked integers, and `secondary_muscle_groups` as JSON text. Server PostgreSQL stores UUIDs as `UUID`, timestamps as `TIMESTAMPTZ`, boolean flags as `BOOLEAN`, and `secondary_muscle_groups` as `TEXT[]`.
 
 FF-004 intentionally does not add local sync metadata tables. `sync_operations` and `sync_state` remain reserved for FF-005.
+
+## Sync metadata migration
+
+FF-005 introduces local-only sync metadata:
+- `sync_operations`: the durable outbox for idempotent offline writes.
+- `sync_state`: per-scope cursor and last sync result storage.
+
+`sync_operations.operation_id` is the idempotency key sent to the server. Pending operation lookup is indexed by `status + created_at`, and entity lookup is indexed by `entity_type + entity_id`.
+
+`sync_state` uses `scope + key` as its primary key so different synchronization streams can keep independent cursors. The first protocol implementation is introduced later by FF-006.
