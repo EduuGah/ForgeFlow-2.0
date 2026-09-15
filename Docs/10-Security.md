@@ -18,6 +18,13 @@ Every server query/mutation must be scoped to the authenticated user.
 
 Never accept user_id as proof of ownership.
 
+FF-009 adds a server-side ownership policy:
+- authenticated principal is required before mutating user-owned data
+- ownership is derived from the authenticated principal, not from client payload
+- client-provided `user_id`, `userId`, `owner_user_id`, and `ownerUserId` cannot claim another user
+- mutations against existing records owned by another user are rejected
+- mutations against global/system records without user ownership are rejected by default
+
 ## Local data
 
 Workout data must remain usable offline. Sensitive data should use platform/database encryption where appropriate.
