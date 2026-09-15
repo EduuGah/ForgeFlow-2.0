@@ -30,6 +30,10 @@
 - Search/filter
 - Stable IDs
 
+FF-010 implements the first exercise library slice with a local system catalog,
+search/filter, favorites, and user-created exercises behind application use
+cases. Workout composition is handled by later workout CRUD issues.
+
 ### Workouts
 - Create/edit/delete
 - Duplicate

@@ -7,6 +7,7 @@ describe('local sync metadata migration', () => {
     expect(localMigrations.map((migration) => migration.id)).toStrictEqual([
       '0001_initial_core_schema',
       '0002_sync_metadata',
+      '0003_exercise_favorites',
     ]);
     expect(localSyncMetadataMigration).toMatchObject({
       id: '0002_sync_metadata',

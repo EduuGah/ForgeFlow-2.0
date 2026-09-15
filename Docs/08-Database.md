@@ -56,6 +56,11 @@ Global exercise catalog plus user-created records.
 
 Unique constraint: user_id + exercise_id.
 
+FF-010 introduces `exercise_favorites` through a versioned migration for both
+local SQLite and server PostgreSQL. Favorites are local-first records: toggling
+a favorite updates local state immediately and enqueues a sync operation for
+the favorite record.
+
 ### workouts
 Workout definitions/templates.
 - id UUID PK

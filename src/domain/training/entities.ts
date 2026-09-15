@@ -21,6 +21,13 @@ export type Exercise = TimestampedEntity &
     secondaryMuscleGroups: string[];
   };
 
+export type ExerciseFavorite = {
+  createdAt: ISODateTimeString;
+  exerciseId: EntityId;
+  id: EntityId;
+  userId: EntityId;
+};
+
 export type WorkoutExercise = TimestampedEntity &
   SoftDeletableEntity & {
     defaultRestSeconds: number | null;
