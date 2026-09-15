@@ -1,6 +1,6 @@
 import type { Goal } from '../../domain/goals/entities';
 import type { EntityId } from '../../domain/shared/types';
-import type { SyncOperation } from '../../domain/sync/entities';
+import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
   Exercise,
   WorkoutSession,
@@ -15,6 +15,7 @@ import type {
   ListWorkoutTemplatesParams,
   RepositoryProvider,
   SyncOperationRepository,
+  SyncStateRepository,
   WorkoutRepository,
   WorkoutSessionRepository,
 } from '../../application/ports/repositories';
@@ -23,6 +24,7 @@ export type InMemoryRepositorySeed = Partial<{
   exercises: Exercise[];
   goals: Goal[];
   syncOperations: SyncOperation[];
+  syncStates: SyncState[];
   workoutSessions: WorkoutSession[];
   workoutTemplates: WorkoutTemplate[];
 }>;
@@ -32,12 +34,14 @@ class InMemoryForgeFlowRepository
     ExerciseRepository,
     GoalRepository,
     SyncOperationRepository,
+    SyncStateRepository,
     WorkoutRepository,
     WorkoutSessionRepository
 {
   private exercises: Exercise[];
   private goals: Goal[];
   private syncOperations: SyncOperation[];
+  private syncStates: SyncState[];
   private workoutSessions: WorkoutSession[];
   private workoutTemplates: WorkoutTemplate[];
 
@@ -45,6 +49,7 @@ class InMemoryForgeFlowRepository
     this.exercises = seed.exercises ?? [];
     this.goals = seed.goals ?? [];
     this.syncOperations = seed.syncOperations ?? [];
+    this.syncStates = seed.syncStates ?? [];
     this.workoutSessions = seed.workoutSessions ?? [];
     this.workoutTemplates = seed.workoutTemplates ?? [];
   }
@@ -184,10 +189,48 @@ class InMemoryForgeFlowRepository
     );
   }
 
+  async getSyncState(scope: string, key: string) {
+    return clone(
+      this.syncStates.find(
+        (state) => state.scope === scope && state.key === key,
+      ) ?? null,
+    );
+  }
+
+  async markSyncOperationAttempted(operationId: EntityId, attemptedAt: string) {
+    this.syncOperations = this.syncOperations.map((operation) =>
+      operation.operationId === operationId
+        ? {
+            ...operation,
+            attemptCount: operation.attemptCount + 1,
+            lastAttemptAt: attemptedAt,
+            lastError: null,
+          }
+        : operation,
+    );
+  }
+
   async markSyncOperationCompleted(operationId: EntityId) {
     this.syncOperations = this.syncOperations.map((operation) =>
       operation.operationId === operationId
         ? { ...operation, status: 'completed' }
+        : operation,
+    );
+  }
+
+  async markSyncOperationFailed(
+    operationId: EntityId,
+    error: string,
+    attemptedAt: string,
+  ) {
+    this.syncOperations = this.syncOperations.map((operation) =>
+      operation.operationId === operationId
+        ? {
+            ...operation,
+            lastAttemptAt: attemptedAt,
+            lastError: error,
+            status: 'failed',
+          }
         : operation,
     );
   }
@@ -198,6 +241,13 @@ class InMemoryForgeFlowRepository
 
   async saveGoal(goal: Goal) {
     this.goals = upsertById(this.goals, goal, 'id');
+  }
+
+  async saveSyncState(state: SyncState) {
+    this.syncStates = upsertByCompositeKey(this.syncStates, state, [
+      'scope',
+      'key',
+    ]);
   }
 
   async saveWorkoutSession(session: WorkoutSession) {
@@ -218,6 +268,7 @@ export function createInMemoryRepositories(
     exercises: repository,
     goals: repository,
     syncOperations: repository,
+    syncState: repository,
     workoutSessions: repository,
     workouts: repository,
   };
@@ -233,6 +284,24 @@ function upsertById<T, TKey extends keyof T>(
   key: TKey,
 ) {
   const existingIndex = items.findIndex((item) => item[key] === nextItem[key]);
+
+  if (existingIndex === -1) {
+    return [...items, nextItem];
+  }
+
+  return items.map((item, index) =>
+    index === existingIndex ? nextItem : item,
+  );
+}
+
+function upsertByCompositeKey<T, TKey extends keyof T>(
+  items: T[],
+  nextItem: T,
+  keys: TKey[],
+) {
+  const existingIndex = items.findIndex((item) =>
+    keys.every((key) => item[key] === nextItem[key]),
+  );
 
   if (existingIndex === -1) {
     return [...items, nextItem];

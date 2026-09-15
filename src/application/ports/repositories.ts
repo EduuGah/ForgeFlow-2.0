@@ -1,6 +1,6 @@
 import type { Goal, GoalStatus } from '../../domain/goals/entities';
 import type { EntityId } from '../../domain/shared/types';
-import type { SyncOperation } from '../../domain/sync/entities';
+import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
   Exercise,
   WorkoutSession,
@@ -63,13 +63,28 @@ export interface SyncOperationRepository {
   countPendingSyncOperations(): Promise<number>;
   enqueueSyncOperation(operation: SyncOperation): Promise<void>;
   listPendingSyncOperations(limit?: number): Promise<SyncOperation[]>;
+  markSyncOperationAttempted(
+    operationId: EntityId,
+    attemptedAt: string,
+  ): Promise<void>;
   markSyncOperationCompleted(operationId: EntityId): Promise<void>;
+  markSyncOperationFailed(
+    operationId: EntityId,
+    error: string,
+    attemptedAt: string,
+  ): Promise<void>;
+}
+
+export interface SyncStateRepository {
+  getSyncState(scope: string, key: string): Promise<SyncState | null>;
+  saveSyncState(state: SyncState): Promise<void>;
 }
 
 export type RepositoryProvider = {
   exercises: ExerciseRepository;
   goals: GoalRepository;
   syncOperations: SyncOperationRepository;
+  syncState: SyncStateRepository;
   workoutSessions: WorkoutSessionRepository;
   workouts: WorkoutRepository;
 };
