@@ -21,6 +21,11 @@ import {
   updateWorkoutTemplate,
   type WorkoutTemplateInput,
 } from '../application/useCases/workoutCrud';
+import {
+  abandonActiveWorkout,
+  getActiveWorkout,
+  startWorkoutSession,
+} from '../application/useCases/workoutExecution';
 import { InMemoryAuthRemoteGateway } from '../data/auth/inMemoryAuthGateway';
 import { MemorySecureSessionStorage } from '../data/auth/memorySecureSessionStorage';
 import { createInMemoryRepositories } from '../data/repositories/inMemoryRepositories';
@@ -49,6 +54,17 @@ export function createAppServices() {
     repositories: {
       exercises: repositories.exercises,
       syncOperations: repositories.syncOperations,
+      workouts: repositories.workouts,
+    },
+  };
+  const workoutExecutionDependencies = {
+    clock: () => new Date().toISOString(),
+    generateId: createLocalUuid,
+    repositories: {
+      exercises: repositories.exercises,
+      sessionExercises: repositories.sessionExercises,
+      syncOperations: repositories.syncOperations,
+      workoutSessions: repositories.workoutSessions,
       workouts: repositories.workouts,
     },
   };
@@ -134,6 +150,23 @@ export function createAppServices() {
         updateWorkoutTemplate(
           { ...input, userId: LOCAL_PREVIEW_USER_ID, workoutId },
           workoutCrudDependencies,
+        ),
+    },
+    workoutExecution: {
+      abandonActive: () =>
+        abandonActiveWorkout(
+          { userId: LOCAL_PREVIEW_USER_ID },
+          workoutExecutionDependencies,
+        ),
+      getActive: () =>
+        getActiveWorkout(
+          { userId: LOCAL_PREVIEW_USER_ID },
+          workoutExecutionDependencies.repositories,
+        ),
+      start: (workoutId: string) =>
+        startWorkoutSession(
+          { userId: LOCAL_PREVIEW_USER_ID, workoutId },
+          workoutExecutionDependencies,
         ),
     },
   };

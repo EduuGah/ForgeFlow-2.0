@@ -4,6 +4,7 @@ import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
   Exercise,
   ExerciseFavorite,
+  SessionExercise,
   WorkoutSession,
   WorkoutTemplate,
 } from '../../domain/training/entities';
@@ -14,9 +15,11 @@ import type {
   GoalRepository,
   ListExercisesParams,
   ListGoalsParams,
+  ListSessionExercisesParams,
   ListWorkoutSessionsParams,
   ListWorkoutTemplatesParams,
   RepositoryProvider,
+  SessionExerciseRepository,
   SyncOperationRepository,
   SyncStateRepository,
   WorkoutRepository,
@@ -27,6 +30,7 @@ export type InMemoryRepositorySeed = Partial<{
   exerciseFavorites: ExerciseFavorite[];
   exercises: Exercise[];
   goals: Goal[];
+  sessionExercises: SessionExercise[];
   syncOperations: SyncOperation[];
   syncStates: SyncState[];
   workoutSessions: WorkoutSession[];
@@ -38,6 +42,7 @@ class InMemoryForgeFlowRepository
     ExerciseRepository,
     ExerciseFavoriteRepository,
     GoalRepository,
+    SessionExerciseRepository,
     SyncOperationRepository,
     SyncStateRepository,
     WorkoutRepository,
@@ -46,6 +51,7 @@ class InMemoryForgeFlowRepository
   private exerciseFavorites: ExerciseFavorite[];
   private exercises: Exercise[];
   private goals: Goal[];
+  private sessionExercises: SessionExercise[];
   private syncOperations: SyncOperation[];
   private syncStates: SyncState[];
   private workoutSessions: WorkoutSession[];
@@ -55,6 +61,7 @@ class InMemoryForgeFlowRepository
     this.exerciseFavorites = seed.exerciseFavorites ?? [];
     this.exercises = seed.exercises ?? [];
     this.goals = seed.goals ?? [];
+    this.sessionExercises = seed.sessionExercises ?? [];
     this.syncOperations = seed.syncOperations ?? [];
     this.syncStates = seed.syncStates ?? [];
     this.workoutSessions = seed.workoutSessions ?? [];
@@ -210,6 +217,22 @@ class InMemoryForgeFlowRepository
     return clone(typeof limit === 'number' ? pending.slice(0, limit) : pending);
   }
 
+  async listSessionExercises(params: ListSessionExercisesParams) {
+    return clone(
+      this.sessionExercises.filter((sessionExercise) => {
+        if (sessionExercise.sessionId !== params.sessionId) {
+          return false;
+        }
+
+        if (!params.includeDeleted && sessionExercise.deletedAt !== null) {
+          return false;
+        }
+
+        return true;
+      }),
+    );
+  }
+
   async listWorkoutSessions(params: ListWorkoutSessionsParams) {
     const sessions = this.workoutSessions
       .filter((session) => {
@@ -319,6 +342,14 @@ class InMemoryForgeFlowRepository
     this.goals = upsertById(this.goals, goal, 'id');
   }
 
+  async saveSessionExercise(sessionExercise: SessionExercise) {
+    this.sessionExercises = upsertById(
+      this.sessionExercises,
+      sessionExercise,
+      'id',
+    );
+  }
+
   async saveSyncState(state: SyncState) {
     this.syncStates = upsertByCompositeKey(this.syncStates, state, [
       'scope',
@@ -346,6 +377,7 @@ export function createInMemoryRepositories(
     goals: repository,
     syncOperations: repository,
     syncState: repository,
+    sessionExercises: repository,
     workoutSessions: repository,
     workouts: repository,
   };
