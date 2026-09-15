@@ -4,9 +4,11 @@ import {
   Archive,
   Copy,
   PenLine,
+  PlayCircle,
   Plus,
   Search,
   Star,
+  StopCircle,
   Trash2,
 } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -16,6 +18,7 @@ import type {
   WorkoutExercisePlanInput,
   WorkoutTemplateSummary,
 } from '../../application/useCases/workoutCrud';
+import type { ActiveWorkout } from '../../application/useCases/workoutExecution';
 import { useAppServices } from '../../composition/AppServicesProvider';
 import { AppScreen, EmptyState, Section } from '../components/AppScreen';
 import { colors, radius, spacing, typography } from '../theme/tokens';
@@ -32,6 +35,11 @@ type WorkoutListState =
   | { status: 'error' }
   | { status: 'loading' }
   | { status: 'ready'; value: WorkoutTemplateSummary[] };
+
+type ActiveWorkoutState =
+  | { status: 'error' }
+  | { status: 'loading' }
+  | { status: 'ready'; value: ActiveWorkout | null };
 
 type ViewMode = 'library' | 'workouts';
 
@@ -50,6 +58,9 @@ export function WorkoutsScreen() {
     status: 'loading',
   });
   const [workouts, setWorkouts] = useState<WorkoutListState>({
+    status: 'loading',
+  });
+  const [activeWorkout, setActiveWorkout] = useState<ActiveWorkoutState>({
     status: 'loading',
   });
   const [includeArchived, setIncludeArchived] = useState(false);
@@ -77,6 +88,7 @@ export function WorkoutsScreen() {
   const [pendingExerciseId, setPendingExerciseId] = useState<string | null>(
     null,
   );
+  const [pendingWorkoutId, setPendingWorkoutId] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -98,6 +110,27 @@ export function WorkoutsScreen() {
       isMounted = false;
     };
   }, [includeArchived, services]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    services.workoutExecution
+      .getActive()
+      .then((value) => {
+        if (isMounted) {
+          setActiveWorkout({ status: 'ready', value });
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setActiveWorkout({ status: 'error' });
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [services]);
 
   useEffect(() => {
     let isMounted = true;
@@ -140,6 +173,12 @@ export function WorkoutsScreen() {
     const value = await services.workouts.list(includeArchived);
 
     setWorkouts({ status: 'ready', value });
+  };
+
+  const refreshActiveWorkout = async () => {
+    const value = await services.workoutExecution.getActive();
+
+    setActiveWorkout({ status: 'ready', value });
   };
 
   const handleCreateExercise = async () => {
@@ -278,8 +317,26 @@ export function WorkoutsScreen() {
     await refreshWorkouts();
   };
 
+  const handleStartWorkout = async (workoutId: string) => {
+    setPendingWorkoutId(workoutId);
+
+    try {
+      await services.workoutExecution.start(workoutId);
+      await refreshActiveWorkout();
+    } finally {
+      setPendingWorkoutId(null);
+    }
+  };
+
+  const handleAbandonActiveWorkout = async () => {
+    await services.workoutExecution.abandonActive();
+    await refreshActiveWorkout();
+  };
+
   const exerciseCount = library.status === 'ready' ? library.value.length : 0;
   const workoutCount = workouts.status === 'ready' ? workouts.value.length : 0;
+  const hasActiveWorkout =
+    activeWorkout.status === 'ready' && activeWorkout.value !== null;
 
   return (
     <AppScreen
@@ -318,6 +375,56 @@ export function WorkoutsScreen() {
 
       {viewMode === 'workouts' ? (
         <>
+          <Section title="Treino ativo">
+            {activeWorkout.status === 'loading' ? (
+              <EmptyState
+                body="Carregando a sessao ativa local."
+                title="Buscando treino"
+              />
+            ) : null}
+            {activeWorkout.status === 'error' ? (
+              <EmptyState
+                body="Nao foi possivel carregar a sessao ativa."
+                title="Erro ao carregar"
+              />
+            ) : null}
+            {activeWorkout.status === 'ready' && !activeWorkout.value ? (
+              <EmptyState
+                body="Inicie um treino salvo para abrir a sessao ativa."
+                title="Nenhum treino em andamento"
+              />
+            ) : null}
+            {activeWorkout.status === 'ready' && activeWorkout.value ? (
+              <View style={styles.activeWorkoutPanel}>
+                <View style={styles.exerciseBody}>
+                  <Text style={styles.exerciseName}>
+                    {activeWorkout.value.workoutName ?? 'Treino livre'}
+                  </Text>
+                  <Text style={styles.exerciseMeta}>
+                    {activeWorkout.value.exerciseCount} exercicio
+                    {activeWorkout.value.exerciseCount === 1
+                      ? ''
+                      : 's'} desde{' '}
+                    {formatStartedAt(activeWorkout.value.startedAt)}
+                  </Text>
+                  {activeWorkout.value.exercises.map((exercise) => (
+                    <Text key={exercise.id} style={styles.exerciseDescription}>
+                      {exercise.position + 1}. {exercise.exerciseName}
+                    </Text>
+                  ))}
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={handleAbandonActiveWorkout}
+                  style={styles.dangerButton}
+                >
+                  <StopCircle color={colors.surface} size={18} />
+                  <Text style={styles.primaryButtonText}>Abandonar</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </Section>
+
           <Section title="Editor">
             <Pressable
               accessibilityRole="button"
@@ -475,6 +582,9 @@ export function WorkoutsScreen() {
                     onDelete={handleDeleteWorkout}
                     onDuplicate={handleDuplicateWorkout}
                     onEdit={openEditWorkoutForm}
+                    onStart={handleStartWorkout}
+                    isStartDisabled={hasActiveWorkout}
+                    pendingWorkoutId={pendingWorkoutId}
                     workout={workout}
                   />
                 ))
@@ -710,6 +820,9 @@ type WorkoutRowProps = {
   onDelete: (workoutId: string) => void;
   onDuplicate: (workoutId: string) => void;
   onEdit: (workout: WorkoutTemplateSummary) => void;
+  onStart: (workoutId: string) => void;
+  isStartDisabled: boolean;
+  pendingWorkoutId: string | null;
   workout: WorkoutTemplateSummary;
 };
 
@@ -718,6 +831,9 @@ function WorkoutRow({
   onDelete,
   onDuplicate,
   onEdit,
+  onStart,
+  isStartDisabled,
+  pendingWorkoutId,
   workout,
 }: WorkoutRowProps) {
   return (
@@ -744,6 +860,16 @@ function WorkoutRow({
         ))}
       </View>
       <View style={styles.rowActions}>
+        <IconAction
+          icon={<PlayCircle color={colors.accent} size={18} />}
+          isDisabled={
+            isStartDisabled ||
+            pendingWorkoutId === workout.id ||
+            workout.isArchived
+          }
+          label="Iniciar"
+          onPress={() => onStart(workout.id)}
+        />
         <IconAction
           icon={<PenLine color={colors.accent} size={18} />}
           label="Editar"
@@ -817,17 +943,24 @@ function ExerciseRow({
 
 type IconActionProps = {
   icon: ReactNode;
+  isDisabled?: boolean;
   label: string;
   onPress: () => void;
 };
 
-function IconAction({ icon, label, onPress }: IconActionProps) {
+function IconAction({
+  icon,
+  isDisabled = false,
+  label,
+  onPress,
+}: IconActionProps) {
   return (
     <Pressable
       accessibilityLabel={label}
       accessibilityRole="button"
+      disabled={isDisabled}
       onPress={onPress}
-      style={styles.favoriteButton}
+      style={[styles.favoriteButton, isDisabled && styles.disabledButton]}
     >
       {icon}
     </Pressable>
@@ -839,6 +972,13 @@ function formatOptionalNumber(
   fallback: string,
 ) {
   return typeof value === 'number' ? String(value) : fallback;
+}
+
+function formatStartedAt(value: string) {
+  return new Date(value).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function formatPlan(exercise: WorkoutTemplateSummary['exercises'][number]) {
@@ -871,6 +1011,16 @@ function parseOptionalNumber(value: string) {
 }
 
 const styles = StyleSheet.create({
+  activeWorkoutPanel: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.successSoft,
+    borderColor: colors.success,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: spacing.md,
+  },
   activeChip: {
     backgroundColor: colors.accent,
     borderColor: colors.accent,
@@ -900,6 +1050,18 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.text,
     fontWeight: '800',
+  },
+  dangerButton: {
+    alignItems: 'center',
+    backgroundColor: colors.danger,
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  disabledButton: {
+    opacity: 0.45,
   },
   errorText: {
     ...typography.caption,

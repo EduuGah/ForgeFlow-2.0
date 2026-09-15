@@ -61,6 +61,10 @@ For each set:
 
 The active workout must survive app restarts and temporary offline periods.
 
+FF-012 implements starting a workout from a saved template, creating an active
+session with exercise snapshots, recovering the active session from local state
+and abandoning it without deleting local data. Set logging is scoped to FF-013.
+
 ### History
 - Completed workouts
 - Date/time
