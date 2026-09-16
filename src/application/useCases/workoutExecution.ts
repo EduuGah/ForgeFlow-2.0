@@ -26,6 +26,7 @@ export type ActiveWorkoutSet = {
 };
 
 export type ActiveWorkoutExercise = {
+  defaultRestSeconds: number | null;
   exerciseId: EntityId;
   exerciseName: string;
   id: EntityId;
@@ -458,6 +459,11 @@ async function summarizeActiveWorkout(
     sessionExerciseIds: sessionExercises.map((exercise) => exercise.id),
   });
   const setsBySessionExerciseId = groupSetsBySessionExerciseId(sets);
+  const defaultRestSecondsByExerciseId = new Map(
+    (workout?.exercises ?? [])
+      .filter((exercise) => exercise.deletedAt === null)
+      .map((exercise) => [exercise.exerciseId, exercise.defaultRestSeconds]),
+  );
   const exercises = sessionExercises
     .filter((exercise) => exercise.deletedAt === null)
     .sort((left, right) => left.position - right.position)
@@ -467,6 +473,8 @@ async function summarizeActiveWorkout(
         .sort((left, right) => left.setNumber - right.setNumber);
 
       return {
+        defaultRestSeconds:
+          defaultRestSecondsByExerciseId.get(exercise.exerciseId) ?? null,
         exerciseId: exercise.exerciseId,
         exerciseName:
           (exercisesById.get(exercise.exerciseId) as Exercise | undefined)
