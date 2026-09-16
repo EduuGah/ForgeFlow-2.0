@@ -70,6 +70,7 @@ describe('workout execution use cases', () => {
       exerciseCount: 2,
       exercises: [
         {
+          defaultRestSeconds: 90,
           exerciseId: benchPress.id,
           exerciseName: benchPress.name,
           id: 'session-exercise-1',
@@ -79,6 +80,7 @@ describe('workout execution use cases', () => {
           workingVolume: 0,
         },
         {
+          defaultRestSeconds: null,
           exerciseId: squat.id,
           exerciseName: squat.name,
           id: 'session-exercise-2',
@@ -179,6 +181,7 @@ describe('workout execution use cases', () => {
     ).resolves.toMatchObject({
       exercises: [
         {
+          defaultRestSeconds: 90,
           id: 'session-exercise-1',
           setCount: 1,
           sets: [

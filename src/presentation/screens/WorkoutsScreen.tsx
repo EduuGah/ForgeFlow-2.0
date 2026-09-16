@@ -10,6 +10,7 @@ import {
   Search,
   Star,
   StopCircle,
+  Timer,
   Trash2,
   XCircle,
 } from 'lucide-react-native';
@@ -70,6 +71,12 @@ type ActiveWorkoutState =
 
 type ViewMode = 'library' | 'workouts';
 
+type RestTimerState = {
+  durationSeconds: number;
+  exerciseName: string;
+  remainingSeconds: number;
+};
+
 export function WorkoutsScreen() {
   const services = useAppServices();
   const [viewMode, setViewMode] = useState<ViewMode>('workouts');
@@ -115,6 +122,7 @@ export function WorkoutsScreen() {
   const [setNotes, setSetNotes] = useState('');
   const [setFormError, setSetFormError] = useState<string | null>(null);
   const [isLoggingSet, setIsLoggingSet] = useState(false);
+  const [restTimer, setRestTimer] = useState<RestTimerState | null>(null);
   const [createName, setCreateName] = useState('');
   const [createMuscleGroup, setCreateMuscleGroup] = useState('');
   const [createEquipment, setCreateEquipment] = useState('');
@@ -156,6 +164,9 @@ export function WorkoutsScreen() {
       .then((value) => {
         if (isMounted) {
           setActiveWorkout({ status: 'ready', value });
+          setSetRestSeconds(
+            formatOptionalNumber(value?.exercises[0]?.defaultRestSeconds, ''),
+          );
         }
       })
       .catch(() => {
@@ -195,6 +206,27 @@ export function WorkoutsScreen() {
     };
   }, [favoritesOnly, query, selectedEquipment, selectedMuscleGroup, services]);
 
+  useEffect(() => {
+    if (!restTimer || restTimer.remainingSeconds <= 0) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      setRestTimer((current) => {
+        if (!current) {
+          return null;
+        }
+
+        return {
+          ...current,
+          remainingSeconds: Math.max(0, current.remainingSeconds - 1),
+        };
+      });
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [restTimer]);
+
   const refreshLibrary = async () => {
     const value = await services.exerciseLibrary.list({
       equipment: selectedEquipment,
@@ -216,6 +248,9 @@ export function WorkoutsScreen() {
     const value = await services.workoutExecution.getActive();
 
     setActiveWorkout({ status: 'ready', value });
+    setSetRestSeconds(
+      formatOptionalNumber(value?.exercises[0]?.defaultRestSeconds, ''),
+    );
   };
 
   const handleCreateExercise = async () => {
@@ -399,6 +434,8 @@ export function WorkoutsScreen() {
     setSetFormError(null);
 
     try {
+      const timerExerciseName =
+        selectedActiveExercise?.exerciseName ?? 'Exercicio';
       const value = await services.workoutExecution.logSet({
         notes: setNotes,
         repetitions,
@@ -412,6 +449,16 @@ export function WorkoutsScreen() {
       setSetWeightKg('');
       setSetRepetitions('');
       setSetNotes('');
+
+      if (typeof restSeconds === 'number' && restSeconds > 0) {
+        setRestTimer({
+          durationSeconds: restSeconds,
+          exerciseName: timerExerciseName,
+          remainingSeconds: restSeconds,
+        });
+      } else {
+        setRestTimer(null);
+      }
     } catch {
       setSetFormError('Revise os dados da serie antes de salvar.');
     } finally {
@@ -443,6 +490,19 @@ export function WorkoutsScreen() {
     setSelectedMuscleGroup(null);
     setSelectedEquipment(null);
     setFavoritesOnly(false);
+  };
+
+  const applyRestSuggestion = (
+    exercise: ActiveWorkout['exercises'][number] | undefined,
+  ) => {
+    setSetRestSeconds(formatOptionalNumber(exercise?.defaultRestSeconds, ''));
+  };
+
+  const handleSelectActiveExercise = (
+    exercise: ActiveWorkout['exercises'][number],
+  ) => {
+    setSelectedSessionExerciseId(exercise.id);
+    applyRestSuggestion(exercise);
   };
 
   return (
@@ -531,7 +591,7 @@ export function WorkoutsScreen() {
                       exercise={exercise}
                       isSelected={exercise.id === selectedActiveExercise?.id}
                       key={exercise.id}
-                      onSelect={setSelectedSessionExerciseId}
+                      onSelect={() => handleSelectActiveExercise(exercise)}
                     />
                   ))}
                 </View>
@@ -543,6 +603,59 @@ export function WorkoutsScreen() {
                         {selectedActiveExercise.exerciseName}
                       </Text>
                     </View>
+                    {selectedActiveExercise.defaultRestSeconds !== null ? (
+                      <Text style={styles.exerciseMeta}>
+                        Descanso planejado:{' '}
+                        {formatDuration(
+                          selectedActiveExercise.defaultRestSeconds,
+                        )}
+                      </Text>
+                    ) : null}
+                    {restTimer ? (
+                      <View style={styles.restTimerPanel}>
+                        <Timer color={colors.accent} size={22} />
+                        <View style={styles.restTimerBody}>
+                          <Text style={styles.timerValue}>
+                            {restTimer.remainingSeconds === 0
+                              ? 'Descanso concluido'
+                              : formatDuration(restTimer.remainingSeconds)}
+                          </Text>
+                          <Text style={styles.exerciseMeta}>
+                            Depois de {restTimer.exerciseName}
+                          </Text>
+                        </View>
+                        <View style={styles.timerActions}>
+                          <Pressable
+                            accessibilityRole="button"
+                            onPress={() =>
+                              setRestTimer((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      durationSeconds:
+                                        current.durationSeconds + 15,
+                                      remainingSeconds:
+                                        current.remainingSeconds + 15,
+                                    }
+                                  : current,
+                              )
+                            }
+                            style={styles.secondaryButton}
+                          >
+                            <Text style={styles.secondaryButtonText}>+15s</Text>
+                          </Pressable>
+                          <Pressable
+                            accessibilityRole="button"
+                            onPress={() => setRestTimer(null)}
+                            style={styles.secondaryButton}
+                          >
+                            <Text style={styles.secondaryButtonText}>
+                              Pular
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : null}
                     <View style={styles.segmentedControl}>
                       <SegmentButton
                         isActive={setType === 'working'}
@@ -1098,7 +1211,7 @@ function WorkoutRow({
 type ActiveWorkoutExerciseBlockProps = {
   exercise: ActiveWorkout['exercises'][number];
   isSelected: boolean;
-  onSelect: (sessionExerciseId: string) => void;
+  onSelect: () => void;
 };
 
 function ActiveWorkoutExerciseBlock({
@@ -1109,7 +1222,7 @@ function ActiveWorkoutExerciseBlock({
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={() => onSelect(exercise.id)}
+      onPress={onSelect}
       style={[
         styles.activeExerciseBlock,
         isSelected && styles.selectedExerciseBlock,
@@ -1286,6 +1399,13 @@ function parseRequiredNumber(value: string) {
 
 function formatNumber(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatDuration(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
 const styles = StyleSheet.create({
@@ -1511,6 +1631,20 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     width: 92,
   },
+  restTimerBody: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  restTimerPanel: {
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderColor: colors.accent,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
   searchBox: {
     alignItems: 'center',
     backgroundColor: colors.surface,
@@ -1575,6 +1709,19 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontWeight: '700',
   },
+  secondaryButton: {
+    alignItems: 'center',
+    borderColor: colors.border,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  secondaryButtonText: {
+    ...typography.caption,
+    color: colors.accent,
+    fontWeight: '800',
+  },
   sourceLabel: {
     ...typography.caption,
     backgroundColor: colors.successSoft,
@@ -1587,6 +1734,13 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 76,
     textAlignVertical: 'top',
+  },
+  timerActions: {
+    gap: spacing.xs,
+  },
+  timerValue: {
+    ...typography.subtitle,
+    color: colors.text,
   },
   workoutRow: {
     alignItems: 'flex-start',
