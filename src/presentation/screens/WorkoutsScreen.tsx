@@ -25,8 +25,32 @@ import { useAppServices } from '../../composition/AppServicesProvider';
 import { AppScreen, EmptyState, Section } from '../components/AppScreen';
 import { colors, radius, spacing, typography } from '../theme/tokens';
 
-const muscleGroups = ['Peito', 'Costas', 'Pernas', 'Ombros', 'Biceps'];
-const equipmentOptions = ['Barra', 'Halteres', 'Maquina', 'Peso corporal'];
+const muscleGroups = [
+  'Peito',
+  'Costas',
+  'Pernas',
+  'Ombros',
+  'Biceps',
+  'Triceps',
+  'Core',
+];
+const equipmentOptions = [
+  'Anilha',
+  'Banco',
+  'Banco Scott',
+  'Barra',
+  'Barra EZ',
+  'Barra W',
+  'Barra fixa',
+  'Barra ou halteres',
+  'Halteres',
+  'Cabo',
+  'Maquina',
+  'Maquina Smith',
+  'Paralelas',
+  'Peso corporal',
+  'Roda abdominal',
+];
 
 type ExerciseLibraryState =
   | { status: 'error' }

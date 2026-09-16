@@ -4,6 +4,11 @@
 
 ForgeFlow should look like a polished fitness product, not an AI-generated dashboard.
 
+The Hevy-inspired direction captured in
+`Docs/21-Hevy-Inspired-Design-Reference.md` should guide future UX iterations:
+dark-first, blue-accented, fast for gym use, compact, and centered on the active
+workout.
+
 Avoid:
 - excessive cards
 - excessive rounded containers

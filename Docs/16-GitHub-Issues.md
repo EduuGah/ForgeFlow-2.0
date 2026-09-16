@@ -75,3 +75,12 @@ Implement server authorization and ownership tests.
 ### FF-035 — Rankings
 ### FF-036 — Challenges
 ### FF-037 — Competitions
+
+## Design and UX refinement
+
+### FF-038 — Hevy-inspired visual design pass and theme tokens
+### FF-039 — Routine folders and improved workout list
+### FF-040 — Exercise detail screen with media and instructions
+### FF-041 — Profile dashboard and editable avatar
+### FF-042 — Muscle distribution body map
+### FF-043 — User-selectable app themes
