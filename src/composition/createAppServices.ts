@@ -24,7 +24,9 @@ import {
 import {
   abandonActiveWorkout,
   getActiveWorkout,
+  logWorkoutSet,
   startWorkoutSession,
+  type LogWorkoutSetInput,
 } from '../application/useCases/workoutExecution';
 import { InMemoryAuthRemoteGateway } from '../data/auth/inMemoryAuthGateway';
 import { MemorySecureSessionStorage } from '../data/auth/memorySecureSessionStorage';
@@ -63,6 +65,7 @@ export function createAppServices() {
     repositories: {
       exercises: repositories.exercises,
       sessionExercises: repositories.sessionExercises,
+      sets: repositories.sets,
       syncOperations: repositories.syncOperations,
       workoutSessions: repositories.workoutSessions,
       workouts: repositories.workouts,
@@ -162,6 +165,11 @@ export function createAppServices() {
         getActiveWorkout(
           { userId: LOCAL_PREVIEW_USER_ID },
           workoutExecutionDependencies.repositories,
+        ),
+      logSet: (input: Omit<LogWorkoutSetInput, 'userId'>) =>
+        logWorkoutSet(
+          { ...input, userId: LOCAL_PREVIEW_USER_ID },
+          workoutExecutionDependencies,
         ),
       start: (workoutId: string) =>
         startWorkoutSession(

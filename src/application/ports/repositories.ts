@@ -5,6 +5,7 @@ import type {
   Exercise,
   ExerciseFavorite,
   SessionExercise,
+  TrainingSet,
   WorkoutSession,
   WorkoutTemplate,
 } from '../../domain/training/entities';
@@ -36,6 +37,12 @@ export type ListWorkoutSessionsParams = {
 export type ListSessionExercisesParams = {
   includeDeleted?: boolean;
   sessionId: EntityId;
+};
+
+export type ListTrainingSetsParams = {
+  includeDeleted?: boolean;
+  sessionExerciseId?: EntityId;
+  sessionExerciseIds?: EntityId[];
 };
 
 export type ListGoalsParams = {
@@ -86,6 +93,11 @@ export interface SessionExerciseRepository {
   saveSessionExercise(sessionExercise: SessionExercise): Promise<void>;
 }
 
+export interface TrainingSetRepository {
+  listTrainingSets(params: ListTrainingSetsParams): Promise<TrainingSet[]>;
+  saveTrainingSet(set: TrainingSet): Promise<void>;
+}
+
 export interface GoalRepository {
   findGoalById(id: EntityId): Promise<Goal | null>;
   listGoals(params: ListGoalsParams): Promise<Goal[]>;
@@ -120,6 +132,7 @@ export type RepositoryProvider = {
   syncOperations: SyncOperationRepository;
   syncState: SyncStateRepository;
   sessionExercises: SessionExerciseRepository;
+  sets: TrainingSetRepository;
   workoutSessions: WorkoutSessionRepository;
   workouts: WorkoutRepository;
 };

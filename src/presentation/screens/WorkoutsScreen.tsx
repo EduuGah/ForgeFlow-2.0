@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Archive,
+  CheckCircle2,
   Copy,
   PenLine,
   PlayCircle,
@@ -19,6 +20,7 @@ import type {
   WorkoutTemplateSummary,
 } from '../../application/useCases/workoutCrud';
 import type { ActiveWorkout } from '../../application/useCases/workoutExecution';
+import type { SetType } from '../../domain/training/entities';
 import { useAppServices } from '../../composition/AppServicesProvider';
 import { AppScreen, EmptyState, Section } from '../components/AppScreen';
 import { colors, radius, spacing, typography } from '../theme/tokens';
@@ -78,6 +80,16 @@ export function WorkoutsScreen() {
   const [targetWeightKg, setTargetWeightKg] = useState('');
   const [defaultRestSeconds, setDefaultRestSeconds] = useState('90');
   const [workoutFormError, setWorkoutFormError] = useState<string | null>(null);
+  const [selectedSessionExerciseId, setSelectedSessionExerciseId] = useState<
+    string | null
+  >(null);
+  const [setType, setSetType] = useState<SetType>('working');
+  const [setWeightKg, setSetWeightKg] = useState('');
+  const [setRepetitions, setSetRepetitions] = useState('');
+  const [setRestSeconds, setSetRestSeconds] = useState('');
+  const [setNotes, setSetNotes] = useState('');
+  const [setFormError, setSetFormError] = useState<string | null>(null);
+  const [isLoggingSet, setIsLoggingSet] = useState(false);
   const [createName, setCreateName] = useState('');
   const [createMuscleGroup, setCreateMuscleGroup] = useState('');
   const [createEquipment, setCreateEquipment] = useState('');
@@ -333,10 +345,65 @@ export function WorkoutsScreen() {
     await refreshActiveWorkout();
   };
 
+  const handleLogSet = async () => {
+    const targetSessionExerciseId =
+      selectedSessionExerciseId ??
+      (activeWorkout.status === 'ready'
+        ? activeWorkout.value?.exercises[0]?.id
+        : null);
+
+    if (!targetSessionExerciseId) {
+      setSetFormError('Selecione um exercicio do treino ativo.');
+      return;
+    }
+
+    const weightKg = parseRequiredNumber(setWeightKg);
+    const repetitions = parseRequiredInteger(setRepetitions);
+    const restSeconds = parseOptionalInteger(setRestSeconds);
+
+    if (
+      weightKg === null ||
+      repetitions === null ||
+      restSeconds === undefined
+    ) {
+      setSetFormError('Informe peso, repeticoes e descanso validos.');
+      return;
+    }
+
+    setIsLoggingSet(true);
+    setSetFormError(null);
+
+    try {
+      const value = await services.workoutExecution.logSet({
+        notes: setNotes,
+        repetitions,
+        restSeconds,
+        sessionExerciseId: targetSessionExerciseId,
+        setType,
+        weightKg,
+      });
+
+      setActiveWorkout({ status: 'ready', value });
+      setSetWeightKg('');
+      setSetRepetitions('');
+      setSetNotes('');
+    } catch {
+      setSetFormError('Revise os dados da serie antes de salvar.');
+    } finally {
+      setIsLoggingSet(false);
+    }
+  };
+
   const exerciseCount = library.status === 'ready' ? library.value.length : 0;
   const workoutCount = workouts.status === 'ready' ? workouts.value.length : 0;
   const hasActiveWorkout =
     activeWorkout.status === 'ready' && activeWorkout.value !== null;
+  const selectedActiveExercise =
+    activeWorkout.status === 'ready' && activeWorkout.value
+      ? (activeWorkout.value.exercises.find(
+          (exercise) => exercise.id === selectedSessionExerciseId,
+        ) ?? activeWorkout.value.exercises[0])
+      : null;
 
   return (
     <AppScreen
@@ -396,31 +463,100 @@ export function WorkoutsScreen() {
             ) : null}
             {activeWorkout.status === 'ready' && activeWorkout.value ? (
               <View style={styles.activeWorkoutPanel}>
-                <View style={styles.exerciseBody}>
-                  <Text style={styles.exerciseName}>
-                    {activeWorkout.value.workoutName ?? 'Treino livre'}
-                  </Text>
-                  <Text style={styles.exerciseMeta}>
-                    {activeWorkout.value.exerciseCount} exercicio
-                    {activeWorkout.value.exerciseCount === 1
-                      ? ''
-                      : 's'} desde{' '}
-                    {formatStartedAt(activeWorkout.value.startedAt)}
-                  </Text>
-                  {activeWorkout.value.exercises.map((exercise) => (
-                    <Text key={exercise.id} style={styles.exerciseDescription}>
-                      {exercise.position + 1}. {exercise.exerciseName}
+                <View style={styles.activeWorkoutHeader}>
+                  <View style={styles.exerciseBody}>
+                    <Text style={styles.exerciseName}>
+                      {activeWorkout.value.workoutName ?? 'Treino livre'}
                     </Text>
+                    <Text style={styles.exerciseMeta}>
+                      {activeWorkout.value.exerciseCount} exercicio
+                      {activeWorkout.value.exerciseCount === 1
+                        ? ''
+                        : 's'} desde{' '}
+                      {formatStartedAt(activeWorkout.value.startedAt)}
+                    </Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={handleAbandonActiveWorkout}
+                    style={styles.dangerButton}
+                  >
+                    <StopCircle color={colors.surface} size={18} />
+                    <Text style={styles.primaryButtonText}>Abandonar</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.activeExerciseList}>
+                  {activeWorkout.value.exercises.map((exercise) => (
+                    <ActiveWorkoutExerciseBlock
+                      exercise={exercise}
+                      isSelected={exercise.id === selectedActiveExercise?.id}
+                      key={exercise.id}
+                      onSelect={setSelectedSessionExerciseId}
+                    />
                   ))}
                 </View>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={handleAbandonActiveWorkout}
-                  style={styles.dangerButton}
-                >
-                  <StopCircle color={colors.surface} size={18} />
-                  <Text style={styles.primaryButtonText}>Abandonar</Text>
-                </Pressable>
+                {selectedActiveExercise ? (
+                  <View style={styles.setLogger}>
+                    <View style={styles.exerciseTitleRow}>
+                      <Text style={styles.exerciseName}>Registrar serie</Text>
+                      <Text style={styles.sourceLabel}>
+                        {selectedActiveExercise.exerciseName}
+                      </Text>
+                    </View>
+                    <View style={styles.segmentedControl}>
+                      <SegmentButton
+                        isActive={setType === 'working'}
+                        label="Working"
+                        onPress={() => setSetType('working')}
+                      />
+                      <SegmentButton
+                        isActive={setType === 'warmup'}
+                        label="Warmup"
+                        onPress={() => setSetType('warmup')}
+                      />
+                    </View>
+                    <View style={styles.inlineInputs}>
+                      <NumberField
+                        label="Peso kg"
+                        onChangeText={setSetWeightKg}
+                        value={setWeightKg}
+                      />
+                      <NumberField
+                        label="Reps"
+                        onChangeText={setSetRepetitions}
+                        value={setRepetitions}
+                      />
+                      <NumberField
+                        label="Descanso s"
+                        onChangeText={setSetRestSeconds}
+                        value={setRestSeconds}
+                      />
+                    </View>
+                    <TextInput
+                      accessibilityLabel="Observacao da serie"
+                      onChangeText={setSetNotes}
+                      placeholder="Observacao opcional"
+                      placeholderTextColor={colors.textSubtle}
+                      style={styles.input}
+                      value={setNotes}
+                    />
+                    {setFormError ? (
+                      <Text style={styles.errorText}>{setFormError}</Text>
+                    ) : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={isLoggingSet}
+                      onPress={handleLogSet}
+                      style={[
+                        styles.primaryButton,
+                        isLoggingSet && styles.disabledButton,
+                      ]}
+                    >
+                      <CheckCircle2 color={colors.surface} size={18} />
+                      <Text style={styles.primaryButtonText}>Salvar serie</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
             ) : null}
           </Section>
@@ -895,6 +1031,60 @@ function WorkoutRow({
   );
 }
 
+type ActiveWorkoutExerciseBlockProps = {
+  exercise: ActiveWorkout['exercises'][number];
+  isSelected: boolean;
+  onSelect: (sessionExerciseId: string) => void;
+};
+
+function ActiveWorkoutExerciseBlock({
+  exercise,
+  isSelected,
+  onSelect,
+}: ActiveWorkoutExerciseBlockProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => onSelect(exercise.id)}
+      style={[
+        styles.activeExerciseBlock,
+        isSelected && styles.selectedExerciseBlock,
+      ]}
+    >
+      <View style={styles.exerciseTitleRow}>
+        <Text style={styles.exerciseName}>
+          {exercise.position + 1}. {exercise.exerciseName}
+        </Text>
+        <Text style={styles.sourceLabel}>
+          {exercise.setCount} serie{exercise.setCount === 1 ? '' : 's'}
+        </Text>
+      </View>
+      <Text style={styles.exerciseMeta}>
+        Volume working: {formatNumber(exercise.workingVolume)} kg
+      </Text>
+      {exercise.sets.length === 0 ? (
+        <Text style={styles.exerciseDescription}>
+          Nenhuma serie registrada.
+        </Text>
+      ) : (
+        exercise.sets.map((set) => (
+          <View key={set.id} style={styles.setRow}>
+            <Text style={styles.setRowText}>
+              {set.setNumber}. {set.setType === 'warmup' ? 'Warmup' : 'Working'}
+            </Text>
+            <Text style={styles.setRowText}>
+              {formatNumber(set.weightKg)} kg x {set.repetitions}
+            </Text>
+            {set.restSeconds !== null ? (
+              <Text style={styles.setRowText}>{set.restSeconds}s</Text>
+            ) : null}
+          </View>
+        ))
+      )}
+    </Pressable>
+  );
+}
+
 type ExerciseRowProps = {
   exercise: ExerciseLibraryItem;
   isPending: boolean;
@@ -1010,14 +1200,53 @@ function parseOptionalNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseOptionalInteger(value: string) {
+  const parsed = parseOptionalNumber(value);
+
+  if (parsed === null) {
+    return value.trim() ? undefined : null;
+  }
+
+  return Number.isInteger(parsed) ? parsed : undefined;
+}
+
+function parseRequiredInteger(value: string) {
+  const parsed = parseOptionalInteger(value);
+
+  return typeof parsed === 'number' ? parsed : null;
+}
+
+function parseRequiredNumber(value: string) {
+  return value.trim() ? parseOptionalNumber(value) : null;
+}
+
+function formatNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
 const styles = StyleSheet.create({
-  activeWorkoutPanel: {
+  activeExerciseBlock: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.md,
+  },
+  activeExerciseList: {
+    gap: spacing.sm,
+  },
+  activeWorkoutHeader: {
     alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.md,
+    justifyContent: 'space-between',
+  },
+  activeWorkoutPanel: {
     backgroundColor: colors.successSoft,
     borderColor: colors.success,
     borderRadius: radius.md,
     borderWidth: 1,
-    flexDirection: 'row',
     gap: spacing.md,
     padding: spacing.md,
   },
@@ -1184,6 +1413,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.accent,
     borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    justifyContent: 'center',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
@@ -1236,6 +1468,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.xs,
     padding: spacing.xs,
+  },
+  selectedExerciseBlock: {
+    borderColor: colors.accent,
+    borderWidth: 2,
+  },
+  setLogger: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  setRow: {
+    alignItems: 'center',
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+    paddingTop: spacing.xs,
+  },
+  setRowText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '700',
   },
   sourceLabel: {
     ...typography.caption,

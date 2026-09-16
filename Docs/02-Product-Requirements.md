@@ -65,6 +65,11 @@ FF-012 implements starting a workout from a saved template, creating an active
 session with exercise snapshots, recovering the active session from local state
 and abandoning it without deleting local data. Set logging is scoped to FF-013.
 
+FF-013 implements local-first set logging during an active workout. Each set is
+persisted immediately with set number, warm-up/working type, weight, repetitions,
+optional rest, completion timestamp and optional notes. Invalid values are
+rejected before persistence, and the write is enqueued for synchronization.
+
 ### History
 - Completed workouts
 - Date/time

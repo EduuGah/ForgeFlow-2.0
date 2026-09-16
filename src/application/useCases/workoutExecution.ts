@@ -3,15 +3,36 @@ import type { SyncOperation } from '../../domain/sync/entities';
 import type {
   Exercise,
   SessionExercise,
+  SetType,
+  TrainingSet,
   WorkoutSession,
 } from '../../domain/training/entities';
+import {
+  calculateCompletedWorkoutVolume,
+  calculateSetVolume,
+} from '../../domain/training/metrics';
 import type { RepositoryProvider } from '../ports/repositories';
+
+export type ActiveWorkoutSet = {
+  completedAt: ISODateTimeString | null;
+  id: EntityId;
+  notes: string | null;
+  repetitions: number;
+  restSeconds: number | null;
+  setNumber: number;
+  setType: SetType;
+  volume: number;
+  weightKg: number;
+};
 
 export type ActiveWorkoutExercise = {
   exerciseId: EntityId;
   exerciseName: string;
   id: EntityId;
   position: number;
+  setCount: number;
+  sets: ActiveWorkoutSet[];
+  workingVolume: number;
 };
 
 export type ActiveWorkout = {
@@ -28,6 +49,7 @@ type WorkoutExecutionRepositories = Pick<
   RepositoryProvider,
   | 'exercises'
   | 'sessionExercises'
+  | 'sets'
   | 'syncOperations'
   | 'workoutSessions'
   | 'workouts'
@@ -47,7 +69,13 @@ export class ActiveWorkoutAlreadyExistsError extends Error {
 }
 
 export class WorkoutExecutionInputError extends Error {
-  readonly field: 'workoutId';
+  readonly field:
+    | 'repetitions'
+    | 'restSeconds'
+    | 'sessionExerciseId'
+    | 'setType'
+    | 'weightKg'
+    | 'workoutId';
 
   constructor(field: WorkoutExecutionInputError['field'], message: string) {
     super(message);
@@ -55,6 +83,16 @@ export class WorkoutExecutionInputError extends Error {
     this.field = field;
   }
 }
+
+export type LogWorkoutSetInput = {
+  notes?: string | null;
+  repetitions: number;
+  restSeconds?: number | null;
+  sessionExerciseId: EntityId;
+  setType: SetType;
+  userId: EntityId;
+  weightKg: number;
+};
 
 export async function getActiveWorkout(
   input: { userId: EntityId },
@@ -69,6 +107,63 @@ export async function getActiveWorkout(
   }
 
   return summarizeActiveWorkout(session, repositories);
+}
+
+export async function logWorkoutSet(
+  input: LogWorkoutSetInput,
+  dependencies: WorkoutExecutionDependencies,
+): Promise<ActiveWorkout> {
+  validateSetInput(input);
+
+  const activeSession =
+    await dependencies.repositories.workoutSessions.findActiveWorkoutSession(
+      input.userId,
+    );
+
+  if (!activeSession) {
+    throw new WorkoutExecutionInputError(
+      'sessionExerciseId',
+      'Active workout is required to log a set.',
+    );
+  }
+
+  const sessionExercise = await requireActiveSessionExercise(
+    activeSession,
+    input.sessionExerciseId,
+    dependencies.repositories,
+  );
+  const existingSets = await dependencies.repositories.sets.listTrainingSets({
+    sessionExerciseId: sessionExercise.id,
+  });
+  const now = dependencies.clock();
+  const set: TrainingSet = {
+    completedAt: now,
+    createdAt: now,
+    deletedAt: null,
+    id: dependencies.generateId(),
+    notes: normalizeNotes(input.notes),
+    repetitions: input.repetitions,
+    restSeconds: normalizeOptionalInteger(input.restSeconds),
+    sessionExerciseId: sessionExercise.id,
+    setNumber: getNextSetNumber(existingSets),
+    setType: input.setType,
+    updatedAt: now,
+    weightKg: input.weightKg,
+  };
+
+  await dependencies.repositories.sets.saveTrainingSet(set);
+  await dependencies.repositories.syncOperations.enqueueSyncOperation(
+    createSyncOperation({
+      clock: dependencies.clock,
+      entityId: set.id,
+      entityType: 'set',
+      generateId: dependencies.generateId,
+      operationType: 'upsert',
+      payload: set,
+    }),
+  );
+
+  return summarizeActiveWorkout(activeSession, dependencies.repositories);
 }
 
 export async function startWorkoutSession(
@@ -166,6 +261,29 @@ export async function abandonActiveWorkout(
   return nextSession;
 }
 
+async function requireActiveSessionExercise(
+  activeSession: WorkoutSession,
+  sessionExerciseId: EntityId,
+  repositories: WorkoutExecutionRepositories,
+) {
+  const sessionExercises =
+    await repositories.sessionExercises.listSessionExercises({
+      sessionId: activeSession.id,
+    });
+  const sessionExercise = sessionExercises.find(
+    (exercise) => exercise.id === sessionExerciseId,
+  );
+
+  if (!sessionExercise || sessionExercise.deletedAt !== null) {
+    throw new WorkoutExecutionInputError(
+      'sessionExerciseId',
+      'Exercise is not part of the active workout.',
+    );
+  }
+
+  return sessionExercise;
+}
+
 async function enqueueSessionStart(
   session: WorkoutSession,
   sessionExercises: SessionExercise[],
@@ -234,6 +352,59 @@ async function loadExercisesById(
   return new Map(pairs.filter((pair) => pair !== null));
 }
 
+function getNextSetNumber(existingSets: TrainingSet[]) {
+  const lastSetNumber = existingSets.reduce(
+    (max, set) => Math.max(max, set.setNumber),
+    0,
+  );
+
+  return lastSetNumber + 1;
+}
+
+function normalizeNotes(value: string | null | undefined) {
+  const normalized = value?.trim() ?? '';
+
+  return normalized ? normalized : null;
+}
+
+function normalizeOptionalInteger(value: number | null | undefined) {
+  return typeof value === 'number' ? value : null;
+}
+
+function validateSetInput(input: LogWorkoutSetInput) {
+  if (input.setType !== 'warmup' && input.setType !== 'working') {
+    throw new WorkoutExecutionInputError(
+      'setType',
+      'Set type must be warmup or working.',
+    );
+  }
+
+  if (!Number.isFinite(input.weightKg) || input.weightKg < 0) {
+    throw new WorkoutExecutionInputError(
+      'weightKg',
+      'Weight must be zero or greater.',
+    );
+  }
+
+  if (!Number.isInteger(input.repetitions) || input.repetitions <= 0) {
+    throw new WorkoutExecutionInputError(
+      'repetitions',
+      'Repetitions must be a positive integer.',
+    );
+  }
+
+  if (
+    input.restSeconds !== null &&
+    input.restSeconds !== undefined &&
+    (!Number.isInteger(input.restSeconds) || input.restSeconds < 0)
+  ) {
+    throw new WorkoutExecutionInputError(
+      'restSeconds',
+      'Rest must be zero or greater when provided.',
+    );
+  }
+}
+
 async function requireStartableWorkout(
   workoutId: EntityId,
   userId: EntityId,
@@ -283,17 +454,40 @@ async function summarizeActiveWorkout(
     new Set(sessionExercises.map((exercise) => exercise.exerciseId)),
     repositories,
   );
+  const sets = await repositories.sets.listTrainingSets({
+    sessionExerciseIds: sessionExercises.map((exercise) => exercise.id),
+  });
+  const setsBySessionExerciseId = groupSetsBySessionExerciseId(sets);
   const exercises = sessionExercises
     .filter((exercise) => exercise.deletedAt === null)
     .sort((left, right) => left.position - right.position)
-    .map((exercise) => ({
-      exerciseId: exercise.exerciseId,
-      exerciseName:
-        (exercisesById.get(exercise.exerciseId) as Exercise | undefined)
-          ?.name ?? 'Exercicio removido',
-      id: exercise.id,
-      position: exercise.position,
-    }));
+    .map((exercise) => {
+      const exerciseSets = (setsBySessionExerciseId.get(exercise.id) ?? [])
+        .filter((set) => set.deletedAt === null)
+        .sort((left, right) => left.setNumber - right.setNumber);
+
+      return {
+        exerciseId: exercise.exerciseId,
+        exerciseName:
+          (exercisesById.get(exercise.exerciseId) as Exercise | undefined)
+            ?.name ?? 'Exercicio removido',
+        id: exercise.id,
+        position: exercise.position,
+        setCount: exerciseSets.length,
+        sets: exerciseSets.map((set) => ({
+          completedAt: set.completedAt,
+          id: set.id,
+          notes: set.notes,
+          repetitions: set.repetitions,
+          restSeconds: set.restSeconds,
+          setNumber: set.setNumber,
+          setType: set.setType,
+          volume: calculateSetVolume(set),
+          weightKg: set.weightKg,
+        })),
+        workingVolume: calculateCompletedWorkoutVolume(exerciseSets),
+      };
+    });
 
   return {
     exerciseCount: exercises.length,
@@ -304,4 +498,14 @@ async function summarizeActiveWorkout(
     workoutId: session.workoutId,
     workoutName: workout?.name ?? null,
   };
+}
+
+function groupSetsBySessionExerciseId(sets: TrainingSet[]) {
+  return sets.reduce((groups, set) => {
+    const current = groups.get(set.sessionExerciseId) ?? [];
+
+    groups.set(set.sessionExerciseId, [...current, set]);
+
+    return groups;
+  }, new Map<EntityId, TrainingSet[]>());
 }

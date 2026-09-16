@@ -5,6 +5,7 @@ import type {
   Exercise,
   ExerciseFavorite,
   SessionExercise,
+  TrainingSet,
   WorkoutSession,
   WorkoutTemplate,
 } from '../../domain/training/entities';
@@ -16,12 +17,14 @@ import type {
   ListExercisesParams,
   ListGoalsParams,
   ListSessionExercisesParams,
+  ListTrainingSetsParams,
   ListWorkoutSessionsParams,
   ListWorkoutTemplatesParams,
   RepositoryProvider,
   SessionExerciseRepository,
   SyncOperationRepository,
   SyncStateRepository,
+  TrainingSetRepository,
   WorkoutRepository,
   WorkoutSessionRepository,
 } from '../../application/ports/repositories';
@@ -33,6 +36,7 @@ export type InMemoryRepositorySeed = Partial<{
   sessionExercises: SessionExercise[];
   syncOperations: SyncOperation[];
   syncStates: SyncState[];
+  trainingSets: TrainingSet[];
   workoutSessions: WorkoutSession[];
   workoutTemplates: WorkoutTemplate[];
 }>;
@@ -45,6 +49,7 @@ class InMemoryForgeFlowRepository
     SessionExerciseRepository,
     SyncOperationRepository,
     SyncStateRepository,
+    TrainingSetRepository,
     WorkoutRepository,
     WorkoutSessionRepository
 {
@@ -54,6 +59,7 @@ class InMemoryForgeFlowRepository
   private sessionExercises: SessionExercise[];
   private syncOperations: SyncOperation[];
   private syncStates: SyncState[];
+  private trainingSets: TrainingSet[];
   private workoutSessions: WorkoutSession[];
   private workoutTemplates: WorkoutTemplate[];
 
@@ -64,6 +70,7 @@ class InMemoryForgeFlowRepository
     this.sessionExercises = seed.sessionExercises ?? [];
     this.syncOperations = seed.syncOperations ?? [];
     this.syncStates = seed.syncStates ?? [];
+    this.trainingSets = seed.trainingSets ?? [];
     this.workoutSessions = seed.workoutSessions ?? [];
     this.workoutTemplates = seed.workoutTemplates ?? [];
   }
@@ -233,6 +240,32 @@ class InMemoryForgeFlowRepository
     );
   }
 
+  async listTrainingSets(params: ListTrainingSetsParams) {
+    return clone(
+      this.trainingSets.filter((set) => {
+        if (
+          params.sessionExerciseId &&
+          set.sessionExerciseId !== params.sessionExerciseId
+        ) {
+          return false;
+        }
+
+        if (
+          params.sessionExerciseIds &&
+          !params.sessionExerciseIds.includes(set.sessionExerciseId)
+        ) {
+          return false;
+        }
+
+        if (!params.includeDeleted && set.deletedAt !== null) {
+          return false;
+        }
+
+        return true;
+      }),
+    );
+  }
+
   async listWorkoutSessions(params: ListWorkoutSessionsParams) {
     const sessions = this.workoutSessions
       .filter((session) => {
@@ -350,6 +383,10 @@ class InMemoryForgeFlowRepository
     );
   }
 
+  async saveTrainingSet(set: TrainingSet) {
+    this.trainingSets = upsertById(this.trainingSets, set, 'id');
+  }
+
   async saveSyncState(state: SyncState) {
     this.syncStates = upsertByCompositeKey(this.syncStates, state, [
       'scope',
@@ -378,6 +415,7 @@ export function createInMemoryRepositories(
     syncOperations: repository,
     syncState: repository,
     sessionExercises: repository,
+    sets: repository,
     workoutSessions: repository,
     workouts: repository,
   };
