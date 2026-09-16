@@ -8,6 +8,7 @@ import {
   abandonActiveWorkout,
   ActiveWorkoutAlreadyExistsError,
   getActiveWorkout,
+  logWorkoutSet,
   startWorkoutSession,
   WorkoutExecutionInputError,
 } from './workoutExecution';
@@ -73,12 +74,18 @@ describe('workout execution use cases', () => {
           exerciseName: benchPress.name,
           id: 'session-exercise-1',
           position: 0,
+          setCount: 0,
+          sets: [],
+          workingVolume: 0,
         },
         {
           exerciseId: squat.id,
           exerciseName: squat.name,
           id: 'session-exercise-2',
           position: 1,
+          setCount: 0,
+          sets: [],
+          workingVolume: 0,
         },
       ],
       id: 'session-1',
@@ -129,6 +136,207 @@ describe('workout execution use cases', () => {
         operationType: 'upsert',
       },
     ]);
+  });
+
+  it('logs a completed set in the active workout and enqueues sync', async () => {
+    const workout = createWorkoutTemplateFixture();
+    const session = createActiveSessionFixture(workout.id);
+    const repositories = createInMemoryRepositories({
+      exercises: [benchPress],
+      sessionExercises: [
+        {
+          createdAt: now,
+          deletedAt: null,
+          exerciseId: benchPress.id,
+          id: 'session-exercise-1',
+          position: 0,
+          sessionId: session.id,
+          updatedAt: now,
+        },
+      ],
+      workoutSessions: [session],
+      workoutTemplates: [workout],
+    });
+    const ids = ['set-1', 'operation-set'];
+
+    await expect(
+      logWorkoutSet(
+        {
+          notes: 'Top set controlado',
+          repetitions: 8,
+          restSeconds: 120,
+          sessionExerciseId: 'session-exercise-1',
+          setType: 'working',
+          userId,
+          weightKg: 80,
+        },
+        {
+          clock: () => later,
+          generateId: () => ids.shift() ?? 'fallback-id',
+          repositories,
+        },
+      ),
+    ).resolves.toMatchObject({
+      exercises: [
+        {
+          id: 'session-exercise-1',
+          setCount: 1,
+          sets: [
+            {
+              completedAt: later,
+              id: 'set-1',
+              notes: 'Top set controlado',
+              repetitions: 8,
+              restSeconds: 120,
+              setNumber: 1,
+              setType: 'working',
+              volume: 640,
+              weightKg: 80,
+            },
+          ],
+          workingVolume: 640,
+        },
+      ],
+    });
+    await expect(
+      repositories.sets.listTrainingSets({
+        sessionExerciseId: 'session-exercise-1',
+      }),
+    ).resolves.toMatchObject([
+      {
+        completedAt: later,
+        id: 'set-1',
+        setNumber: 1,
+        setType: 'working',
+      },
+    ]);
+    await expect(
+      repositories.syncOperations.listPendingSyncOperations(),
+    ).resolves.toMatchObject([
+      {
+        entityId: 'set-1',
+        entityType: 'set',
+        operationType: 'upsert',
+      },
+    ]);
+  });
+
+  it('numbers new sets after existing local sets', async () => {
+    const workout = createWorkoutTemplateFixture();
+    const session = createActiveSessionFixture(workout.id);
+    const repositories = createInMemoryRepositories({
+      exercises: [benchPress],
+      sessionExercises: [
+        {
+          createdAt: now,
+          deletedAt: null,
+          exerciseId: benchPress.id,
+          id: 'session-exercise-1',
+          position: 0,
+          sessionId: session.id,
+          updatedAt: now,
+        },
+      ],
+      trainingSets: [
+        {
+          completedAt: now,
+          createdAt: now,
+          deletedAt: null,
+          id: 'set-1',
+          notes: null,
+          repetitions: 12,
+          restSeconds: null,
+          sessionExerciseId: 'session-exercise-1',
+          setNumber: 1,
+          setType: 'warmup',
+          updatedAt: now,
+          weightKg: 40,
+        },
+      ],
+      workoutSessions: [session],
+      workoutTemplates: [workout],
+    });
+
+    await logWorkoutSet(
+      {
+        repetitions: 10,
+        restSeconds: null,
+        sessionExerciseId: 'session-exercise-1',
+        setType: 'working',
+        userId,
+        weightKg: 70,
+      },
+      {
+        clock: () => later,
+        generateId: () => 'set-2',
+        repositories,
+      },
+    );
+
+    await expect(
+      repositories.sets.listTrainingSets({
+        sessionExerciseId: 'session-exercise-1',
+      }),
+    ).resolves.toMatchObject([
+      {
+        id: 'set-1',
+        setNumber: 1,
+      },
+      {
+        id: 'set-2',
+        setNumber: 2,
+      },
+    ]);
+  });
+
+  it('rejects invalid set values and exercises outside the active session', async () => {
+    const workout = createWorkoutTemplateFixture();
+    const session = createActiveSessionFixture(workout.id);
+    const repositories = createInMemoryRepositories({
+      sessionExercises: [
+        {
+          createdAt: now,
+          deletedAt: null,
+          exerciseId: benchPress.id,
+          id: 'session-exercise-1',
+          position: 0,
+          sessionId: session.id,
+          updatedAt: now,
+        },
+      ],
+      workoutSessions: [session],
+      workoutTemplates: [workout],
+    });
+    const dependencies = {
+      clock: () => later,
+      generateId: () => 'set-id',
+      repositories,
+    };
+
+    await expect(
+      logWorkoutSet(
+        {
+          repetitions: 0,
+          sessionExerciseId: 'session-exercise-1',
+          setType: 'working',
+          userId,
+          weightKg: 80,
+        },
+        dependencies,
+      ),
+    ).rejects.toThrow(WorkoutExecutionInputError);
+    await expect(
+      logWorkoutSet(
+        {
+          repetitions: 8,
+          sessionExerciseId: 'other-session-exercise',
+          setType: 'working',
+          userId,
+          weightKg: 80,
+        },
+        dependencies,
+      ),
+    ).rejects.toThrow(WorkoutExecutionInputError);
   });
 
   it('recovers the active workout from local session state', async () => {
