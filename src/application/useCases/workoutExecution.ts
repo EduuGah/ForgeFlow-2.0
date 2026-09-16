@@ -46,6 +46,13 @@ export type ActiveWorkout = {
   workoutName: string | null;
 };
 
+export type CompletedWorkout = ActiveWorkout & {
+  completedAt: ISODateTimeString;
+  durationSeconds: number;
+  setCount: number;
+  workingVolume: number;
+};
+
 type WorkoutExecutionRepositories = Pick<
   RepositoryProvider,
   | 'exercises'
@@ -260,6 +267,96 @@ export async function abandonActiveWorkout(
   );
 
   return nextSession;
+}
+
+export async function completeActiveWorkout(
+  input: { userId: EntityId; sessionId: EntityId },
+  dependencies: WorkoutExecutionDependencies,
+): Promise<CompletedWorkout> {
+  const sessions =
+    await dependencies.repositories.workoutSessions.listWorkoutSessions({
+      userId: input.userId,
+    });
+  const session = sessions.find(
+    (item) => item.id === input.sessionId && item.deletedAt === null,
+  );
+  if (
+    !session ||
+    (session.status !== 'active' && session.status !== 'completed')
+  ) {
+    throw new WorkoutExecutionInputError(
+      'workoutId',
+      'Workout is not available to complete.',
+    );
+  }
+  if (session.status === 'completed') {
+    return summarizeCompletedWorkout(session, dependencies.repositories);
+  }
+  const now = dependencies.clock();
+  const completed: WorkoutSession = {
+    ...session,
+    completedAt: now,
+    durationSeconds: Math.max(
+      0,
+      Math.floor((Date.parse(now) - Date.parse(session.startedAt)) / 1000),
+    ),
+    status: 'completed',
+    updatedAt: now,
+  };
+  // Queue first so a failed enqueue leaves the session available for retry.
+  await dependencies.repositories.syncOperations.enqueueSyncOperation(
+    createSyncOperation({
+      clock: dependencies.clock,
+      entityId: completed.id,
+      entityType: 'workout_session',
+      generateId: dependencies.generateId,
+      operationType: 'upsert',
+      payload: completed,
+    }),
+  );
+  await dependencies.repositories.workoutSessions.saveWorkoutSession(completed);
+  return summarizeCompletedWorkout(completed, dependencies.repositories);
+}
+
+export async function listCompletedWorkouts(
+  input: { userId: EntityId },
+  repositories: WorkoutExecutionRepositories,
+): Promise<CompletedWorkout[]> {
+  const sessions =
+    await repositories.workoutSessions.listWorkoutSessions(input);
+  return Promise.all(
+    sessions
+      .filter(
+        (session) =>
+          session.deletedAt === null && session.status === 'completed',
+      )
+      .sort(
+        (left, right) =>
+          Date.parse(right.startedAt) - Date.parse(left.startedAt),
+      )
+      .map((session) => summarizeCompletedWorkout(session, repositories)),
+  );
+}
+
+async function summarizeCompletedWorkout(
+  session: WorkoutSession,
+  repositories: WorkoutExecutionRepositories,
+): Promise<CompletedWorkout> {
+  const summary = await summarizeActiveWorkout(session, repositories);
+  return {
+    ...summary,
+    completedAt: session.completedAt ?? session.updatedAt,
+    durationSeconds: session.durationSeconds ?? 0,
+    setCount: summary.exercises.reduce(
+      (total, exercise) =>
+        total + exercise.sets.filter((set) => set.completedAt !== null).length,
+      0,
+    ),
+    workingVolume: summary.exercises.reduce(
+      (total, exercise) => total + exercise.workingVolume,
+      0,
+    ),
+  };
 }
 
 async function requireActiveSessionExercise(

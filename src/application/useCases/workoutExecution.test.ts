@@ -7,7 +7,9 @@ import { createInMemoryRepositories } from '../../data/repositories/inMemoryRepo
 import {
   abandonActiveWorkout,
   ActiveWorkoutAlreadyExistsError,
+  completeActiveWorkout,
   getActiveWorkout,
+  listCompletedWorkouts,
   logWorkoutSet,
   startWorkoutSession,
   WorkoutExecutionInputError,
@@ -39,6 +41,164 @@ const squat: Exercise = {
 };
 
 describe('workout execution use cases', () => {
+  it('completes the requested session once, retains sets and queues completion', async () => {
+    const repositories = createInMemoryRepositories({
+      exercises: [benchPress, squat],
+      workoutTemplates: [createWorkoutTemplateFixture()],
+    });
+    let nextId = 0;
+    const dependencies = {
+      repositories,
+      clock: () => now,
+      generateId: () => `id-${++nextId}`,
+    };
+    const active = await startWorkoutSession(
+      { userId, workoutId: 'workout-1' },
+      dependencies,
+    );
+    for (const setType of ['warmup', 'working'] as const) {
+      await logWorkoutSet(
+        {
+          userId,
+          sessionExerciseId: active.exercises[0].id,
+          repetitions: 8,
+          weightKg: 40,
+          setType,
+          notes: 'Movimento controlado',
+        },
+        dependencies,
+      );
+    }
+    const result = await completeActiveWorkout(
+      { userId, sessionId: active.id },
+      { ...dependencies, clock: () => later },
+    );
+    expect(result).toMatchObject({
+      status: 'completed',
+      completedAt: later,
+      durationSeconds: 2700,
+      workingVolume: 320,
+      setCount: 2,
+    });
+    expect(result.exercises[0].sets[0].notes).toBe('Movimento controlado');
+    await expect(
+      getActiveWorkout({ userId }, repositories),
+    ).resolves.toBeNull();
+    await expect(
+      listCompletedWorkouts({ userId }, repositories),
+    ).resolves.toEqual([result]);
+    const operations =
+      await repositories.syncOperations.listPendingSyncOperations();
+    expect(operations.at(-1)).toMatchObject({
+      entityId: active.id,
+      payload: { status: 'completed', durationSeconds: 2700 },
+    });
+    const next = await startWorkoutSession(
+      { userId, workoutId: 'workout-1' },
+      { ...dependencies, clock: () => later },
+    );
+    await expect(
+      completeActiveWorkout({ userId, sessionId: active.id }, dependencies),
+    ).resolves.toEqual(result);
+    await expect(
+      getActiveWorkout({ userId }, repositories),
+    ).resolves.toMatchObject({ id: next.id });
+    expect(
+      (await repositories.syncOperations.listPendingSyncOperations()).filter(
+        (operation) =>
+          operation.entityId === active.id &&
+          operation.payload.status === 'completed',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('filters history by owner and status, sorts newest first and ignores invalid volume', async () => {
+    const session = {
+      ...createActiveSessionFixture('workout-1'),
+      status: 'completed' as const,
+      completedAt: later,
+      durationSeconds: 2700,
+    };
+    const repositories = createInMemoryRepositories({
+      workoutSessions: [
+        session,
+        { ...session, id: 'new', startedAt: later },
+        { ...session, id: 'foreign', userId: 'other' },
+        { ...session, id: 'deleted', deletedAt: later },
+        { ...session, id: 'abandoned', status: 'abandoned' },
+        { ...session, id: 'active', status: 'active' },
+      ],
+      sessionExercises: [
+        {
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null,
+          id: 'exercise-session',
+          exerciseId: benchPress.id,
+          sessionId: session.id,
+          position: 0,
+        },
+      ],
+      trainingSets: [null, later].map((completedAt, index) => ({
+        id: `set-${index}`,
+        sessionExerciseId: 'exercise-session',
+        completedAt,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: index === 1 ? later : null,
+        weightKg: 100,
+        repetitions: 10,
+        notes: null,
+        restSeconds: null,
+        setNumber: index + 1,
+        setType: 'working',
+      })),
+    });
+    const history = await listCompletedWorkouts({ userId }, repositories);
+    expect(history.map((item) => item.id)).toEqual(['new', session.id]);
+    expect(history[1]).toMatchObject({
+      workoutName: null,
+      workingVolume: 0,
+      setCount: 0,
+    });
+    const dependencies = {
+      repositories,
+      clock: () => later,
+      generateId: () => 'op',
+    };
+    for (const sessionId of ['foreign', 'deleted', 'abandoned', 'missing']) {
+      await expect(
+        completeActiveWorkout({ userId, sessionId }, dependencies),
+      ).rejects.toThrow(WorkoutExecutionInputError);
+    }
+    await expect(
+      repositories.syncOperations.listPendingSyncOperations(),
+    ).resolves.toEqual([]);
+  });
+
+  it('keeps completion retryable when the outbox write fails', async () => {
+    const repositories = createInMemoryRepositories({
+      workoutSessions: [createActiveSessionFixture('workout-1')],
+    });
+    jest
+      .spyOn(repositories.syncOperations, 'enqueueSyncOperation')
+      .mockRejectedValueOnce(new Error('Outbox unavailable'));
+    const dependencies = {
+      repositories,
+      clock: () => later,
+      generateId: () => 'op',
+    };
+    await expect(
+      completeActiveWorkout({ userId, sessionId: 'session-1' }, dependencies),
+    ).rejects.toThrow('Outbox unavailable');
+    await expect(
+      getActiveWorkout({ userId }, repositories),
+    ).resolves.toMatchObject({ id: 'session-1' });
+    await expect(
+      completeActiveWorkout({ userId, sessionId: 'session-1' }, dependencies),
+    ).resolves.toMatchObject({ status: 'completed', setCount: 0 });
+  });
+
   it('starts a workout session with exercise snapshots and sync operations', async () => {
     const workout = createWorkoutTemplateFixture();
     const repositories = createInMemoryRepositories({

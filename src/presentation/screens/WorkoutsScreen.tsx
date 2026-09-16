@@ -25,6 +25,7 @@ import type { ActiveWorkout } from '../../application/useCases/workoutExecution'
 import type { SetType } from '../../domain/training/entities';
 import { useAppServices } from '../../composition/AppServicesProvider';
 import { AppScreen, EmptyState, Section } from '../components/AppScreen';
+import { WorkoutHistory } from '../components/WorkoutHistory';
 import { colors, radius, spacing, typography } from '../theme/tokens';
 
 const muscleGroups = [
@@ -69,7 +70,7 @@ type ActiveWorkoutState =
   | { status: 'loading' }
   | { status: 'ready'; value: ActiveWorkout | null };
 
-type ViewMode = 'library' | 'workouts';
+type ViewMode = 'library' | 'workouts' | 'history';
 
 type RestTimerState = {
   durationSeconds: number;
@@ -122,6 +123,11 @@ export function WorkoutsScreen() {
   const [setNotes, setSetNotes] = useState('');
   const [setFormError, setSetFormError] = useState<string | null>(null);
   const [isLoggingSet, setIsLoggingSet] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [completionError, setCompletionError] = useState<string | null>(null);
+  const [completedSessionId, setCompletedSessionId] = useState<string | null>(
+    null,
+  );
   const [restTimer, setRestTimer] = useState<RestTimerState | null>(null);
   const [createName, setCreateName] = useState('');
   const [createMuscleGroup, setCreateMuscleGroup] = useState('');
@@ -402,7 +408,41 @@ export function WorkoutsScreen() {
 
   const handleAbandonActiveWorkout = async () => {
     await services.workoutExecution.abandonActive();
+    setRestTimer(null);
+    setSelectedSessionExerciseId(null);
     await refreshActiveWorkout();
+  };
+
+  const handleCompleteWorkout = async () => {
+    if (
+      activeWorkout.status !== 'ready' ||
+      !activeWorkout.value ||
+      isCompleting ||
+      isLoggingSet
+    )
+      return;
+    setIsCompleting(true);
+    setCompletionError(null);
+    try {
+      const completed = await services.workoutExecution.complete(
+        activeWorkout.value.id,
+      );
+      setActiveWorkout({ status: 'ready', value: null });
+      setRestTimer(null);
+      setSelectedSessionExerciseId(null);
+      setSetWeightKg('');
+      setSetRepetitions('');
+      setSetNotes('');
+      setSetFormError(null);
+      setCompletedSessionId(completed.id);
+      setViewMode('history');
+    } catch {
+      setCompletionError(
+        'Nao foi possivel concluir o treino. Tente novamente.',
+      );
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
   const handleLogSet = async () => {
@@ -508,23 +548,27 @@ export function WorkoutsScreen() {
   return (
     <AppScreen
       action={
-        <Pressable
-          accessibilityRole="button"
-          onPress={
-            viewMode === 'workouts'
-              ? openCreateWorkoutForm
-              : () => setIsExerciseCreateOpen((value) => !value)
-          }
-          style={styles.iconButton}
-        >
-          <Plus color={colors.surface} size={20} strokeWidth={2.4} />
-        </Pressable>
+        viewMode !== 'history' ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={
+              viewMode === 'workouts'
+                ? openCreateWorkoutForm
+                : () => setIsExerciseCreateOpen((value) => !value)
+            }
+            style={styles.iconButton}
+          >
+            <Plus color={colors.surface} size={20} strokeWidth={2.4} />
+          </Pressable>
+        ) : null
       }
       eyebrow="Treinos"
       title={
         viewMode === 'workouts'
           ? 'Templates de treino'
-          : 'Biblioteca de exercicios'
+          : viewMode === 'history'
+            ? 'Historico de treinos'
+            : 'Biblioteca de exercicios'
       }
     >
       <View style={styles.segmentedControl}>
@@ -538,7 +582,22 @@ export function WorkoutsScreen() {
           label="Exercicios"
           onPress={() => setViewMode('library')}
         />
+        <SegmentButton
+          isActive={viewMode === 'history'}
+          label="Historico"
+          onPress={() => {
+            setCompletedSessionId(null);
+            setViewMode('history');
+          }}
+        />
       </View>
+
+      {viewMode === 'history' ? (
+        <WorkoutHistory
+          key={completedSessionId ?? 'list'}
+          initialSessionId={completedSessionId}
+        />
+      ) : null}
 
       {viewMode === 'workouts' ? (
         <>
@@ -578,6 +637,7 @@ export function WorkoutsScreen() {
                   </View>
                   <Pressable
                     accessibilityRole="button"
+                    disabled={isCompleting || isLoggingSet}
                     onPress={handleAbandonActiveWorkout}
                     style={styles.dangerButton}
                   >
@@ -585,6 +645,25 @@ export function WorkoutsScreen() {
                     <Text style={styles.primaryButtonText}>Abandonar</Text>
                   </Pressable>
                 </View>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isCompleting || isLoggingSet}
+                  onPress={handleCompleteWorkout}
+                  style={[
+                    styles.primaryButton,
+                    (isCompleting || isLoggingSet) && styles.disabledButton,
+                  ]}
+                >
+                  <CheckCircle2 color={colors.surface} size={18} />
+                  <Text style={styles.primaryButtonText}>
+                    {isCompleting ? 'Concluindo...' : 'Concluir treino'}
+                  </Text>
+                </Pressable>
+                {completionError ? (
+                  <Text accessibilityRole="alert" style={styles.errorText}>
+                    {completionError}
+                  </Text>
+                ) : null}
                 <View style={styles.activeExerciseList}>
                   {activeWorkout.value.exercises.map((exercise) => (
                     <ActiveWorkoutExerciseBlock
@@ -698,7 +777,7 @@ export function WorkoutsScreen() {
                     ) : null}
                     <Pressable
                       accessibilityRole="button"
-                      disabled={isLoggingSet}
+                      disabled={isLoggingSet || isCompleting}
                       onPress={handleLogSet}
                       style={[
                         styles.primaryButton,
@@ -880,7 +959,7 @@ export function WorkoutsScreen() {
               : null}
           </Section>
         </>
-      ) : (
+      ) : viewMode === 'library' ? (
         <>
           <Section title="Encontrar exercicio">
             <View style={styles.searchBox}>
@@ -1021,7 +1100,7 @@ export function WorkoutsScreen() {
               : null}
           </Section>
         </>
-      )}
+      ) : null}
     </AppScreen>
   );
 }
