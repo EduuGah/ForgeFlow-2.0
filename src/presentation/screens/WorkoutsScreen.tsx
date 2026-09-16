@@ -11,6 +11,7 @@ import {
   Star,
   StopCircle,
   Trash2,
+  XCircle,
 } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -420,6 +421,14 @@ export function WorkoutsScreen() {
 
   const exerciseCount = library.status === 'ready' ? library.value.length : 0;
   const workoutCount = workouts.status === 'ready' ? workouts.value.length : 0;
+  const hasLibraryFilters =
+    query.trim().length > 0 ||
+    selectedMuscleGroup !== null ||
+    selectedEquipment !== null ||
+    favoritesOnly;
+  const exerciseResultsTitle = hasLibraryFilters
+    ? `Resultados filtrados (${exerciseCount})`
+    : `Todos os exercicios (${exerciseCount})`;
   const hasActiveWorkout =
     activeWorkout.status === 'ready' && activeWorkout.value !== null;
   const selectedActiveExercise =
@@ -428,6 +437,13 @@ export function WorkoutsScreen() {
           (exercise) => exercise.id === selectedSessionExerciseId,
         ) ?? activeWorkout.value.exercises[0])
       : null;
+
+  const handleClearLibraryFilters = () => {
+    setQuery('');
+    setSelectedMuscleGroup(null);
+    setSelectedEquipment(null);
+    setFavoritesOnly(false);
+  };
 
   return (
     <AppScreen
@@ -799,6 +815,16 @@ export function WorkoutsScreen() {
                 Somente favoritos
               </Text>
             </Pressable>
+            {hasLibraryFilters ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleClearLibraryFilters}
+                style={styles.clearFilterButton}
+              >
+                <XCircle color={colors.textMuted} size={16} />
+                <Text style={styles.clearFilterText}>Limpar filtros</Text>
+              </Pressable>
+            ) : null}
           </Section>
 
           {isExerciseCreateOpen ? (
@@ -851,7 +877,7 @@ export function WorkoutsScreen() {
             </Section>
           ) : null}
 
-          <Section title={`Resultados (${exerciseCount})`}>
+          <Section title={exerciseResultsTitle}>
             {library.status === 'loading' ? (
               <EmptyState
                 body="Carregando o catalogo local de exercicios."
@@ -952,6 +978,20 @@ function FilterRow({
     <View style={styles.filterBlock}>
       <Text style={styles.filterLabel}>{label}</Text>
       <View style={styles.chipRow}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => onSelect(null)}
+          style={[styles.chip, selectedValue === null && styles.activeChip]}
+        >
+          <Text
+            style={[
+              styles.chipText,
+              selectedValue === null && styles.activeChipText,
+            ]}
+          >
+            Todos
+          </Text>
+        </Pressable>
         {options.map((option) => {
           const isActive = selectedValue === option;
 
@@ -1302,6 +1342,22 @@ const styles = StyleSheet.create({
   chipText: {
     ...typography.caption,
     color: colors.text,
+    fontWeight: '800',
+  },
+  clearFilterButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderColor: colors.border,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  clearFilterText: {
+    ...typography.caption,
+    color: colors.textMuted,
     fontWeight: '800',
   },
   dangerButton: {
