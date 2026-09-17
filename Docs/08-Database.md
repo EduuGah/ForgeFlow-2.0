@@ -353,3 +353,12 @@ FF-005 introduces local-only sync metadata:
 `sync_operations.operation_id` is the idempotency key sent to the server. Pending operation lookup is indexed by `status + created_at`, and entity lookup is indexed by `entity_type + entity_id`.
 
 `sync_state` uses `scope + key` as its primary key so different synchronization streams can keep independent cursors. The first protocol implementation is introduced later by FF-006.
+
+## Goals migration
+
+FF-018 adds migration `0005_goals` to both SQLite and PostgreSQL. The `goals`
+table supports all goal types and metrics defined by the product requirements,
+enforces non-negative baseline and target values, and constrains lifecycle
+statuses. Foreign keys connect goals to users and optional exercises. Indexes on
+`user_id + status` and `exercise_id` support the primary goal lists and
+exercise-scoped lookups.

@@ -141,6 +141,11 @@ Statuses:
 - paused
 - cancelled
 
+FF-018 implements goal creation and editing for every listed goal type, optional
+deadlines, baseline capture and the active, paused and cancelled lifecycle. Goals
+linked to training data calculate their initial baseline from completed workouts;
+body-weight and custom goals collect the current value from the user.
+
 ### Nutrition
 Lightweight journal, not a full calorie database:
 - photo

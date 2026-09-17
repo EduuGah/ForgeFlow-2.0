@@ -68,11 +68,22 @@ calendar date so late-evening workouts do not appear on the following UTC day.
 
 ## Goals
 
-Baseline must be captured when a goal is created when the metric supports it. Historical records before goal creation must not accidentally count as new progress.
+Baseline must be captured when a goal is created when the metric supports it.
+Historical records before goal creation must not accidentally count as new
+progress. Exercise weight, repetitions and volume, monthly workout count, total
+volume and personal-record count use the user's completed training history.
+Workout-frequency goals use the completed workouts from the previous 30 days.
+Body-weight and custom goals require a user-provided baseline.
+
+The goal type, metric, linked exercise and baseline are immutable after creation.
+The title, target and optional deadline can be edited without resetting progress.
+New goals start active. Active goals can be paused or cancelled; paused goals can
+be resumed or cancelled. Cancelled goals cannot return to an active state.
 
 A goal with no deadline remains active until completed, paused, cancelled or otherwise changed.
 
-Deadline is optional.
+Deadline is optional and represents the end of the selected calendar date,
+independent of the user's timezone.
 
 ## Workout completion
 

@@ -12,6 +12,16 @@ import {
   type ListExerciseLibraryParams,
 } from '../application/useCases/exerciseLibrary';
 import { getHomeOverview } from '../application/useCases/getHomeOverview';
+import {
+  cancelGoal,
+  createGoal,
+  listGoals,
+  pauseGoal,
+  resumeGoal,
+  updateGoal,
+  type CreateGoalInput,
+  type UpdateGoalInput,
+} from '../application/useCases/goalEngine';
 import { getTrainingAnalytics } from '../application/useCases/trainingAnalytics';
 import type { AnalyticsPeriod } from '../domain/training/analytics';
 import {
@@ -76,6 +86,19 @@ export function createAppServices() {
       workouts: repositories.workouts,
     },
   };
+  const goalDependencies = {
+    clock: () => new Date().toISOString(),
+    generateId: createLocalUuid,
+    repositories: {
+      exercises: repositories.exercises,
+      goals: repositories.goals,
+      personalRecords: repositories.personalRecords,
+      sessionExercises: repositories.sessionExercises,
+      sets: repositories.sets,
+      syncOperations: repositories.syncOperations,
+      workoutSessions: repositories.workoutSessions,
+    },
+  };
 
   return {
     auth: {
@@ -123,6 +146,29 @@ export function createAppServices() {
             generateId: createLocalUuid,
             repositories: exerciseLibraryRepositories,
           },
+        ),
+    },
+    goals: {
+      cancel: (goalId: string) =>
+        cancelGoal({ goalId, userId: LOCAL_PREVIEW_USER_ID }, goalDependencies),
+      create: (input: Omit<CreateGoalInput, 'userId'>) =>
+        createGoal(
+          { ...input, userId: LOCAL_PREVIEW_USER_ID },
+          goalDependencies,
+        ),
+      list: () =>
+        listGoals(
+          { userId: LOCAL_PREVIEW_USER_ID },
+          goalDependencies.repositories,
+        ),
+      pause: (goalId: string) =>
+        pauseGoal({ goalId, userId: LOCAL_PREVIEW_USER_ID }, goalDependencies),
+      resume: (goalId: string) =>
+        resumeGoal({ goalId, userId: LOCAL_PREVIEW_USER_ID }, goalDependencies),
+      update: (input: Omit<UpdateGoalInput, 'userId'>) =>
+        updateGoal(
+          { ...input, userId: LOCAL_PREVIEW_USER_ID },
+          goalDependencies,
         ),
     },
     homeOverview: {
