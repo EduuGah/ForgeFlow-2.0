@@ -91,3 +91,11 @@ working-set volume and repetitions, personal records and per-exercise metrics fo
 period of equal length and exposes serializable timeline/exercise series for
 charts and future exports. Preview data still uses the in-memory repository and
 resets when the app reloads.
+
+### Goal engine preview (FF-018)
+
+The Goals tab creates every supported goal type, captures its baseline, accepts
+an optional deadline and supports editing, pausing, resuming and cancelling.
+Training-based goals derive their baseline from completed workout analytics;
+body-weight and custom goals accept a manual current value. Goal preview data
+uses the in-memory repository and resets when the app reloads.

@@ -2,6 +2,7 @@ import { initialLocalSchemaMigration } from './initialLocalSchemaMigration';
 import { initialServerSchemaMigration } from './initialServerSchemaMigration';
 import { serverExerciseFavoritesMigration } from './exerciseFavoritesMigration';
 import { serverPersonalRecordsMigration } from './personalRecordsMigration';
+import { serverGoalsMigration } from './goalsMigration';
 import { localMigrations } from './localMigrations';
 import { serverMigrations } from './serverMigrations';
 
@@ -23,6 +24,7 @@ describe('initial schema migrations', () => {
       initialServerSchemaMigration,
       serverExerciseFavoritesMigration,
       serverPersonalRecordsMigration,
+      serverGoalsMigration,
     ]);
 
     expect(initialLocalSchemaMigration).toMatchObject({

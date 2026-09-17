@@ -28,10 +28,13 @@ export type GoalStatus =
 
 export type GoalMetric =
   | 'body_weight_kg'
+  | 'custom_value'
+  | 'personal_record_count'
   | 'repetitions'
   | 'volume_kg'
   | 'weight_kg'
-  | 'workout_count';
+  | 'workout_count'
+  | 'workout_frequency_per_week';
 
 export type Goal = TimestampedEntity &
   SoftDeletableEntity &
