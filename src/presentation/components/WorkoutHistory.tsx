@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Medal, RefreshCw } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { CompletedWorkout } from '../../application/useCases/workoutExecution';
@@ -113,6 +113,16 @@ export function WorkoutHistory({
                   {set.notes ? (
                     <Text style={styles.text}>{set.notes}</Text>
                   ) : null}
+                  {set.personalRecordTypes.length > 0 ? (
+                    <View style={styles.records}>
+                      <Medal color={colors.warning} size={16} />
+                      <Text style={styles.recordText}>
+                        {set.personalRecordTypes
+                          .map(formatRecordType)
+                          .join(' / ')}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               ))}
             {!exercise.sets.some((set) => set.completedAt !== null) ? (
@@ -171,6 +181,15 @@ function WorkoutTotals({ workout }: { workout: CompletedWorkout }) {
   );
 }
 
+function formatRecordType(
+  type: CompletedWorkout['exercises'][number]['sets'][number]['personalRecordTypes'][number],
+) {
+  if (type === 'estimated_1rm') return '1RM estimado';
+  if (type === 'repetitions') return 'Recorde de repeticoes';
+  if (type === 'volume') return 'Recorde de volume';
+  return 'Recorde de peso';
+}
+
 const styles = StyleSheet.create({
   action: {
     alignItems: 'center',
@@ -188,6 +207,12 @@ const styles = StyleSheet.create({
   },
   link: { ...typography.body, color: colors.accent },
   meta: { ...typography.caption, color: colors.textMuted },
+  records: { alignItems: 'center', flexDirection: 'row', gap: spacing.xs },
+  recordText: {
+    ...typography.caption,
+    color: colors.warning,
+    fontWeight: '800',
+  },
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',

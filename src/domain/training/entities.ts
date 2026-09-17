@@ -8,6 +8,9 @@ import type {
 
 export type SetType = 'warmup' | 'working';
 
+export type PersonalRecordType =
+  'estimated_1rm' | 'repetitions' | 'volume' | 'weight';
+
 export type WorkoutSessionStatus = 'active' | 'completed' | 'abandoned';
 
 export type Exercise = TimestampedEntity &
@@ -79,4 +82,14 @@ export type TrainingSet = TimestampedEntity &
     setNumber: number;
     setType: SetType;
     weightKg: number;
+  };
+
+export type PersonalRecord = TimestampedEntity &
+  UserOwnedEntity & {
+    achievedAt: ISODateTimeString;
+    contextWeightKg: number | null;
+    exerciseId: EntityId;
+    recordType: PersonalRecordType;
+    sourceSetId: EntityId;
+    value: number;
   };

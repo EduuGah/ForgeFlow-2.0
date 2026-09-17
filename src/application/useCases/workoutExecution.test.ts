@@ -81,6 +81,16 @@ describe('workout execution use cases', () => {
       setCount: 2,
     });
     expect(result.exercises[0].sets[0].notes).toBe('Movimento controlado');
+    expect(result.exercises[0].sets[0].personalRecordTypes).toEqual([]);
+    expect(result.exercises[0].sets[1].personalRecordTypes).toEqual([
+      'weight',
+      'volume',
+      'repetitions',
+      'estimated_1rm',
+    ]);
+    await expect(
+      repositories.personalRecords.listPersonalRecords({ userId }),
+    ).resolves.toHaveLength(4);
     await expect(
       getActiveWorkout({ userId }, repositories),
     ).resolves.toBeNull();
@@ -110,6 +120,9 @@ describe('workout execution use cases', () => {
           operation.payload.status === 'completed',
       ),
     ).toHaveLength(1);
+    await expect(
+      repositories.personalRecords.listPersonalRecords({ userId }),
+    ).resolves.toHaveLength(4);
   });
 
   it('filters history by owner and status, sorts newest first and ignores invalid volume', async () => {

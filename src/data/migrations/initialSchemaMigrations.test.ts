@@ -1,6 +1,7 @@
 import { initialLocalSchemaMigration } from './initialLocalSchemaMigration';
 import { initialServerSchemaMigration } from './initialServerSchemaMigration';
 import { serverExerciseFavoritesMigration } from './exerciseFavoritesMigration';
+import { serverPersonalRecordsMigration } from './personalRecordsMigration';
 import { localMigrations } from './localMigrations';
 import { serverMigrations } from './serverMigrations';
 
@@ -21,6 +22,7 @@ describe('initial schema migrations', () => {
     expect(serverMigrations).toStrictEqual([
       initialServerSchemaMigration,
       serverExerciseFavoritesMigration,
+      serverPersonalRecordsMigration,
     ]);
 
     expect(initialLocalSchemaMigration).toMatchObject({

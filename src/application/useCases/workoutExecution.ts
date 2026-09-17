@@ -2,6 +2,7 @@ import type { EntityId, ISODateTimeString } from '../../domain/shared/types';
 import type { SyncOperation } from '../../domain/sync/entities';
 import type {
   Exercise,
+  PersonalRecordType,
   SessionExercise,
   SetType,
   TrainingSet,
@@ -12,11 +13,13 @@ import {
   calculateSetVolume,
 } from '../../domain/training/metrics';
 import type { RepositoryProvider } from '../ports/repositories';
+import { createPersonalRecordsForSession } from './personalRecordEngine';
 
 export type ActiveWorkoutSet = {
   completedAt: ISODateTimeString | null;
   id: EntityId;
   notes: string | null;
+  personalRecordTypes: PersonalRecordType[];
   repetitions: number;
   restSeconds: number | null;
   setNumber: number;
@@ -56,6 +59,7 @@ export type CompletedWorkout = ActiveWorkout & {
 type WorkoutExecutionRepositories = Pick<
   RepositoryProvider,
   | 'exercises'
+  | 'personalRecords'
   | 'sessionExercises'
   | 'sets'
   | 'syncOperations'
@@ -303,6 +307,7 @@ export async function completeActiveWorkout(
     status: 'completed',
     updatedAt: now,
   };
+  await createPersonalRecordsForSession({ session: completed }, dependencies);
   // Queue first so a failed enqueue leaves the session available for retry.
   await dependencies.repositories.syncOperations.enqueueSyncOperation(
     createSyncOperation({
@@ -555,6 +560,15 @@ async function summarizeActiveWorkout(
   const sets = await repositories.sets.listTrainingSets({
     sessionExerciseIds: sessionExercises.map((exercise) => exercise.id),
   });
+  const records = await repositories.personalRecords.listPersonalRecords({
+    sourceSetIds: sets.map((set) => set.id),
+    userId: session.userId,
+  });
+  const recordTypesBySetId = records.reduce((groups, record) => {
+    const types = groups.get(record.sourceSetId) ?? [];
+    groups.set(record.sourceSetId, [...types, record.recordType]);
+    return groups;
+  }, new Map<EntityId, PersonalRecordType[]>());
   const setsBySessionExerciseId = groupSetsBySessionExerciseId(sets);
   const defaultRestSecondsByExerciseId = new Map(
     (workout?.exercises ?? [])
@@ -583,6 +597,7 @@ async function summarizeActiveWorkout(
           completedAt: set.completedAt,
           id: set.id,
           notes: set.notes,
+          personalRecordTypes: recordTypesBySetId.get(set.id) ?? [],
           repetitions: set.repetitions,
           restSeconds: set.restSeconds,
           setNumber: set.setNumber,
