@@ -54,6 +54,18 @@ use strict improvement: an equal value does not create another event. Every new
 record keeps its source set and achievement timestamp so previous records remain
 available in history.
 
+## Training analytics
+
+Analytics periods include both the start and end timestamps. Period comparisons
+use the immediately preceding window with the same duration and do not overlap.
+Workout count and duration use completed, non-deleted sessions. Volume,
+repetitions, maximum load and exercise progression use only completed,
+non-deleted working sets; warm-up sets remain visible in workout history but are
+excluded from these metrics. Frequency is completed workouts per seven days in
+the selected period. A percentage comparison is undefined when the previous
+period has a zero baseline. Daily chart buckets follow the user's device-local
+calendar date so late-evening workouts do not appear on the following UTC day.
+
 ## Goals
 
 Baseline must be captured when a goal is created when the metric supports it. Historical records before goal creation must not accidentally count as new progress.

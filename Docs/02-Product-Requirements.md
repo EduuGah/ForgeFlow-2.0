@@ -92,6 +92,11 @@ Derived metric:
 
 ### Progress
 - Exercise progression
+
+FF-017 implements the first training analytics slice. It aggregates completed
+workouts, working-set volume and repetitions, duration, frequency, exercise
+performance and personal records for explicit date ranges. The result includes
+an equal-length previous-period comparison and serializable chart/export data.
 - Weight
 - Volume
 - Repetitions

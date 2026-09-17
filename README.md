@@ -82,3 +82,12 @@ writes remain prerequisites for the offline-reopening requirement in issue #15.
 This implementation is partial and must not close that issue yet. Historical
 names are resolved from the current catalog/templates rather than immutable name
 snapshots. Missing names fall back to generic labels while recorded sets remain.
+
+### Training analytics preview (FF-017)
+
+The Progress tab calculates completed workout count, duration, frequency,
+working-set volume and repetitions, personal records and per-exercise metrics for
+7, 30 or 90 days. It compares each selection with the immediately preceding
+period of equal length and exposes serializable timeline/exercise series for
+charts and future exports. Preview data still uses the in-memory repository and
+resets when the app reloads.
