@@ -23,7 +23,9 @@ import {
 } from '../application/useCases/workoutCrud';
 import {
   abandonActiveWorkout,
+  completeActiveWorkout,
   getActiveWorkout,
+  listCompletedWorkouts,
   logWorkoutSet,
   startWorkoutSession,
   type LogWorkoutSetInput,
@@ -64,6 +66,7 @@ export function createAppServices() {
     generateId: createLocalUuid,
     repositories: {
       exercises: repositories.exercises,
+      personalRecords: repositories.personalRecords,
       sessionExercises: repositories.sessionExercises,
       sets: repositories.sets,
       syncOperations: repositories.syncOperations,
@@ -156,6 +159,16 @@ export function createAppServices() {
         ),
     },
     workoutExecution: {
+      complete: (sessionId: string) =>
+        completeActiveWorkout(
+          { userId: LOCAL_PREVIEW_USER_ID, sessionId },
+          workoutExecutionDependencies,
+        ),
+      history: () =>
+        listCompletedWorkouts(
+          { userId: LOCAL_PREVIEW_USER_ID },
+          workoutExecutionDependencies.repositories,
+        ),
       abandonActive: () =>
         abandonActiveWorkout(
           { userId: LOCAL_PREVIEW_USER_ID },

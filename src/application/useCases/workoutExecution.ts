@@ -2,6 +2,7 @@ import type { EntityId, ISODateTimeString } from '../../domain/shared/types';
 import type { SyncOperation } from '../../domain/sync/entities';
 import type {
   Exercise,
+  PersonalRecordType,
   SessionExercise,
   SetType,
   TrainingSet,
@@ -12,11 +13,13 @@ import {
   calculateSetVolume,
 } from '../../domain/training/metrics';
 import type { RepositoryProvider } from '../ports/repositories';
+import { createPersonalRecordsForSession } from './personalRecordEngine';
 
 export type ActiveWorkoutSet = {
   completedAt: ISODateTimeString | null;
   id: EntityId;
   notes: string | null;
+  personalRecordTypes: PersonalRecordType[];
   repetitions: number;
   restSeconds: number | null;
   setNumber: number;
@@ -46,9 +49,17 @@ export type ActiveWorkout = {
   workoutName: string | null;
 };
 
+export type CompletedWorkout = ActiveWorkout & {
+  completedAt: ISODateTimeString;
+  durationSeconds: number;
+  setCount: number;
+  workingVolume: number;
+};
+
 type WorkoutExecutionRepositories = Pick<
   RepositoryProvider,
   | 'exercises'
+  | 'personalRecords'
   | 'sessionExercises'
   | 'sets'
   | 'syncOperations'
@@ -262,6 +273,97 @@ export async function abandonActiveWorkout(
   return nextSession;
 }
 
+export async function completeActiveWorkout(
+  input: { userId: EntityId; sessionId: EntityId },
+  dependencies: WorkoutExecutionDependencies,
+): Promise<CompletedWorkout> {
+  const sessions =
+    await dependencies.repositories.workoutSessions.listWorkoutSessions({
+      userId: input.userId,
+    });
+  const session = sessions.find(
+    (item) => item.id === input.sessionId && item.deletedAt === null,
+  );
+  if (
+    !session ||
+    (session.status !== 'active' && session.status !== 'completed')
+  ) {
+    throw new WorkoutExecutionInputError(
+      'workoutId',
+      'Workout is not available to complete.',
+    );
+  }
+  if (session.status === 'completed') {
+    return summarizeCompletedWorkout(session, dependencies.repositories);
+  }
+  const now = dependencies.clock();
+  const completed: WorkoutSession = {
+    ...session,
+    completedAt: now,
+    durationSeconds: Math.max(
+      0,
+      Math.floor((Date.parse(now) - Date.parse(session.startedAt)) / 1000),
+    ),
+    status: 'completed',
+    updatedAt: now,
+  };
+  await createPersonalRecordsForSession({ session: completed }, dependencies);
+  // Queue first so a failed enqueue leaves the session available for retry.
+  await dependencies.repositories.syncOperations.enqueueSyncOperation(
+    createSyncOperation({
+      clock: dependencies.clock,
+      entityId: completed.id,
+      entityType: 'workout_session',
+      generateId: dependencies.generateId,
+      operationType: 'upsert',
+      payload: completed,
+    }),
+  );
+  await dependencies.repositories.workoutSessions.saveWorkoutSession(completed);
+  return summarizeCompletedWorkout(completed, dependencies.repositories);
+}
+
+export async function listCompletedWorkouts(
+  input: { userId: EntityId },
+  repositories: WorkoutExecutionRepositories,
+): Promise<CompletedWorkout[]> {
+  const sessions =
+    await repositories.workoutSessions.listWorkoutSessions(input);
+  return Promise.all(
+    sessions
+      .filter(
+        (session) =>
+          session.deletedAt === null && session.status === 'completed',
+      )
+      .sort(
+        (left, right) =>
+          Date.parse(right.startedAt) - Date.parse(left.startedAt),
+      )
+      .map((session) => summarizeCompletedWorkout(session, repositories)),
+  );
+}
+
+async function summarizeCompletedWorkout(
+  session: WorkoutSession,
+  repositories: WorkoutExecutionRepositories,
+): Promise<CompletedWorkout> {
+  const summary = await summarizeActiveWorkout(session, repositories);
+  return {
+    ...summary,
+    completedAt: session.completedAt ?? session.updatedAt,
+    durationSeconds: session.durationSeconds ?? 0,
+    setCount: summary.exercises.reduce(
+      (total, exercise) =>
+        total + exercise.sets.filter((set) => set.completedAt !== null).length,
+      0,
+    ),
+    workingVolume: summary.exercises.reduce(
+      (total, exercise) => total + exercise.workingVolume,
+      0,
+    ),
+  };
+}
+
 async function requireActiveSessionExercise(
   activeSession: WorkoutSession,
   sessionExerciseId: EntityId,
@@ -458,6 +560,15 @@ async function summarizeActiveWorkout(
   const sets = await repositories.sets.listTrainingSets({
     sessionExerciseIds: sessionExercises.map((exercise) => exercise.id),
   });
+  const records = await repositories.personalRecords.listPersonalRecords({
+    sourceSetIds: sets.map((set) => set.id),
+    userId: session.userId,
+  });
+  const recordTypesBySetId = records.reduce((groups, record) => {
+    const types = groups.get(record.sourceSetId) ?? [];
+    groups.set(record.sourceSetId, [...types, record.recordType]);
+    return groups;
+  }, new Map<EntityId, PersonalRecordType[]>());
   const setsBySessionExerciseId = groupSetsBySessionExerciseId(sets);
   const defaultRestSecondsByExerciseId = new Map(
     (workout?.exercises ?? [])
@@ -486,6 +597,7 @@ async function summarizeActiveWorkout(
           completedAt: set.completedAt,
           id: set.id,
           notes: set.notes,
+          personalRecordTypes: recordTypesBySetId.get(set.id) ?? [],
           repetitions: set.repetitions,
           restSeconds: set.restSeconds,
           setNumber: set.setNumber,

@@ -4,6 +4,7 @@ import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
   Exercise,
   ExerciseFavorite,
+  PersonalRecord,
   SessionExercise,
   TrainingSet,
   WorkoutSession,
@@ -20,6 +21,8 @@ import type {
   ListTrainingSetsParams,
   ListWorkoutSessionsParams,
   ListWorkoutTemplatesParams,
+  ListPersonalRecordsParams,
+  PersonalRecordRepository,
   RepositoryProvider,
   SessionExerciseRepository,
   SyncOperationRepository,
@@ -33,6 +36,7 @@ export type InMemoryRepositorySeed = Partial<{
   exerciseFavorites: ExerciseFavorite[];
   exercises: Exercise[];
   goals: Goal[];
+  personalRecords: PersonalRecord[];
   sessionExercises: SessionExercise[];
   syncOperations: SyncOperation[];
   syncStates: SyncState[];
@@ -46,6 +50,7 @@ class InMemoryForgeFlowRepository
     ExerciseRepository,
     ExerciseFavoriteRepository,
     GoalRepository,
+    PersonalRecordRepository,
     SessionExerciseRepository,
     SyncOperationRepository,
     SyncStateRepository,
@@ -56,6 +61,7 @@ class InMemoryForgeFlowRepository
   private exerciseFavorites: ExerciseFavorite[];
   private exercises: Exercise[];
   private goals: Goal[];
+  private personalRecords: PersonalRecord[];
   private sessionExercises: SessionExercise[];
   private syncOperations: SyncOperation[];
   private syncStates: SyncState[];
@@ -67,6 +73,7 @@ class InMemoryForgeFlowRepository
     this.exerciseFavorites = seed.exerciseFavorites ?? [];
     this.exercises = seed.exercises ?? [];
     this.goals = seed.goals ?? [];
+    this.personalRecords = seed.personalRecords ?? [];
     this.sessionExercises = seed.sessionExercises ?? [];
     this.syncOperations = seed.syncOperations ?? [];
     this.syncStates = seed.syncStates ?? [];
@@ -224,6 +231,24 @@ class InMemoryForgeFlowRepository
     return clone(typeof limit === 'number' ? pending.slice(0, limit) : pending);
   }
 
+  async listPersonalRecords(params: ListPersonalRecordsParams) {
+    return clone(
+      this.personalRecords.filter((record) => {
+        if (record.userId !== params.userId) return false;
+        if (params.exerciseId && record.exerciseId !== params.exerciseId)
+          return false;
+        if (params.recordType && record.recordType !== params.recordType)
+          return false;
+        if (
+          params.sourceSetIds &&
+          !params.sourceSetIds.includes(record.sourceSetId)
+        )
+          return false;
+        return true;
+      }),
+    );
+  }
+
   async listSessionExercises(params: ListSessionExercisesParams) {
     return clone(
       this.sessionExercises.filter((sessionExercise) => {
@@ -375,6 +400,10 @@ class InMemoryForgeFlowRepository
     this.goals = upsertById(this.goals, goal, 'id');
   }
 
+  async savePersonalRecord(record: PersonalRecord) {
+    this.personalRecords = upsertById(this.personalRecords, record, 'id');
+  }
+
   async saveSessionExercise(sessionExercise: SessionExercise) {
     this.sessionExercises = upsertById(
       this.sessionExercises,
@@ -412,6 +441,7 @@ export function createInMemoryRepositories(
     exerciseFavorites: repository,
     exercises: repository,
     goals: repository,
+    personalRecords: repository,
     syncOperations: repository,
     syncState: repository,
     sessionExercises: repository,

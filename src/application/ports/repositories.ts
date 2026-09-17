@@ -4,6 +4,8 @@ import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
   Exercise,
   ExerciseFavorite,
+  PersonalRecord,
+  PersonalRecordType,
   SessionExercise,
   TrainingSet,
   WorkoutSession,
@@ -43,6 +45,13 @@ export type ListTrainingSetsParams = {
   includeDeleted?: boolean;
   sessionExerciseId?: EntityId;
   sessionExerciseIds?: EntityId[];
+};
+
+export type ListPersonalRecordsParams = {
+  exerciseId?: EntityId;
+  recordType?: PersonalRecordType;
+  sourceSetIds?: EntityId[];
+  userId: EntityId;
 };
 
 export type ListGoalsParams = {
@@ -98,6 +107,13 @@ export interface TrainingSetRepository {
   saveTrainingSet(set: TrainingSet): Promise<void>;
 }
 
+export interface PersonalRecordRepository {
+  listPersonalRecords(
+    params: ListPersonalRecordsParams,
+  ): Promise<PersonalRecord[]>;
+  savePersonalRecord(record: PersonalRecord): Promise<void>;
+}
+
 export interface GoalRepository {
   findGoalById(id: EntityId): Promise<Goal | null>;
   listGoals(params: ListGoalsParams): Promise<Goal[]>;
@@ -129,6 +145,7 @@ export type RepositoryProvider = {
   exerciseFavorites: ExerciseFavoriteRepository;
   exercises: ExerciseRepository;
   goals: GoalRepository;
+  personalRecords: PersonalRecordRepository;
   syncOperations: SyncOperationRepository;
   syncState: SyncStateRepository;
   sessionExercises: SessionExerciseRepository;
