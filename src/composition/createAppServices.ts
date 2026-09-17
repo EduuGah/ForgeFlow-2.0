@@ -12,6 +12,8 @@ import {
   type ListExerciseLibraryParams,
 } from '../application/useCases/exerciseLibrary';
 import { getHomeOverview } from '../application/useCases/getHomeOverview';
+import { getTrainingAnalytics } from '../application/useCases/trainingAnalytics';
+import type { AnalyticsPeriod } from '../domain/training/analytics';
 import {
   archiveWorkoutTemplate,
   createWorkoutTemplate,
@@ -85,6 +87,19 @@ export function createAppServices() {
       restoreSession: () => restoreSession(authDependencies),
     },
     currentUserId: LOCAL_PREVIEW_USER_ID,
+    analytics: {
+      get: (period: AnalyticsPeriod) =>
+        getTrainingAnalytics(
+          { period, userId: LOCAL_PREVIEW_USER_ID },
+          {
+            exercises: repositories.exercises,
+            personalRecords: repositories.personalRecords,
+            sessionExercises: repositories.sessionExercises,
+            sets: repositories.sets,
+            workoutSessions: repositories.workoutSessions,
+          },
+        ),
+    },
     exerciseLibrary: {
       create: (input: Omit<CreateUserExerciseInput, 'userId'>) =>
         createUserExercise(
