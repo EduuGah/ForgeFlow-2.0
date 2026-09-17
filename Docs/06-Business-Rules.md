@@ -35,11 +35,24 @@ Volume = weight × repetitions.
 
 ## PR — repetitions
 
-For comparable load contexts, track the highest valid repetition count. The exact comparison policy must be implemented consistently; do not compare arbitrary repetitions across wildly different loads as if they represented the same performance.
+For comparable load contexts, track the highest valid repetition count. ForgeFlow
+compares repetition records at the exact same load in kilograms. Records at
+different loads remain separate events.
 
 ## Estimated 1RM
 
-Optional derived metric. It is an estimate, not a real lift. The formula must be centralized in one domain module and covered by tests.
+Derived metric using the Epley formula: `weight × (1 + repetitions / 30)`.
+One repetition returns the lifted weight. Values are rounded to two decimal places
+and must always be labeled as estimates. The formula is centralized in the
+training domain and covered by tests.
+
+## PR history
+
+Only completed, non-deleted working sets can create records. Warm-up sets never
+create records. Weight, set volume, comparable-load repetitions and estimated 1RM
+use strict improvement: an equal value does not create another event. Every new
+record keeps its source set and achievement timestamp so previous records remain
+available in history.
 
 ## Goals
 

@@ -136,14 +136,17 @@ Derived/denormalized records for fast access.
 - id UUID PK
 - user_id
 - exercise_id
-- record_type: weight | volume | reps
+- record_type: weight | volume | repetitions | estimated_1rm
 - value
+- context_weight_kg nullable; required as the comparison context for repetition records
 - source_set_id
 - achieved_at
 - created_at
 - updated_at
 
-Unique/consistent current-record strategy must be defined in the service layer. Historical PR events may be stored separately if needed.
+Each row is a historical PR event. Current records are derived by selecting the
+highest value for user, exercise, type and comparison context. A source set can
+create at most one event for each type/context combination.
 
 ### goals
 - id UUID PK

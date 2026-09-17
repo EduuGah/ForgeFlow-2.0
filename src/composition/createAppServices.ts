@@ -66,6 +66,7 @@ export function createAppServices() {
     generateId: createLocalUuid,
     repositories: {
       exercises: repositories.exercises,
+      personalRecords: repositories.personalRecords,
       sessionExercises: repositories.sessionExercises,
       sets: repositories.sets,
       syncOperations: repositories.syncOperations,
