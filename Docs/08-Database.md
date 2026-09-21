@@ -368,3 +368,12 @@ event stores the goal, measured value, progress percentage, timestamp, source
 type and optional source entity. Percentages are constrained to 0-100, goal
 deletion cascades to its history, and `goal_id + recorded_at` is indexed for
 latest-value and audit-history queries.
+
+## Achievements migration
+
+FF-020 adds migration `0007_achievements` to SQLite and PostgreSQL. The table
+stores the user, stable achievement type, unlock timestamp and metric metadata.
+The unique `user_id + achievement_type` constraint prevents duplicate unlocks,
+the user foreign key cascades deletion, and `user_id + achieved_at` supports the
+Profile history. SQLite stores metadata as serialized text while PostgreSQL uses
+JSONB.

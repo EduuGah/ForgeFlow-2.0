@@ -1,4 +1,8 @@
 import type {
+  Achievement,
+  AchievementType,
+} from '../../domain/achievements/entities';
+import type {
   Goal,
   GoalProgressEvent,
   GoalStatus,
@@ -68,6 +72,16 @@ export type ListGoalProgressEventsParams = {
   goalId?: EntityId;
   goalIds?: EntityId[];
 };
+
+export type ListAchievementsParams = {
+  achievementTypes?: AchievementType[];
+  userId: EntityId;
+};
+
+export interface AchievementRepository {
+  listAchievements(params: ListAchievementsParams): Promise<Achievement[]>;
+  saveAchievement(achievement: Achievement): Promise<void>;
+}
 
 export interface ExerciseRepository {
   findExerciseById(id: EntityId): Promise<Exercise | null>;
@@ -158,6 +172,7 @@ export interface SyncStateRepository {
 }
 
 export type RepositoryProvider = {
+  achievements: AchievementRepository;
   exerciseFavorites: ExerciseFavoriteRepository;
   exercises: ExerciseRepository;
   goals: GoalRepository;
