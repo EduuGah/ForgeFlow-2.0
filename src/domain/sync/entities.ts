@@ -11,6 +11,7 @@ export type SyncEntityType =
   | 'meal'
   | 'media'
   | 'notification_preference'
+  | 'notification'
   | 'personal_record'
   | 'session_exercise'
   | 'set'

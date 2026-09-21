@@ -243,9 +243,11 @@ Optional audit/progress history.
 - title
 - body
 - data_json nullable
-- dedupe_key nullable
+- dedupe_key
+- delivery_status
 - read_at nullable
 - archived_at nullable
+- scheduled_for
 - created_at
 - expires_at nullable
 
@@ -377,3 +379,14 @@ The unique `user_id + achievement_type` constraint prevents duplicate unlocks,
 the user foreign key cascades deletion, and `user_id + achieved_at` supports the
 Profile history. SQLite stores metadata as serialized text while PostgreSQL uses
 JSONB.
+
+## Notifications migration
+
+FF-021 adds migration `0008_notifications` to SQLite and PostgreSQL. A unique
+`user_id + dedupe_key` constraint makes event processing idempotent across app
+startup and synchronization retries. `delivery_status` starts as `pending`, and
+`scheduled_for` preserves quiet-hour
+deferral for FF-022 delivery, while indexes on `user_id + created_at` and
+`user_id + read_at + created_at` support rate-limit evaluation and the future
+notification center. SQLite stores event data as serialized text and PostgreSQL
+uses JSONB.

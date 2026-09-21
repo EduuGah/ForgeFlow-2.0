@@ -131,6 +131,16 @@ Nutrition entries are tracking records. The app must not infer medical diagnoses
 
 Notifications must be deduplicated and rate-limited. The same event must not generate repeated notifications because a screen was opened multiple times.
 
+Each event carries a deterministic dedupe key. Processing order is eligibility,
+deduplication, category preference, quiet-hour scheduling, rate limiting and
+only then persistence plus offline sync. Quiet hours run from 22:00 to 08:00 in
+the configured UTC offset; events are deferred to 08:00, not discarded.
+
+Motivational notifications are limited to three per rolling 24 hours and one per
+category every six hours. Action-driven workout completion, new personal record,
+goal completion, achievement unlock and report-ready notifications bypass the
+rate limit but never bypass deduplication or category preferences.
+
 ## Time
 
 Store timestamps in UTC where server synchronization is involved. Render dates/times using the user's configured/local timezone. Store the timezone context needed for daily goals and hydration summaries.
