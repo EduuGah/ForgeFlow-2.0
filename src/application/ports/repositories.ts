@@ -1,4 +1,8 @@
-import type { Goal, GoalStatus } from '../../domain/goals/entities';
+import type {
+  Goal,
+  GoalProgressEvent,
+  GoalStatus,
+} from '../../domain/goals/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
@@ -58,6 +62,11 @@ export type ListGoalsParams = {
   includeDeleted?: boolean;
   statuses?: GoalStatus[];
   userId: EntityId;
+};
+
+export type ListGoalProgressEventsParams = {
+  goalId?: EntityId;
+  goalIds?: EntityId[];
 };
 
 export interface ExerciseRepository {
@@ -120,6 +129,13 @@ export interface GoalRepository {
   saveGoal(goal: Goal): Promise<void>;
 }
 
+export interface GoalProgressEventRepository {
+  listGoalProgressEvents(
+    params: ListGoalProgressEventsParams,
+  ): Promise<GoalProgressEvent[]>;
+  saveGoalProgressEvent(event: GoalProgressEvent): Promise<void>;
+}
+
 export interface SyncOperationRepository {
   countPendingSyncOperations(): Promise<number>;
   enqueueSyncOperation(operation: SyncOperation): Promise<void>;
@@ -145,6 +161,7 @@ export type RepositoryProvider = {
   exerciseFavorites: ExerciseFavoriteRepository;
   exercises: ExerciseRepository;
   goals: GoalRepository;
+  goalProgressEvents: GoalProgressEventRepository;
   personalRecords: PersonalRecordRepository;
   syncOperations: SyncOperationRepository;
   syncState: SyncStateRepository;

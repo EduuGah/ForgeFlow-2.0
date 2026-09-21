@@ -15,13 +15,17 @@ import { getHomeOverview } from '../application/useCases/getHomeOverview';
 import {
   cancelGoal,
   createGoal,
-  listGoals,
   pauseGoal,
   resumeGoal,
   updateGoal,
   type CreateGoalInput,
   type UpdateGoalInput,
 } from '../application/useCases/goalEngine';
+import {
+  listGoalProgress,
+  recordManualGoalProgress,
+  refreshActiveGoalProgress,
+} from '../application/useCases/goalProgress';
 import { getTrainingAnalytics } from '../application/useCases/trainingAnalytics';
 import type { AnalyticsPeriod } from '../domain/training/analytics';
 import {
@@ -99,6 +103,13 @@ export function createAppServices() {
       workoutSessions: repositories.workoutSessions,
     },
   };
+  const goalProgressDependencies = {
+    ...goalDependencies,
+    repositories: {
+      ...goalDependencies.repositories,
+      goalProgressEvents: repositories.goalProgressEvents,
+    },
+  };
 
   return {
     auth: {
@@ -151,25 +162,56 @@ export function createAppServices() {
     goals: {
       cancel: (goalId: string) =>
         cancelGoal({ goalId, userId: LOCAL_PREVIEW_USER_ID }, goalDependencies),
-      create: (input: Omit<CreateGoalInput, 'userId'>) =>
-        createGoal(
+      create: async (input: Omit<CreateGoalInput, 'userId'>) => {
+        const goal = await createGoal(
           { ...input, userId: LOCAL_PREVIEW_USER_ID },
           goalDependencies,
-        ),
-      list: () =>
-        listGoals(
+        );
+        await refreshActiveGoalProgress(
           { userId: LOCAL_PREVIEW_USER_ID },
-          goalDependencies.repositories,
-        ),
+          goalProgressDependencies,
+        );
+        return goal;
+      },
+      list: async () => {
+        await refreshActiveGoalProgress(
+          { userId: LOCAL_PREVIEW_USER_ID },
+          goalProgressDependencies,
+        );
+        return listGoalProgress(
+          { userId: LOCAL_PREVIEW_USER_ID },
+          goalProgressDependencies.repositories,
+        );
+      },
       pause: (goalId: string) =>
         pauseGoal({ goalId, userId: LOCAL_PREVIEW_USER_ID }, goalDependencies),
-      resume: (goalId: string) =>
-        resumeGoal({ goalId, userId: LOCAL_PREVIEW_USER_ID }, goalDependencies),
-      update: (input: Omit<UpdateGoalInput, 'userId'>) =>
-        updateGoal(
+      recordProgress: (goalId: string, measuredValue: number) =>
+        recordManualGoalProgress(
+          { goalId, measuredValue, userId: LOCAL_PREVIEW_USER_ID },
+          goalProgressDependencies,
+        ),
+      resume: async (goalId: string) => {
+        const goal = await resumeGoal(
+          { goalId, userId: LOCAL_PREVIEW_USER_ID },
+          goalDependencies,
+        );
+        await refreshActiveGoalProgress(
+          { userId: LOCAL_PREVIEW_USER_ID },
+          goalProgressDependencies,
+        );
+        return goal;
+      },
+      update: async (input: Omit<UpdateGoalInput, 'userId'>) => {
+        const goal = await updateGoal(
           { ...input, userId: LOCAL_PREVIEW_USER_ID },
           goalDependencies,
-        ),
+        );
+        await refreshActiveGoalProgress(
+          { userId: LOCAL_PREVIEW_USER_ID },
+          goalProgressDependencies,
+        );
+        return goal;
+      },
     },
     homeOverview: {
       get: () =>
@@ -220,11 +262,21 @@ export function createAppServices() {
         ),
     },
     workoutExecution: {
-      complete: (sessionId: string) =>
-        completeActiveWorkout(
+      complete: async (sessionId: string) => {
+        const workout = await completeActiveWorkout(
           { userId: LOCAL_PREVIEW_USER_ID, sessionId },
           workoutExecutionDependencies,
-        ),
+        );
+        await refreshActiveGoalProgress(
+          {
+            sourceId: sessionId,
+            sourceType: 'workout_completion',
+            userId: LOCAL_PREVIEW_USER_ID,
+          },
+          goalProgressDependencies,
+        );
+        return workout;
+      },
       history: () =>
         listCompletedWorkouts(
           { userId: LOCAL_PREVIEW_USER_ID },

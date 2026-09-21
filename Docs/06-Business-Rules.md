@@ -85,6 +85,25 @@ A goal with no deadline remains active until completed, paused, cancelled or oth
 Deadline is optional and represents the end of the selected calendar date,
 independent of the user's timezone.
 
+Goal progress is measured from baseline to target and clamped between 0% and
+100%. The same formula supports increasing and decreasing goals by using the
+direction from baseline to target. Reaching or crossing the target completes the
+goal before deadline/pace evaluation and records `completed_at`. Completed,
+expired, paused and cancelled goals do not accept new progress.
+
+For a goal with a deadline, expected progress is the percentage of time elapsed
+between creation and deadline. Actual progress equal to or above expected
+progress is `on_track`; lower progress is `behind`. A tolerance of 0.01 percentage
+point prevents processing latency immediately after creation from marking a new
+goal behind. Passing the deadline without reaching the target marks it expired.
+A goal without a deadline remains active until it reaches its target or its
+lifecycle is changed explicitly.
+
+Automatic training goals are recalculated after workout completion and when the
+goal list refreshes. Body-weight and custom goals accept explicit measurements.
+Identical value, percentage and status results are deduplicated; meaningful
+changes create an immutable progress event with source and timestamp.
+
 ## Workout completion
 
 A workout becomes completed only through an explicit completion action or an approved recovery rule. Abandoned active workouts remain recoverable.

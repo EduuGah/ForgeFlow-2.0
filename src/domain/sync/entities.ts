@@ -5,6 +5,7 @@ export type SyncEntityType =
   | 'exercise'
   | 'exercise_favorite'
   | 'goal'
+  | 'goal_progress_event'
   | 'hydration_entry'
   | 'meal'
   | 'media'

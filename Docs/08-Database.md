@@ -362,3 +362,9 @@ enforces non-negative baseline and target values, and constrains lifecycle
 statuses. Foreign keys connect goals to users and optional exercises. Indexes on
 `user_id + status` and `exercise_id` support the primary goal lists and
 exercise-scoped lookups.
+
+FF-019 adds migration `0006_goal_progress_events` to SQLite and PostgreSQL. Each
+event stores the goal, measured value, progress percentage, timestamp, source
+type and optional source entity. Percentages are constrained to 0-100, goal
+deletion cascades to its history, and `goal_id + recorded_at` is indexed for
+latest-value and audit-history queries.
