@@ -1,6 +1,7 @@
 import type { EntityId, ISODateTimeString } from '../shared/types';
 
 export type SyncEntityType =
+  | 'achievement'
   | 'body_weight_entry'
   | 'exercise'
   | 'exercise_favorite'

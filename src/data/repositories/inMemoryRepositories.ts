@@ -1,3 +1,4 @@
+import type { Achievement } from '../../domain/achievements/entities';
 import type { Goal, GoalProgressEvent } from '../../domain/goals/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
@@ -11,9 +12,11 @@ import type {
   WorkoutTemplate,
 } from '../../domain/training/entities';
 import type {
+  AchievementRepository,
   ExerciseFavoriteRepository,
   ExerciseRepository,
   ListExerciseFavoritesParams,
+  ListAchievementsParams,
   GoalRepository,
   GoalProgressEventRepository,
   ListExercisesParams,
@@ -35,6 +38,7 @@ import type {
 } from '../../application/ports/repositories';
 
 export type InMemoryRepositorySeed = Partial<{
+  achievements: Achievement[];
   exerciseFavorites: ExerciseFavorite[];
   exercises: Exercise[];
   goals: Goal[];
@@ -50,6 +54,7 @@ export type InMemoryRepositorySeed = Partial<{
 
 class InMemoryForgeFlowRepository
   implements
+    AchievementRepository,
     ExerciseRepository,
     ExerciseFavoriteRepository,
     GoalRepository,
@@ -62,6 +67,7 @@ class InMemoryForgeFlowRepository
     WorkoutRepository,
     WorkoutSessionRepository
 {
+  private achievements: Achievement[];
   private exerciseFavorites: ExerciseFavorite[];
   private exercises: Exercise[];
   private goals: Goal[];
@@ -75,6 +81,7 @@ class InMemoryForgeFlowRepository
   private workoutTemplates: WorkoutTemplate[];
 
   constructor(seed: InMemoryRepositorySeed = {}) {
+    this.achievements = seed.achievements ?? [];
     this.exerciseFavorites = seed.exerciseFavorites ?? [];
     this.exercises = seed.exercises ?? [];
     this.goals = seed.goals ?? [];
@@ -185,6 +192,21 @@ class InMemoryForgeFlowRepository
           return false;
         }
 
+        return true;
+      }),
+    );
+  }
+
+  async listAchievements(params: ListAchievementsParams) {
+    return clone(
+      this.achievements.filter((achievement) => {
+        if (achievement.userId !== params.userId) return false;
+        if (
+          params.achievementTypes &&
+          !params.achievementTypes.includes(achievement.achievementType)
+        ) {
+          return false;
+        }
         return true;
       }),
     );
@@ -406,6 +428,13 @@ class InMemoryForgeFlowRepository
     this.exercises = upsertById(this.exercises, exercise, 'id');
   }
 
+  async saveAchievement(achievement: Achievement) {
+    this.achievements = upsertByCompositeKey(this.achievements, achievement, [
+      'userId',
+      'achievementType',
+    ]);
+  }
+
   async saveExerciseFavorite(favorite: ExerciseFavorite) {
     this.exerciseFavorites = upsertByCompositeKey(
       this.exerciseFavorites,
@@ -460,6 +489,7 @@ export function createInMemoryRepositories(
   const repository = new InMemoryForgeFlowRepository(seed);
 
   return {
+    achievements: repository,
     exerciseFavorites: repository,
     exercises: repository,
     goals: repository,

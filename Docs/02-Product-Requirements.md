@@ -151,6 +151,14 @@ from completed training data, manual updates for body-weight/custom goals and th
 on-track, behind, completed and expired states. Reaching a target freezes the
 goal so later measurements cannot change completed progress.
 
+FF-020 adds an objective achievement catalog evaluated from persisted training,
+record and goal data. The initial catalog unlocks the first workout and first
+personal record; 3, 7 and 12 consecutive training weeks; 10, 25, 50 and 100
+completed workouts; 10,000, 50,000, 100,000 and 500,000 kg of cumulative
+working-set volume; 1, 5 and 10 completed goals; and 5%, 10% and 25% estimated
+1RM growth relative to the first record for an exercise. The Profile tab shows
+both unlocked and upcoming achievements.
+
 ### Nutrition
 Lightweight journal, not a full calorie database:
 - photo

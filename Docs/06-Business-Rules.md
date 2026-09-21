@@ -104,6 +104,21 @@ goal list refreshes. Body-weight and custom goals accept explicit measurements.
 Identical value, percentage and status results are deduplicated; meaningful
 changes create an immutable progress event with source and timestamp.
 
+## Achievements
+
+Achievements are derived from persisted facts and never from editable counters.
+Each achievement type can unlock only once per user. Re-evaluation after a
+workout, a goal completion or Profile load must be idempotent and every new
+unlock must enter the offline sync outbox before it is saved locally.
+
+The approved thresholds are: first workout and first personal record; weekly
+streaks of 3, 7 and 12; workout counts of 10, 25, 50 and 100; cumulative
+working-set volume of 10,000, 50,000, 100,000 and 500,000 kg; completed-goal
+counts of 1, 5 and 10; and estimated 1RM growth of 5%, 10% and 25% relative to
+the first estimated 1RM record for the same exercise. Weekly streaks count
+distinct consecutive UTC calendar weeks beginning on Monday. A gap starts a new
+sequence, and multiple workouts in one week count once.
+
 ## Workout completion
 
 A workout becomes completed only through an explicit completion action or an approved recovery rule. Abandoned active workouts remain recoverable.

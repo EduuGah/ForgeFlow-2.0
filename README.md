@@ -108,3 +108,13 @@ goals expose manual measurement entry. Deadline projection distinguishes goals
 that are on track, behind or expired, and reached targets move to the completed
 section at 100%. Progress events and sync operations still use the in-memory
 preview repository and reset when the app reloads.
+
+### Achievements preview (FF-020)
+
+The Profile tab now evaluates and displays 19 objective achievements for the
+first workout and record, consecutive training weeks, workout count, cumulative
+working-set volume, completed goals and estimated 1RM growth. Unlocks are
+idempotent and each new achievement enters the offline sync outbox. Achievement
+and outbox data use the in-memory preview repository and reset when the app
+reloads; migration `0007_achievements` defines durable SQLite and PostgreSQL
+storage for the production adapters.

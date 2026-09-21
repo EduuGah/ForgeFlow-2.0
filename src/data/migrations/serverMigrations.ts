@@ -1,4 +1,5 @@
 import type { MigrationDefinition } from './types';
+import { serverAchievementsMigration } from './achievementsMigration';
 import { serverExerciseFavoritesMigration } from './exerciseFavoritesMigration';
 import { initialServerSchemaMigration } from './initialServerSchemaMigration';
 import { serverGoalsMigration } from './goalsMigration';
@@ -11,4 +12,5 @@ export const serverMigrations = [
   serverPersonalRecordsMigration,
   serverGoalsMigration,
   serverGoalProgressMigration,
+  serverAchievementsMigration,
 ] satisfies readonly MigrationDefinition[];

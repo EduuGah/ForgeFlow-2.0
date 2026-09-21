@@ -5,6 +5,10 @@ import {
   restoreSession,
 } from '../application/useCases/authenticate';
 import {
+  evaluateAchievements,
+  listAchievementCatalog,
+} from '../application/useCases/achievements';
+import {
   createUserExercise,
   listExerciseLibrary,
   toggleExerciseFavorite,
@@ -110,8 +114,36 @@ export function createAppServices() {
       goalProgressEvents: repositories.goalProgressEvents,
     },
   };
+  const achievementDependencies = {
+    clock: () => new Date().toISOString(),
+    generateId: createLocalUuid,
+    repositories: {
+      achievements: repositories.achievements,
+      goals: repositories.goals,
+      personalRecords: repositories.personalRecords,
+      sessionExercises: repositories.sessionExercises,
+      sets: repositories.sets,
+      syncOperations: repositories.syncOperations,
+      workoutSessions: repositories.workoutSessions,
+    },
+  };
+
+  const refreshAchievements = () =>
+    evaluateAchievements(
+      { userId: LOCAL_PREVIEW_USER_ID },
+      achievementDependencies,
+    );
 
   return {
+    achievements: {
+      list: async () => {
+        await refreshAchievements();
+        return listAchievementCatalog(
+          { userId: LOCAL_PREVIEW_USER_ID },
+          repositories,
+        );
+      },
+    },
     auth: {
       login: (email: string, password: string) =>
         login({ email, password }, authDependencies),
@@ -178,6 +210,7 @@ export function createAppServices() {
           { userId: LOCAL_PREVIEW_USER_ID },
           goalProgressDependencies,
         );
+        await refreshAchievements();
         return listGoalProgress(
           { userId: LOCAL_PREVIEW_USER_ID },
           goalProgressDependencies.repositories,
@@ -185,11 +218,14 @@ export function createAppServices() {
       },
       pause: (goalId: string) =>
         pauseGoal({ goalId, userId: LOCAL_PREVIEW_USER_ID }, goalDependencies),
-      recordProgress: (goalId: string, measuredValue: number) =>
-        recordManualGoalProgress(
+      recordProgress: async (goalId: string, measuredValue: number) => {
+        const progress = await recordManualGoalProgress(
           { goalId, measuredValue, userId: LOCAL_PREVIEW_USER_ID },
           goalProgressDependencies,
-        ),
+        );
+        await refreshAchievements();
+        return progress;
+      },
       resume: async (goalId: string) => {
         const goal = await resumeGoal(
           { goalId, userId: LOCAL_PREVIEW_USER_ID },
@@ -275,6 +311,7 @@ export function createAppServices() {
           },
           goalProgressDependencies,
         );
+        await refreshAchievements();
         return workout;
       },
       history: () =>
