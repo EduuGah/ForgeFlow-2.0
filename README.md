@@ -118,3 +118,14 @@ idempotent and each new achievement enters the offline sync outbox. Achievement
 and outbox data use the in-memory preview repository and reset when the app
 reloads; migration `0007_achievements` defines durable SQLite and PostgreSQL
 storage for the production adapters.
+
+### Notification engine (FF-021)
+
+The central notification pipeline now evaluates eligibility, deterministic
+deduplication, category preferences, quiet hours and motivational rate limits
+before persisting a pending notification and its offline sync operation. The
+standard policy defers notifications created between 22:00 and 08:00 local time
+until 08:00, limits motivational events to three in a rolling 24-hour window and
+keeps a six-hour interval per category. Action-driven events remain exempt from
+the rate limit but are still deduplicated. Actual local/push delivery belongs to
+FF-022 and persisted preference editing belongs to FF-023.

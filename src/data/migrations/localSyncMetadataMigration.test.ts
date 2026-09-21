@@ -12,6 +12,7 @@ describe('local sync metadata migration', () => {
       '0005_goals',
       '0006_goal_progress_events',
       '0007_achievements',
+      '0008_notifications',
     ]);
     expect(localSyncMetadataMigration).toMatchObject({
       id: '0002_sync_metadata',

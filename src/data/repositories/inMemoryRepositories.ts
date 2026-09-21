@@ -1,5 +1,6 @@
 import type { Achievement } from '../../domain/achievements/entities';
 import type { Goal, GoalProgressEvent } from '../../domain/goals/entities';
+import type { Notification } from '../../domain/notifications/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
@@ -27,6 +28,8 @@ import type {
   ListWorkoutSessionsParams,
   ListWorkoutTemplatesParams,
   ListPersonalRecordsParams,
+  ListNotificationsParams,
+  NotificationRepository,
   PersonalRecordRepository,
   RepositoryProvider,
   SessionExerciseRepository,
@@ -43,6 +46,7 @@ export type InMemoryRepositorySeed = Partial<{
   exercises: Exercise[];
   goals: Goal[];
   goalProgressEvents: GoalProgressEvent[];
+  notifications: Notification[];
   personalRecords: PersonalRecord[];
   sessionExercises: SessionExercise[];
   syncOperations: SyncOperation[];
@@ -59,6 +63,7 @@ class InMemoryForgeFlowRepository
     ExerciseFavoriteRepository,
     GoalRepository,
     GoalProgressEventRepository,
+    NotificationRepository,
     PersonalRecordRepository,
     SessionExerciseRepository,
     SyncOperationRepository,
@@ -72,6 +77,7 @@ class InMemoryForgeFlowRepository
   private exercises: Exercise[];
   private goals: Goal[];
   private goalProgressEvents: GoalProgressEvent[];
+  private notifications: Notification[];
   private personalRecords: PersonalRecord[];
   private sessionExercises: SessionExercise[];
   private syncOperations: SyncOperation[];
@@ -86,6 +92,7 @@ class InMemoryForgeFlowRepository
     this.exercises = seed.exercises ?? [];
     this.goals = seed.goals ?? [];
     this.goalProgressEvents = seed.goalProgressEvents ?? [];
+    this.notifications = seed.notifications ?? [];
     this.personalRecords = seed.personalRecords ?? [];
     this.sessionExercises = seed.sessionExercises ?? [];
     this.syncOperations = seed.syncOperations ?? [];
@@ -289,6 +296,20 @@ class InMemoryForgeFlowRepository
     );
   }
 
+  async listNotifications(params: ListNotificationsParams) {
+    return clone(
+      this.notifications
+        .filter((notification) => {
+          if (notification.userId !== params.userId) return false;
+          if (params.dedupeKey && notification.dedupeKey !== params.dedupeKey) {
+            return false;
+          }
+          return true;
+        })
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
+    );
+  }
+
   async listSessionExercises(params: ListSessionExercisesParams) {
     return clone(
       this.sessionExercises.filter((sessionExercise) => {
@@ -455,6 +476,14 @@ class InMemoryForgeFlowRepository
     this.personalRecords = upsertById(this.personalRecords, record, 'id');
   }
 
+  async saveNotification(notification: Notification) {
+    this.notifications = upsertByCompositeKey(
+      this.notifications,
+      notification,
+      ['userId', 'dedupeKey'],
+    );
+  }
+
   async saveSessionExercise(sessionExercise: SessionExercise) {
     this.sessionExercises = upsertById(
       this.sessionExercises,
@@ -494,6 +523,7 @@ export function createInMemoryRepositories(
     exercises: repository,
     goals: repository,
     goalProgressEvents: repository,
+    notifications: repository,
     personalRecords: repository,
     syncOperations: repository,
     syncState: repository,
