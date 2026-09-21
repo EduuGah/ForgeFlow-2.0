@@ -22,6 +22,17 @@ type GoalDependencies = {
   repositories: GoalRepositories;
 };
 
+export type GoalMeasurementDependencies = Pick<GoalDependencies, 'clock'> & {
+  repositories: Pick<
+    GoalRepositories,
+    | 'exercises'
+    | 'personalRecords'
+    | 'sessionExercises'
+    | 'sets'
+    | 'workoutSessions'
+  >;
+};
+
 export type CreateGoalInput = {
   baselineValue?: number | null;
   deadline?: ISODateTimeString | null;
@@ -71,7 +82,7 @@ export async function createGoal(
     : null;
   const baselineValue = definition.manualBaseline
     ? requireManualBaseline(input.baselineValue)
-    : await captureAutomaticBaseline(
+    : await measureAutomaticGoalValue(
         input.type,
         exerciseId,
         input.userId,
@@ -170,11 +181,11 @@ async function changeGoalStatus(
   return updated;
 }
 
-async function captureAutomaticBaseline(
+export async function measureAutomaticGoalValue(
   type: GoalType,
   exerciseId: EntityId | null,
   userId: EntityId,
-  dependencies: GoalDependencies,
+  dependencies: GoalMeasurementDependencies,
 ) {
   const now = dependencies.clock();
   const from = getBaselineStart(type, now);

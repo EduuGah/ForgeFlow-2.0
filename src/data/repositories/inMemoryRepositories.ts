@@ -1,4 +1,4 @@
-import type { Goal } from '../../domain/goals/entities';
+import type { Goal, GoalProgressEvent } from '../../domain/goals/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
@@ -15,8 +15,10 @@ import type {
   ExerciseRepository,
   ListExerciseFavoritesParams,
   GoalRepository,
+  GoalProgressEventRepository,
   ListExercisesParams,
   ListGoalsParams,
+  ListGoalProgressEventsParams,
   ListSessionExercisesParams,
   ListTrainingSetsParams,
   ListWorkoutSessionsParams,
@@ -36,6 +38,7 @@ export type InMemoryRepositorySeed = Partial<{
   exerciseFavorites: ExerciseFavorite[];
   exercises: Exercise[];
   goals: Goal[];
+  goalProgressEvents: GoalProgressEvent[];
   personalRecords: PersonalRecord[];
   sessionExercises: SessionExercise[];
   syncOperations: SyncOperation[];
@@ -50,6 +53,7 @@ class InMemoryForgeFlowRepository
     ExerciseRepository,
     ExerciseFavoriteRepository,
     GoalRepository,
+    GoalProgressEventRepository,
     PersonalRecordRepository,
     SessionExerciseRepository,
     SyncOperationRepository,
@@ -61,6 +65,7 @@ class InMemoryForgeFlowRepository
   private exerciseFavorites: ExerciseFavorite[];
   private exercises: Exercise[];
   private goals: Goal[];
+  private goalProgressEvents: GoalProgressEvent[];
   private personalRecords: PersonalRecord[];
   private sessionExercises: SessionExercise[];
   private syncOperations: SyncOperation[];
@@ -73,6 +78,7 @@ class InMemoryForgeFlowRepository
     this.exerciseFavorites = seed.exerciseFavorites ?? [];
     this.exercises = seed.exercises ?? [];
     this.goals = seed.goals ?? [];
+    this.goalProgressEvents = seed.goalProgressEvents ?? [];
     this.personalRecords = seed.personalRecords ?? [];
     this.sessionExercises = seed.sessionExercises ?? [];
     this.syncOperations = seed.syncOperations ?? [];
@@ -218,6 +224,18 @@ class InMemoryForgeFlowRepository
           return false;
         }
 
+        return true;
+      }),
+    );
+  }
+
+  async listGoalProgressEvents(params: ListGoalProgressEventsParams) {
+    return clone(
+      this.goalProgressEvents.filter((event) => {
+        if (params.goalId && event.goalId !== params.goalId) return false;
+        if (params.goalIds && !params.goalIds.includes(event.goalId)) {
+          return false;
+        }
         return true;
       }),
     );
@@ -400,6 +418,10 @@ class InMemoryForgeFlowRepository
     this.goals = upsertById(this.goals, goal, 'id');
   }
 
+  async saveGoalProgressEvent(event: GoalProgressEvent) {
+    this.goalProgressEvents = upsertById(this.goalProgressEvents, event, 'id');
+  }
+
   async savePersonalRecord(record: PersonalRecord) {
     this.personalRecords = upsertById(this.personalRecords, record, 'id');
   }
@@ -441,6 +463,7 @@ export function createInMemoryRepositories(
     exerciseFavorites: repository,
     exercises: repository,
     goals: repository,
+    goalProgressEvents: repository,
     personalRecords: repository,
     syncOperations: repository,
     syncState: repository,

@@ -5,6 +5,7 @@ import {
   PenLine,
   Plus,
   Target,
+  TrendingUp,
   XCircle,
 } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -12,6 +13,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAppServices } from '../../composition/AppServicesProvider';
 import type { Goal, GoalType } from '../../domain/goals/entities';
 import { goalTypeDefinitions } from '../../domain/goals/rules';
+import type { GoalProgressView } from '../../application/useCases/goalProgress';
 import type { Exercise } from '../../domain/training/entities';
 import { AppScreen, EmptyState, Section } from '../components/AppScreen';
 import { colors, radius, spacing, typography } from '../theme/tokens';
@@ -21,7 +23,7 @@ const goalTypes = Object.keys(goalTypeDefinitions) as GoalType[];
 type GoalsState =
   | { status: 'error' }
   | { status: 'loading' }
-  | { goals: Goal[]; status: 'ready' };
+  | { goals: GoalProgressView[]; status: 'ready' };
 
 type GoalForm = {
   baseline: string;
@@ -51,6 +53,8 @@ export function GoalsScreen() {
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [progressGoal, setProgressGoal] = useState<Goal | null>(null);
+  const [progressValue, setProgressValue] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(() => {
@@ -80,6 +84,12 @@ export function GoalsScreen() {
     setEditorOpen(false);
     setEditingGoal(null);
     setForm(emptyForm);
+    setMessage(null);
+  };
+
+  const closeProgressEditor = () => {
+    setProgressGoal(null);
+    setProgressValue('');
     setMessage(null);
   };
 
@@ -140,7 +150,27 @@ export function GoalsScreen() {
     }
   };
 
+  const submitProgress = async () => {
+    if (!progressGoal) return;
+    const measuredValue = Number(progressValue.replace(',', '.'));
+    setMessage(null);
+    setSaving(true);
+    try {
+      await services.goals.recordProgress(progressGoal.id, measuredValue);
+      closeProgressEditor();
+      load();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : 'Nao foi possivel atualizar.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const startEdit = (goal: Goal) => {
+    setProgressGoal(null);
+    setProgressValue('');
     setEditingGoal(goal);
     setForm({
       baseline: goal.baselineValue?.toString() ?? '',
@@ -156,11 +186,11 @@ export function GoalsScreen() {
   };
 
   const goals = state.status === 'ready' ? state.goals : [];
-  const activeGoals = goals.filter((goal) =>
+  const activeGoals = goals.filter(({ goal }) =>
     ['active', 'behind', 'on_track'].includes(goal.status),
   );
-  const inactiveGoals = goals.filter((goal) =>
-    ['paused', 'cancelled'].includes(goal.status),
+  const inactiveGoals = goals.filter(({ goal }) =>
+    ['paused', 'cancelled', 'completed', 'expired'].includes(goal.status),
   );
 
   return (
@@ -168,7 +198,14 @@ export function GoalsScreen() {
       action={
         <Pressable
           accessibilityLabel={editorOpen ? 'Fechar editor' : 'Criar meta'}
-          onPress={() => (editorOpen ? closeEditor() : setEditorOpen(true))}
+          onPress={() => {
+            if (editorOpen) {
+              closeEditor();
+              return;
+            }
+            closeProgressEditor();
+            setEditorOpen(true);
+          }}
           style={({ pressed }) => [
             styles.iconButton,
             pressed && styles.pressed,
@@ -328,7 +365,49 @@ export function GoalsScreen() {
         </Section>
       ) : null}
 
-      {message && !editorOpen ? (
+      {progressGoal ? (
+        <Section title="Atualizar progresso">
+          <View style={styles.editor}>
+            <View style={styles.progressEditorHeader}>
+              <View style={styles.goalTitleBlock}>
+                <Text style={styles.goalTitle}>{progressGoal.title}</Text>
+                <Text style={styles.goalType}>
+                  {goalTypeDefinitions[progressGoal.type].label}
+                </Text>
+              </View>
+              <IconAction
+                icon={<XCircle color={colors.textMuted} size={18} />}
+                label="Fechar progresso"
+                onPress={closeProgressEditor}
+              />
+            </View>
+            <TextInput
+              keyboardType="decimal-pad"
+              onChangeText={setProgressValue}
+              placeholder={`Valor atual${goalTypeDefinitions[progressGoal.type].unit ? ` (${goalTypeDefinitions[progressGoal.type].unit})` : ''}`}
+              placeholderTextColor={colors.textSubtle}
+              style={styles.input}
+              value={progressValue}
+            />
+            {message ? <Text style={styles.error}>{message}</Text> : null}
+            <Pressable
+              disabled={saving}
+              onPress={submitProgress}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                pressed && styles.pressed,
+                saving && styles.disabled,
+              ]}
+            >
+              <Text style={styles.primaryButtonText}>
+                {saving ? 'Atualizando...' : 'Registrar progresso'}
+              </Text>
+            </Pressable>
+          </View>
+        </Section>
+      ) : null}
+
+      {message && !editorOpen && !progressGoal ? (
         <Text style={styles.error}>{message}</Text>
       ) : null}
       {state.status === 'loading' ? (
@@ -349,13 +428,24 @@ export function GoalsScreen() {
               title="Nenhuma meta ativa"
             />
           ) : (
-            activeGoals.map((goal) => (
+            activeGoals.map((progress) => (
               <GoalCard
-                goal={goal}
-                key={goal.id}
-                onCancel={() => mutateStatus('cancel', goal.id)}
-                onEdit={() => startEdit(goal)}
-                onPause={() => mutateStatus('pause', goal.id)}
+                key={progress.goal.id}
+                onCancel={() => mutateStatus('cancel', progress.goal.id)}
+                onEdit={() => startEdit(progress.goal)}
+                onPause={() => mutateStatus('pause', progress.goal.id)}
+                onProgress={
+                  goalTypeDefinitions[progress.goal.type].manualBaseline
+                    ? () => {
+                        closeEditor();
+                        setProgressGoal(progress.goal);
+                        setProgressValue(
+                          progress.measuredValue?.toString() ?? '',
+                        );
+                      }
+                    : undefined
+                }
+                progress={progress}
               />
             ))
           )}
@@ -363,19 +453,26 @@ export function GoalsScreen() {
       ) : null}
 
       {inactiveGoals.length > 0 ? (
-        <Section title="Pausadas e canceladas">
-          {inactiveGoals.map((goal) => (
+        <Section title="Pausadas e finalizadas">
+          {inactiveGoals.map((progress) => (
             <GoalCard
-              goal={goal}
-              key={goal.id}
-              onEdit={
-                goal.status === 'paused' ? () => startEdit(goal) : undefined
-              }
-              onResume={
-                goal.status === 'paused'
-                  ? () => mutateStatus('resume', goal.id)
+              key={progress.goal.id}
+              onCancel={
+                progress.goal.status === 'paused'
+                  ? () => mutateStatus('cancel', progress.goal.id)
                   : undefined
               }
+              onEdit={
+                progress.goal.status === 'paused'
+                  ? () => startEdit(progress.goal)
+                  : undefined
+              }
+              onResume={
+                progress.goal.status === 'paused'
+                  ? () => mutateStatus('resume', progress.goal.id)
+                  : undefined
+              }
+              progress={progress}
             />
           ))}
         </Section>
@@ -385,19 +482,23 @@ export function GoalsScreen() {
 }
 
 function GoalCard({
-  goal,
   onCancel,
   onEdit,
   onPause,
+  onProgress,
   onResume,
+  progress,
 }: {
-  goal: Goal;
   onCancel?: () => void;
   onEdit?: () => void;
   onPause?: () => void;
+  onProgress?: () => void;
   onResume?: () => void;
+  progress: GoalProgressView;
 }) {
+  const { goal } = progress;
   const definition = goalTypeDefinitions[goal.type];
+  const progressWidth = `${Math.round(progress.progressPercent)}%` as const;
   return (
     <View style={styles.goalCard}>
       <View style={styles.goalHeader}>
@@ -425,6 +526,13 @@ function GoalCard({
               icon={<CirclePause color={colors.textMuted} size={18} />}
             />
           ) : null}
+          {onProgress ? (
+            <IconAction
+              label="Atualizar progresso"
+              onPress={onProgress}
+              icon={<TrendingUp color={colors.accent} size={18} />}
+            />
+          ) : null}
           {onResume ? (
             <IconAction
               label="Retomar meta"
@@ -448,12 +556,26 @@ function GoalCard({
             {formatValue(goal.baselineValue, definition.unit)}
           </Text>
         </View>
+        <View style={styles.currentValue}>
+          <Text style={styles.valueLabel}>Atual</Text>
+          <Text style={styles.valueText}>
+            {formatValue(progress.measuredValue, definition.unit)}
+          </Text>
+        </View>
         <View style={styles.targetValue}>
           <Text style={styles.valueLabel}>Alvo</Text>
           <Text style={styles.targetText}>
             {formatValue(goal.targetValue, definition.unit)}
           </Text>
         </View>
+      </View>
+      <View style={styles.progressBlock}>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: progressWidth }]} />
+        </View>
+        <Text style={styles.progressLabel}>
+          {formatProgress(progress.progressPercent)}
+        </Text>
       </View>
       <Text style={styles.deadline}>
         {goal.deadline
@@ -506,9 +628,19 @@ function formatDeadline(value: string) {
 }
 
 function formatStatus(status: Goal['status']) {
+  if (status === 'behind') return 'Atrasada';
+  if (status === 'completed') return 'Concluida';
+  if (status === 'expired') return 'Expirada';
+  if (status === 'on_track') return 'No ritmo';
   if (status === 'paused') return 'Pausada';
   if (status === 'cancelled') return 'Cancelada';
   return 'Ativa';
+}
+
+function formatProgress(value: number) {
+  return `${new Intl.NumberFormat('pt-BR', {
+    maximumFractionDigits: 1,
+  }).format(value)}%`;
 }
 
 function formatValue(value: number | null, unit: string) {
@@ -527,6 +659,7 @@ const styles = StyleSheet.create({
     width: 36,
   },
   actions: { flexDirection: 'row' },
+  currentValue: { alignItems: 'center' },
   deadline: { ...typography.caption, color: colors.textMuted },
   disabled: { opacity: 0.55 },
   editor: {
@@ -596,6 +729,35 @@ const styles = StyleSheet.create({
   numberInput: { flex: 1, minWidth: 130 },
   numberRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   pressed: { opacity: 0.7 },
+  progressBlock: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  progressEditorHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  progressFill: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.full,
+    height: '100%',
+  },
+  progressLabel: {
+    ...typography.caption,
+    color: colors.accent,
+    fontWeight: '800',
+    minWidth: 44,
+    textAlign: 'right',
+  },
+  progressTrack: {
+    backgroundColor: colors.successSoft,
+    borderRadius: radius.full,
+    flex: 1,
+    height: 8,
+    overflow: 'hidden',
+  },
   primaryButton: {
     alignItems: 'center',
     backgroundColor: colors.accent,

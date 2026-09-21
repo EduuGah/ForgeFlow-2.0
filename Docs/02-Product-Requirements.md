@@ -146,6 +146,11 @@ deadlines, baseline capture and the active, paused and cancelled lifecycle. Goal
 linked to training data calculate their initial baseline from completed workouts;
 body-weight and custom goals collect the current value from the user.
 
+FF-019 adds auditable progress events, percentage calculation, automatic refresh
+from completed training data, manual updates for body-weight/custom goals and the
+on-track, behind, completed and expired states. Reaching a target freezes the
+goal so later measurements cannot change completed progress.
+
 ### Nutrition
 Lightweight journal, not a full calorie database:
 - photo

@@ -49,3 +49,16 @@ export type Goal = TimestampedEntity &
     title: string;
     type: GoalType;
   };
+
+export type GoalProgressSource =
+  'analytics_refresh' | 'manual' | 'workout_completion';
+
+export type GoalProgressEvent = {
+  goalId: EntityId;
+  id: EntityId;
+  measuredValue: number;
+  progressPercent: number;
+  recordedAt: ISODateTimeString;
+  sourceId: EntityId | null;
+  sourceType: GoalProgressSource;
+};

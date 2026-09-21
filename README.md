@@ -99,3 +99,12 @@ an optional deadline and supports editing, pausing, resuming and cancelling.
 Training-based goals derive their baseline from completed workout analytics;
 body-weight and custom goals accept a manual current value. Goal preview data
 uses the in-memory repository and resets when the app reloads.
+
+### Goal progress preview (FF-019)
+
+Goal cards show baseline, current value, target, percentage and projected status.
+Training goals refresh from completed workout analytics; body-weight and custom
+goals expose manual measurement entry. Deadline projection distinguishes goals
+that are on track, behind or expired, and reached targets move to the completed
+section at 100%. Progress events and sync operations still use the in-memory
+preview repository and reset when the app reloads.
