@@ -127,6 +127,12 @@ A workout becomes completed only through an explicit completion action or an app
 
 Nutrition entries are tracking records. The app must not infer medical diagnoses.
 
+FF-024 requires meal type, timestamp and a positive kcal value. Protein,
+carbohydrate, fat and notes are optional; provided macro values must be
+non-negative. Daily totals follow the device-local calendar day, while stored
+timestamps remain UTC. Deletion uses a tombstone and every create/delete write
+enters the offline synchronization outbox.
+
 ## Notifications
 
 Notifications must be deduplicated and rate-limited. The same event must not generate repeated notifications because a screen was opened multiple times.

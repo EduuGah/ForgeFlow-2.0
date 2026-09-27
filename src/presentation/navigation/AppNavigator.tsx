@@ -3,6 +3,7 @@ import { ChartLine, Dumbbell, Home, Target, User } from 'lucide-react-native';
 
 import { GoalsScreen } from '../screens/GoalsScreen';
 import { HomeScreen } from '../screens/HomeScreen';
+import { NutritionScreen } from '../screens/NutritionScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { ProgressScreen } from '../screens/ProgressScreen';
 import { WorkoutsScreen } from '../screens/WorkoutsScreen';
@@ -80,6 +81,14 @@ export function AppNavigator() {
             <User color={color} size={size} strokeWidth={2.2} />
           ),
           title: 'Perfil',
+        }}
+      />
+      <Tab.Screen
+        component={NutritionScreen}
+        name="Nutrition"
+        options={{
+          tabBarButton: () => null,
+          title: 'Nutricao',
         }}
       />
     </Tab.Navigator>

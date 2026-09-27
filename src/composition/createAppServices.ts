@@ -41,6 +41,12 @@ import {
   updateNotificationPreferences,
   type UpdateNotificationPreferencesInput,
 } from '../application/useCases/notificationPreferences';
+import {
+  createMeal,
+  deleteMeal,
+  listNutritionJournal,
+  type CreateMealInput,
+} from '../application/useCases/nutritionJournal';
 import { getTrainingAnalytics } from '../application/useCases/trainingAnalytics';
 import type { AnalyticsPeriod } from '../domain/training/analytics';
 import {
@@ -155,6 +161,14 @@ export function createAppServices() {
     generateId: createLocalUuid,
     repositories: {
       notificationPreferences: repositories.notificationPreferences,
+      syncOperations: repositories.syncOperations,
+    },
+  };
+  const nutritionDependencies = {
+    clock: () => new Date().toISOString(),
+    generateId: createLocalUuid,
+    repositories: {
+      meals: repositories.meals,
       syncOperations: repositories.syncOperations,
     },
   };
@@ -335,6 +349,23 @@ export function createAppServices() {
         }
         return updated;
       },
+    },
+    nutrition: {
+      create: (input: Omit<CreateMealInput, 'userId'>) =>
+        createMeal(
+          { ...input, userId: LOCAL_PREVIEW_USER_ID },
+          nutritionDependencies,
+        ),
+      delete: (mealId: string) =>
+        deleteMeal(
+          { mealId, userId: LOCAL_PREVIEW_USER_ID },
+          nutritionDependencies,
+        ),
+      list: (range: { from?: string; to?: string } = {}) =>
+        listNutritionJournal(
+          { ...range, userId: LOCAL_PREVIEW_USER_ID },
+          nutritionDependencies.repositories,
+        ),
     },
     workouts: {
       archive: (workoutId: string, isArchived: boolean) =>

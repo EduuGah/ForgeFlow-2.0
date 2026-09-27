@@ -425,3 +425,11 @@ defaults keep push permission opt-in, use intelligent frequency, enable the
 training-oriented categories, leave nutrition and hydration reminders disabled,
 and apply quiet hours from 22:00 to 08:00. Every update is queued as a
 `notification_preference` sync operation for later server reconciliation.
+
+## Meals migration
+
+FF-024 adds migration `0011_meals` to SQLite and PostgreSQL. Meal rows store the
+type, UTC consumption timestamp, required positive kcal, optional non-negative
+macros, optional notes and a reserved nullable `photo_id` for future media work.
+Indexes on `user_id + consumed_at` support daily history and totals, while
+`user_id + updated_at` supports synchronization. Deletions retain a tombstone.

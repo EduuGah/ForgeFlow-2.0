@@ -13,6 +13,7 @@ const linking = {
     screens: {
       Goals: 'goals',
       Home: 'home',
+      Nutrition: 'nutrition',
       Profile: 'profile',
       Progress: 'progress',
       Workouts: 'workouts',

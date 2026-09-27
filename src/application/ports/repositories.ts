@@ -12,6 +12,7 @@ import type {
   NotificationPreferences,
   PushDeviceRegistration,
 } from '../../domain/notifications/entities';
+import type { Meal } from '../../domain/nutrition/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
@@ -89,6 +90,13 @@ export type ListNotificationsParams = {
   userId: EntityId;
 };
 
+export type ListMealsParams = {
+  from?: string;
+  includeDeleted?: boolean;
+  to?: string;
+  userId: EntityId;
+};
+
 export interface AchievementRepository {
   listAchievements(params: ListAchievementsParams): Promise<Achievement[]>;
   saveAchievement(achievement: Achievement): Promise<void>;
@@ -106,6 +114,12 @@ export interface NotificationPreferencesRepository {
   saveNotificationPreferences(
     preferences: NotificationPreferences,
   ): Promise<void>;
+}
+
+export interface MealRepository {
+  findMealById(id: EntityId): Promise<Meal | null>;
+  listMeals(params: ListMealsParams): Promise<Meal[]>;
+  saveMeal(meal: Meal): Promise<void>;
 }
 
 export interface PushDeviceRepository {
@@ -207,6 +221,7 @@ export type RepositoryProvider = {
   exercises: ExerciseRepository;
   goals: GoalRepository;
   goalProgressEvents: GoalProgressEventRepository;
+  meals: MealRepository;
   notifications: NotificationRepository;
   notificationPreferences: NotificationPreferencesRepository;
   pushDevices: PushDeviceRepository;
