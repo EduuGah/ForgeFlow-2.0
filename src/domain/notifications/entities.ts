@@ -57,3 +57,14 @@ export type NotificationPreferencesSnapshot = {
   quietHoursStart: string | null;
   timezoneOffsetMinutes: number;
 };
+
+export type PushDeviceRegistration = {
+  createdAt: ISODateTimeString;
+  devicePushToken: string | null;
+  disabledAt: ISODateTimeString | null;
+  expoPushToken: string;
+  id: EntityId;
+  platform: 'android' | 'ios';
+  updatedAt: ISODateTimeString;
+  userId: EntityId;
+};

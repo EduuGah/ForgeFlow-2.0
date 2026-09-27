@@ -30,6 +30,11 @@ import {
   recordManualGoalProgress,
   refreshActiveGoalProgress,
 } from '../application/useCases/goalProgress';
+import {
+  cancelLocalNotification,
+  registerPushDevice,
+  scheduleLocalNotification,
+} from '../application/useCases/notificationDelivery';
 import { getTrainingAnalytics } from '../application/useCases/trainingAnalytics';
 import type { AnalyticsPeriod } from '../domain/training/analytics';
 import {
@@ -52,6 +57,7 @@ import {
 } from '../application/useCases/workoutExecution';
 import { InMemoryAuthRemoteGateway } from '../data/auth/inMemoryAuthGateway';
 import { MemorySecureSessionStorage } from '../data/auth/memorySecureSessionStorage';
+import { ExpoNotificationGateway } from '../data/notifications/expoNotificationGateway';
 import { createInMemoryRepositories } from '../data/repositories/inMemoryRepositories';
 import { systemExercises } from '../data/seeds/systemExercises';
 
@@ -63,6 +69,7 @@ export function createAppServices() {
   const repositories = createInMemoryRepositories({
     exercises: systemExercises,
   });
+  const notificationGateway = new ExpoNotificationGateway();
   const authDependencies = {
     remote: authRemote,
     storage: authStorage,
@@ -125,6 +132,16 @@ export function createAppServices() {
       sets: repositories.sets,
       syncOperations: repositories.syncOperations,
       workoutSessions: repositories.workoutSessions,
+    },
+  };
+  const notificationDeliveryDependencies = {
+    clock: () => new Date().toISOString(),
+    gateway: notificationGateway,
+    generateId: createLocalUuid,
+    repositories: {
+      notifications: repositories.notifications,
+      pushDevices: repositories.pushDevices,
+      syncOperations: repositories.syncOperations,
     },
   };
 
@@ -260,6 +277,25 @@ export function createAppServices() {
             workouts: repositories.workouts,
           },
         ),
+    },
+    notificationDelivery: {
+      cancel: (notificationId: string) =>
+        cancelLocalNotification(
+          { notificationId, userId: LOCAL_PREVIEW_USER_ID },
+          notificationDeliveryDependencies,
+        ),
+      registerDevice: (requestPermission = false) =>
+        registerPushDevice(
+          { requestPermission, userId: LOCAL_PREVIEW_USER_ID },
+          notificationDeliveryDependencies,
+        ),
+      schedule: (notificationId: string) =>
+        scheduleLocalNotification(
+          { notificationId, userId: LOCAL_PREVIEW_USER_ID },
+          notificationDeliveryDependencies,
+        ),
+      subscribeToResponses: (listener: (url: string) => void) =>
+        notificationGateway.subscribeToResponses(listener),
     },
     workouts: {
       archive: (workoutId: string, isArchived: boolean) =>

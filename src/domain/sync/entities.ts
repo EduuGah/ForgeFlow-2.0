@@ -13,6 +13,7 @@ export type SyncEntityType =
   | 'notification_preference'
   | 'notification'
   | 'personal_record'
+  | 'push_device'
   | 'session_exercise'
   | 'set'
   | 'user'

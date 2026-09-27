@@ -1,6 +1,7 @@
 import type { MigrationDefinition } from './types';
 import { localAchievementsMigration } from './achievementsMigration';
 import { localNotificationsMigration } from './notificationsMigration';
+import { localPushDevicesMigration } from './pushDevicesMigration';
 import { localExerciseFavoritesMigration } from './exerciseFavoritesMigration';
 import { initialLocalSchemaMigration } from './initialLocalSchemaMigration';
 import { localGoalsMigration } from './goalsMigration';
@@ -17,4 +18,5 @@ export const localMigrations = [
   localGoalProgressMigration,
   localAchievementsMigration,
   localNotificationsMigration,
+  localPushDevicesMigration,
 ] satisfies readonly MigrationDefinition[];

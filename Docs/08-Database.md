@@ -253,6 +253,18 @@ Optional audit/progress history.
 
 Unique dedupe strategy is required.
 
+### push_devices
+- id UUID PK
+- user_id
+- platform
+- expo_push_token
+- device_push_token nullable
+- created_at
+- updated_at
+- disabled_at nullable
+
+`user_id + expo_push_token` is unique so retries update the same registration.
+
 ### achievements
 - id UUID PK
 - user_id
@@ -390,3 +402,11 @@ deferral for FF-022 delivery, while indexes on `user_id + created_at` and
 `user_id + read_at + created_at` support rate-limit evaluation and the future
 notification center. SQLite stores event data as serialized text and PostgreSQL
 uses JSONB.
+
+## Push device migration
+
+FF-022 adds migration `0009_push_devices` to SQLite and PostgreSQL. It stores
+Expo and native provider tokens per user/device, supports soft disabling token
+registrations and prevents duplicate registration retries with a unique
+`user_id + expo_push_token` constraint. `user_id + disabled_at` indexes active
+device lookup for future server delivery.
