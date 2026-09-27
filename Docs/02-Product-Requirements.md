@@ -176,6 +176,11 @@ optional notes. The dedicated Nutrition screen shows per-day totals and lets the
 user browse previous or future dates. Photo capture remains reserved for the
 media implementation because it is outside FF-024's scope.
 
+FF-025 adds one optional photo attachment per meal. Camera and gallery actions
+store an app-owned local file reference first, so the meal and image remain
+available offline. Upload runs through an independent retry queue and never
+stores image Base64 in either database.
+
 ### Water
 - daily water entries
 - daily total

@@ -433,3 +433,11 @@ type, UTC consumption timestamp, required positive kcal, optional non-negative
 macros, optional notes and a reserved nullable `photo_id` for future media work.
 Indexes on `user_id + consumed_at` support daily history and totals, while
 `user_id + updated_at` supports synchronization. Deletions retain a tombstone.
+
+## Media migration
+
+FF-025 adds migration `0012_media` to SQLite and PostgreSQL. The shared `media`
+table stores file metadata, a local URI, an optional remote URL and upload
+status; it never stores image bytes or Base64. SQLite also owns the local-only
+`media_upload_queue`, which tracks attempts, retry timing and safe error
+metadata independently from entity synchronization.

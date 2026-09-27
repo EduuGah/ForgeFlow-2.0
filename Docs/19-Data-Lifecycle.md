@@ -41,6 +41,12 @@ Validation failure:
 - surface a recoverable sync error internally
 - log safe diagnostics
 
+Media upload failure:
+- keep the local file and meal association available offline
+- keep upload state in an independent queue
+- retry with exponential backoff from 5 minutes up to 24 hours
+- allow the user to request an immediate retry
+
 Conflict:
 - apply entity-specific policy
 - preserve user data

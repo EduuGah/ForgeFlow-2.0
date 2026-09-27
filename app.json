@@ -7,7 +7,17 @@
     "icon": "./assets/icon.png",
     "scheme": "forgeflow",
     "userInterfaceStyle": "automatic",
-    "plugins": ["expo-notifications"],
+    "plugins": [
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Permita que o ForgeFlow use a camera para fotografar suas refeicoes.",
+          "microphonePermission": false,
+          "photosPermission": "Permita que o ForgeFlow selecione fotos para suas refeicoes."
+        }
+      ]
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.forgeflow.app"

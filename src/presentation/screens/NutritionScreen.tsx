@@ -1,16 +1,20 @@
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import {
+  Camera,
   ChevronLeft,
   ChevronRight,
   Home,
+  ImagePlus,
   Plus,
+  RefreshCw,
   Trash2,
   X,
 } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -23,6 +27,8 @@ import type {
   MealType,
   NutritionTotals,
 } from '../../domain/nutrition/entities';
+import type { Media } from '../../domain/media/entities';
+import type { MealPhotoSource } from '../../application/ports/media';
 import { useAppServices } from '../../composition/AppServicesProvider';
 import { AppScreen, EmptyState, Section } from '../components/AppScreen';
 import type { RootTabParamList } from '../navigation/types';
@@ -31,7 +37,7 @@ import { colors, radius, spacing, typography } from '../theme/tokens';
 type NutritionState =
   | { status: 'error' }
   | { status: 'loading' }
-  | { meals: Meal[]; status: 'ready'; totals: NutritionTotals };
+  | { meals: Meal[]; media: Media[]; status: 'ready'; totals: NutritionTotals };
 
 type MealForm = {
   carbsG: string;
@@ -62,12 +68,20 @@ export function NutritionScreen() {
   const [form, setForm] = useState(() => emptyForm(new Date()));
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  const [attachingMealId, setAttachingMealId] = useState<string | null>(null);
+  const [photoMessage, setPhotoMessage] = useState('');
 
   const load = useCallback(() => {
     const { from, to } = localDayRange(selectedDate);
     services.nutrition
       .list({ from, to })
-      .then((journal) => setState({ ...journal, status: 'ready' }))
+      .then(async (journal) => {
+        const mediaIds = journal.meals.flatMap((meal) =>
+          meal.photoId ? [meal.photoId] : [],
+        );
+        const media = await services.mealPhotos.list(mediaIds);
+        setState({ ...journal, media, status: 'ready' });
+      })
       .catch(() => setState({ status: 'error' }));
   }, [selectedDate, services]);
 
@@ -126,6 +140,43 @@ export function NutritionScreen() {
         text: 'Excluir',
       },
     ]);
+  }
+
+  async function attachPhoto(meal: Meal, source: MealPhotoSource) {
+    setAttachingMealId(meal.id);
+    setPhotoMessage('');
+    try {
+      const result = await services.mealPhotos.attach(meal.id, source);
+      if (result.status === 'cancelled') return;
+      setPhotoMessage(
+        result.status === 'already_attached'
+          ? 'Esta refeicao ja possui uma foto.'
+          : 'Foto salva no aparelho.',
+      );
+      load();
+    } catch (error) {
+      setPhotoMessage(
+        error instanceof Error && error.message.includes('permission')
+          ? 'Permissao de camera negada.'
+          : 'Nao foi possivel adicionar a foto.',
+      );
+    } finally {
+      setAttachingMealId(null);
+    }
+  }
+
+  async function retryPhoto(mediaId: string) {
+    setAttachingMealId(mediaId);
+    setPhotoMessage('');
+    try {
+      await services.mealPhotos.retry(mediaId);
+      setPhotoMessage('Upload da foto concluido.');
+      load();
+    } catch {
+      setPhotoMessage('Upload pendente. A foto continua salva no aparelho.');
+    } finally {
+      setAttachingMealId(null);
+    }
   }
 
   const totals =
@@ -308,6 +359,9 @@ export function NutritionScreen() {
       ) : null}
 
       <Section title="Refeicoes">
+        {photoMessage ? (
+          <Text style={styles.photoMessage}>{photoMessage}</Text>
+        ) : null}
         {state.status === 'loading' ? (
           <EmptyState
             body="Carregando registros locais..."
@@ -327,9 +381,24 @@ export function NutritionScreen() {
           />
         ) : null}
         {state.status === 'ready'
-          ? state.meals.map((meal) => (
-              <MealCard key={meal.id} meal={meal} onDelete={confirmDelete} />
-            ))
+          ? state.meals.map((meal) => {
+              const media = state.media.find(
+                (item) => item.id === meal.photoId,
+              );
+              return (
+                <MealCard
+                  attaching={
+                    attachingMealId === meal.id || attachingMealId === media?.id
+                  }
+                  key={meal.id}
+                  meal={meal}
+                  media={media ?? null}
+                  onAttach={(source) => attachPhoto(meal, source)}
+                  onDelete={confirmDelete}
+                  onRetry={media ? () => retryPhoto(media.id) : undefined}
+                />
+              );
+            })
           : null}
       </Section>
     </AppScreen>
@@ -383,14 +452,29 @@ function Field({
 }
 
 function MealCard({
+  attaching,
   meal,
+  media,
+  onAttach,
   onDelete,
+  onRetry,
 }: {
+  attaching: boolean;
   meal: Meal;
+  media: Media | null;
+  onAttach: (source: MealPhotoSource) => void;
   onDelete: (meal: Meal) => void;
+  onRetry?: () => void;
 }) {
   return (
     <View style={styles.mealCard}>
+      {media?.localUri ? (
+        <Image
+          accessibilityLabel={`Foto de ${mealTypeLabel(meal.mealType)}`}
+          source={{ uri: media.localUri }}
+          style={styles.mealPhoto}
+        />
+      ) : null}
       <View style={styles.mealHeader}>
         <View style={styles.mealTitleBlock}>
           <Text style={styles.mealTitle}>{mealTypeLabel(meal.mealType)}</Text>
@@ -413,6 +497,55 @@ function MealCard({
         <Text style={styles.macroText}>G {formatOptionalMacro(meal.fatG)}</Text>
       </View>
       {meal.notes ? <Text style={styles.mealNotes}>{meal.notes}</Text> : null}
+      <View style={styles.photoActions}>
+        {media ? (
+          <View style={styles.uploadStatusRow}>
+            <Text
+              style={[
+                styles.uploadStatus,
+                media.uploadStatus === 'failed' && styles.uploadStatusFailed,
+              ]}
+            >
+              {formatUploadStatus(media.uploadStatus)}
+            </Text>
+            {media.uploadStatus === 'failed' && onRetry ? (
+              <Pressable
+                accessibilityLabel="Tentar upload novamente"
+                accessibilityRole="button"
+                disabled={attaching}
+                onPress={onRetry}
+                style={styles.photoButton}
+              >
+                <RefreshCw color={colors.accent} size={17} />
+                <Text style={styles.photoButtonText}>Tentar novamente</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              disabled={attaching}
+              onPress={() => onAttach('camera')}
+              style={styles.photoButton}
+            >
+              <Camera color={colors.accent} size={17} />
+              <Text style={styles.photoButtonText}>Camera</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={attaching}
+              onPress={() => onAttach('library')}
+              style={styles.photoButton}
+            >
+              <ImagePlus color={colors.accent} size={17} />
+              <Text style={styles.photoButtonText}>
+                {attaching ? 'Abrindo...' : 'Galeria'}
+              </Text>
+            </Pressable>
+          </>
+        )}
+      </View>
     </View>
   );
 }
@@ -545,6 +678,13 @@ function formatOptionalMacro(value: number | null) {
   return value === null ? '--' : `${formatNumber(value)} g`;
 }
 
+function formatUploadStatus(status: Media['uploadStatus']) {
+  if (status === 'uploaded') return 'Foto sincronizada';
+  if (status === 'failed') return 'Upload pendente';
+  if (status === 'uploading') return 'Enviando foto';
+  return 'Foto salva localmente';
+}
+
 function pad(value: number) {
   return value.toString().padStart(2, '0');
 }
@@ -611,10 +751,41 @@ const styles = StyleSheet.create({
   mealHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   mealKcal: { ...typography.body, color: colors.accent, fontWeight: '900' },
   mealNotes: { ...typography.body, color: colors.textMuted },
+  mealPhoto: {
+    aspectRatio: 4 / 3,
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    width: '100%',
+  },
   mealTime: { ...typography.caption, color: colors.textMuted },
   mealTitle: { ...typography.subtitle, color: colors.text },
   mealTitleBlock: { flex: 1, gap: 2 },
   notesInput: { minHeight: 84, textAlignVertical: 'top' },
+  photoActions: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
+  },
+  photoButton: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+    minHeight: 38,
+    paddingHorizontal: spacing.sm,
+  },
+  photoButtonText: {
+    ...typography.caption,
+    color: colors.accent,
+    fontWeight: '800',
+  },
+  photoMessage: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '700',
+  },
   saveButton: {
     alignItems: 'center',
     backgroundColor: colors.accent,
@@ -670,4 +841,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   typeTextSelected: { color: colors.surface },
+  uploadStatus: {
+    ...typography.caption,
+    color: colors.successText,
+    flex: 1,
+    fontWeight: '800',
+  },
+  uploadStatusFailed: { color: colors.warning },
+  uploadStatusRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flex: 1,
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
 });
