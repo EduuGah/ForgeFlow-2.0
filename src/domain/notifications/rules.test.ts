@@ -1,11 +1,16 @@
 import type { Notification } from './entities';
-import { exceedsMotivationalRateLimit, nextAllowedDeliveryTime } from './rules';
+import {
+  exceedsMotivationalRateLimit,
+  nextAllowedDeliveryTime,
+  notificationRateLimits,
+} from './rules';
 
 describe('notification rules', () => {
   it('reschedules overnight quiet-hours delivery to 08:00 local time', () => {
     expect(
       nextAllowedDeliveryTime('2026-09-21T02:00:00.000Z', {
         enabledCategories: ['goals'],
+        frequencyMode: 'intelligent',
         quietHoursEnd: '08:00',
         quietHoursStart: '22:00',
         timezoneOffsetMinutes: -180,
@@ -18,6 +23,7 @@ describe('notification rules', () => {
     expect(
       nextAllowedDeliveryTime(now, {
         enabledCategories: ['goals'],
+        frequencyMode: 'intelligent',
         quietHoursEnd: '08:00',
         quietHoursStart: '22:00',
         timezoneOffsetMinutes: -180,
@@ -74,6 +80,21 @@ describe('notification rules', () => {
         type: 'goal_behind',
       }),
     ).toBe(true);
+  });
+
+  it('maps frequency modes to progressively larger limits', () => {
+    expect(notificationRateLimits('reduced')).toEqual({
+      categoryIntervalMinutes: 720,
+      dailyLimit: 1,
+    });
+    expect(notificationRateLimits('intelligent')).toEqual({
+      categoryIntervalMinutes: 360,
+      dailyLimit: 3,
+    });
+    expect(notificationRateLimits('frequent')).toEqual({
+      categoryIntervalMinutes: 180,
+      dailyLimit: 6,
+    });
   });
 });
 

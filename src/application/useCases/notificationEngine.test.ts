@@ -155,6 +155,7 @@ const preferences: NotificationPreferencesSnapshot = {
     'reports',
     'workouts',
   ],
+  frequencyMode: 'intelligent',
   quietHoursEnd: '08:00',
   quietHoursStart: '22:00',
   timezoneOffsetMinutes: -180,

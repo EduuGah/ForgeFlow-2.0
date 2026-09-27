@@ -70,6 +70,23 @@ export async function registerPushDevice(
   }
 }
 
+export async function disablePushDevices(
+  input: { userId: EntityId },
+  dependencies: NotificationDeliveryDependencies,
+) {
+  const devices = await dependencies.repositories.pushDevices.listPushDevices(
+    input.userId,
+  );
+  const now = dependencies.clock();
+  const activeDevices = devices.filter((device) => device.disabledAt === null);
+  for (const device of activeDevices) {
+    const disabled = { ...device, disabledAt: now, updatedAt: now };
+    await queueSync(disabled, 'push_device', dependencies);
+    await dependencies.repositories.pushDevices.savePushDevice(disabled);
+  }
+  return { disabledCount: activeDevices.length };
+}
+
 export async function scheduleLocalNotification(
   input: { notificationId: EntityId; userId: EntityId },
   dependencies: NotificationDeliveryDependencies,
