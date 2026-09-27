@@ -1,0 +1,673 @@
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Home,
+  Plus,
+  Trash2,
+  X,
+} from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+
+import type {
+  Meal,
+  MealType,
+  NutritionTotals,
+} from '../../domain/nutrition/entities';
+import { useAppServices } from '../../composition/AppServicesProvider';
+import { AppScreen, EmptyState, Section } from '../components/AppScreen';
+import type { RootTabParamList } from '../navigation/types';
+import { colors, radius, spacing, typography } from '../theme/tokens';
+
+type NutritionState =
+  | { status: 'error' }
+  | { status: 'loading' }
+  | { meals: Meal[]; status: 'ready'; totals: NutritionTotals };
+
+type MealForm = {
+  carbsG: string;
+  date: string;
+  fatG: string;
+  kcal: string;
+  mealType: MealType;
+  notes: string;
+  proteinG: string;
+  time: string;
+};
+
+const mealTypes: { label: string; value: MealType }[] = [
+  { label: 'Cafe da manha', value: 'breakfast' },
+  { label: 'Almoco', value: 'lunch' },
+  { label: 'Jantar', value: 'dinner' },
+  { label: 'Lanche', value: 'snack' },
+  { label: 'Ceia', value: 'supper' },
+  { label: 'Outro', value: 'other' },
+];
+
+export function NutritionScreen() {
+  const services = useAppServices();
+  const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
+  const [selectedDate, setSelectedDate] = useState(startOfLocalDay(new Date()));
+  const [state, setState] = useState<NutritionState>({ status: 'loading' });
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [form, setForm] = useState(() => emptyForm(new Date()));
+  const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(() => {
+    const { from, to } = localDayRange(selectedDate);
+    services.nutrition
+      .list({ from, to })
+      .then((journal) => setState({ ...journal, status: 'ready' }))
+      .catch(() => setState({ status: 'error' }));
+  }, [selectedDate, services]);
+
+  useEffect(() => load(), [load]);
+
+  function openEditor() {
+    const now = new Date();
+    const formDate = isToday(selectedDate) ? now : selectedDate;
+    setForm(emptyForm(formDate));
+    setMessage('');
+    setEditorOpen(true);
+  }
+
+  async function submit() {
+    setMessage('');
+    const consumedAt = parseLocalDateTime(form.date, form.time);
+    if (!consumedAt) {
+      setMessage('Informe data e horario validos.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await services.nutrition.create({
+        carbsG: optionalNumber(form.carbsG),
+        consumedAt,
+        fatG: optionalNumber(form.fatG),
+        kcal: requiredNumber(form.kcal),
+        mealType: form.mealType,
+        notes: form.notes,
+        proteinG: optionalNumber(form.proteinG),
+      });
+      setSelectedDate(startOfLocalDay(new Date(consumedAt)));
+      setEditorOpen(false);
+      setForm(emptyForm(new Date()));
+      load();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : 'Nao foi possivel salvar.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function confirmDelete(meal: Meal) {
+    Alert.alert('Excluir refeicao?', mealTypeLabel(meal.mealType), [
+      { style: 'cancel', text: 'Cancelar' },
+      {
+        onPress: () => {
+          services.nutrition
+            .delete(meal.id)
+            .then(load)
+            .catch(() => setMessage('Nao foi possivel excluir a refeicao.'));
+        },
+        style: 'destructive',
+        text: 'Excluir',
+      },
+    ]);
+  }
+
+  const totals =
+    state.status === 'ready'
+      ? state.totals
+      : { carbsG: 0, fatG: 0, kcal: 0, mealCount: 0, proteinG: 0 };
+
+  return (
+    <AppScreen
+      action={
+        <View style={styles.headerActions}>
+          <IconButton
+            icon={<Home color={colors.textMuted} size={20} />}
+            label="Voltar para Home"
+            onPress={() => navigation.navigate('Home')}
+          />
+          <IconButton
+            icon={
+              editorOpen ? (
+                <X color={colors.textMuted} size={20} />
+              ) : (
+                <Plus color={colors.surface} size={22} />
+              )
+            }
+            label={editorOpen ? 'Fechar formulario' : 'Adicionar refeicao'}
+            onPress={() => (editorOpen ? setEditorOpen(false) : openEditor())}
+            primary={!editorOpen}
+          />
+        </View>
+      }
+      eyebrow="Nutricao"
+      title="Diario alimentar"
+    >
+      <View style={styles.dateNavigator}>
+        <IconButton
+          icon={<ChevronLeft color={colors.text} size={22} />}
+          label="Dia anterior"
+          onPress={() => setSelectedDate(addDays(selectedDate, -1))}
+        />
+        <View style={styles.dateTextBlock}>
+          <Text style={styles.dateTitle}>
+            {formatSelectedDate(selectedDate)}
+          </Text>
+          <Text style={styles.dateCaption}>
+            {formatMealCount(totals.mealCount)}
+          </Text>
+        </View>
+        <IconButton
+          icon={<ChevronRight color={colors.text} size={22} />}
+          label="Proximo dia"
+          onPress={() => setSelectedDate(addDays(selectedDate, 1))}
+        />
+      </View>
+
+      <View style={styles.summary}>
+        <SummaryMetric label="Energia" unit="kcal" value={totals.kcal} />
+        <SummaryMetric label="Proteina" unit="g" value={totals.proteinG} />
+        <SummaryMetric label="Carbo" unit="g" value={totals.carbsG} />
+        <SummaryMetric label="Gordura" unit="g" value={totals.fatG} />
+      </View>
+
+      {editorOpen ? (
+        <Section title="Nova refeicao">
+          <View style={styles.editor}>
+            <View style={styles.typeGrid}>
+              {mealTypes.map((type) => {
+                const selected = form.mealType === type.value;
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    key={type.value}
+                    onPress={() =>
+                      setForm((current) => ({
+                        ...current,
+                        mealType: type.value,
+                      }))
+                    }
+                    style={[
+                      styles.typeButton,
+                      selected && styles.typeButtonSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.typeText,
+                        selected && styles.typeTextSelected,
+                      ]}
+                    >
+                      {type.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.inputRow}>
+              <Field
+                label="Data"
+                onChangeText={(date) =>
+                  setForm((current) => ({ ...current, date }))
+                }
+                placeholder="AAAA-MM-DD"
+                value={form.date}
+              />
+              <Field
+                label="Horario"
+                onChangeText={(time) =>
+                  setForm((current) => ({ ...current, time }))
+                }
+                placeholder="HH:mm"
+                value={form.time}
+              />
+            </View>
+            <View style={styles.inputRow}>
+              <Field
+                keyboardType="decimal-pad"
+                label="Kcal"
+                onChangeText={(kcal) =>
+                  setForm((current) => ({ ...current, kcal }))
+                }
+                placeholder="0"
+                value={form.kcal}
+              />
+              <Field
+                keyboardType="decimal-pad"
+                label="Proteina (g)"
+                onChangeText={(proteinG) =>
+                  setForm((current) => ({ ...current, proteinG }))
+                }
+                placeholder="Opcional"
+                value={form.proteinG}
+              />
+            </View>
+            <View style={styles.inputRow}>
+              <Field
+                keyboardType="decimal-pad"
+                label="Carboidratos (g)"
+                onChangeText={(carbsG) =>
+                  setForm((current) => ({ ...current, carbsG }))
+                }
+                placeholder="Opcional"
+                value={form.carbsG}
+              />
+              <Field
+                keyboardType="decimal-pad"
+                label="Gordura (g)"
+                onChangeText={(fatG) =>
+                  setForm((current) => ({ ...current, fatG }))
+                }
+                placeholder="Opcional"
+                value={form.fatG}
+              />
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Observacao</Text>
+              <TextInput
+                multiline
+                onChangeText={(notes) =>
+                  setForm((current) => ({ ...current, notes }))
+                }
+                placeholder="Opcional"
+                placeholderTextColor={colors.textSubtle}
+                style={[styles.input, styles.notesInput]}
+                value={form.notes}
+              />
+            </View>
+            {message ? <Text style={styles.error}>{message}</Text> : null}
+            <Pressable
+              accessibilityRole="button"
+              disabled={saving}
+              onPress={submit}
+              style={[styles.saveButton, saving && styles.disabled]}
+            >
+              <Text style={styles.saveButtonText}>
+                {saving ? 'Salvando...' : 'Salvar refeicao'}
+              </Text>
+            </Pressable>
+          </View>
+        </Section>
+      ) : null}
+
+      <Section title="Refeicoes">
+        {state.status === 'loading' ? (
+          <EmptyState
+            body="Carregando registros locais..."
+            title="Atualizando"
+          />
+        ) : null}
+        {state.status === 'error' ? (
+          <EmptyState
+            body="Seus dados permanecem no aparelho. Tente abrir a tela novamente."
+            title="Falha ao carregar"
+          />
+        ) : null}
+        {state.status === 'ready' && state.meals.length === 0 ? (
+          <EmptyState
+            body="Registre a primeira refeicao deste dia."
+            title="Nenhuma refeicao"
+          />
+        ) : null}
+        {state.status === 'ready'
+          ? state.meals.map((meal) => (
+              <MealCard key={meal.id} meal={meal} onDelete={confirmDelete} />
+            ))
+          : null}
+      </Section>
+    </AppScreen>
+  );
+}
+
+function SummaryMetric({
+  label,
+  unit,
+  value,
+}: {
+  label: string;
+  unit: string;
+  value: number;
+}) {
+  return (
+    <View style={styles.summaryMetric}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={styles.summaryValue}>{formatNumber(value)}</Text>
+      <Text style={styles.summaryUnit}>{unit}</Text>
+    </View>
+  );
+}
+
+function Field({
+  keyboardType,
+  label,
+  onChangeText,
+  placeholder,
+  value,
+}: {
+  keyboardType?: 'decimal-pad';
+  label: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        keyboardType={keyboardType}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.textSubtle}
+        style={styles.input}
+        value={value}
+      />
+    </View>
+  );
+}
+
+function MealCard({
+  meal,
+  onDelete,
+}: {
+  meal: Meal;
+  onDelete: (meal: Meal) => void;
+}) {
+  return (
+    <View style={styles.mealCard}>
+      <View style={styles.mealHeader}>
+        <View style={styles.mealTitleBlock}>
+          <Text style={styles.mealTitle}>{mealTypeLabel(meal.mealType)}</Text>
+          <Text style={styles.mealTime}>{formatTime(meal.consumedAt)}</Text>
+        </View>
+        <Text style={styles.mealKcal}>{formatNumber(meal.kcal)} kcal</Text>
+        <IconButton
+          icon={<Trash2 color={colors.danger} size={18} />}
+          label="Excluir refeicao"
+          onPress={() => onDelete(meal)}
+        />
+      </View>
+      <View style={styles.macroRow}>
+        <Text style={styles.macroText}>
+          P {formatOptionalMacro(meal.proteinG)}
+        </Text>
+        <Text style={styles.macroText}>
+          C {formatOptionalMacro(meal.carbsG)}
+        </Text>
+        <Text style={styles.macroText}>G {formatOptionalMacro(meal.fatG)}</Text>
+      </View>
+      {meal.notes ? <Text style={styles.mealNotes}>{meal.notes}</Text> : null}
+    </View>
+  );
+}
+
+function IconButton({
+  icon,
+  label,
+  onPress,
+  primary = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onPress: () => void;
+  primary?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={[styles.iconButton, primary && styles.iconButtonPrimary]}
+    >
+      {icon}
+    </Pressable>
+  );
+}
+
+function emptyForm(date: Date): MealForm {
+  return {
+    carbsG: '',
+    date: formatInputDate(date),
+    fatG: '',
+    kcal: '',
+    mealType: mealTypeForHour(date.getHours()),
+    notes: '',
+    proteinG: '',
+    time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  };
+}
+
+function mealTypeForHour(hour: number): MealType {
+  if (hour < 10) return 'breakfast';
+  if (hour < 15) return 'lunch';
+  if (hour < 18) return 'snack';
+  if (hour < 22) return 'dinner';
+  return 'supper';
+}
+
+function mealTypeLabel(type: MealType) {
+  return mealTypes.find((item) => item.value === type)?.label ?? 'Refeicao';
+}
+
+function optionalNumber(value: string) {
+  if (!value.trim()) return null;
+  return Number(value.replace(',', '.'));
+}
+
+function requiredNumber(value: string) {
+  return Number(value.replace(',', '.'));
+}
+
+function parseLocalDateTime(dateValue: string, timeValue: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return null;
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(timeValue)) return null;
+  const [year, month, day] = dateValue.split('-').map(Number);
+  const [hour, minute] = timeValue.split(':').map(Number);
+  const date = new Date(year, month - 1, day, hour, minute);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  return date.toISOString();
+}
+
+function localDayRange(date: Date) {
+  const from = startOfLocalDay(date);
+  const to = new Date(from);
+  to.setHours(23, 59, 59, 999);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
+function startOfLocalDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addDays(date: Date, amount: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function isToday(date: Date) {
+  return formatInputDate(date) === formatInputDate(new Date());
+}
+
+function formatSelectedDate(date: Date) {
+  if (isToday(date)) return 'Hoje';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+}
+
+function formatInputDate(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(
+    value,
+  );
+}
+
+function formatMealCount(value: number) {
+  return `${value} ${value === 1 ? 'refeicao' : 'refeicoes'}`;
+}
+
+function formatOptionalMacro(value: number | null) {
+  return value === null ? '--' : `${formatNumber(value)} g`;
+}
+
+function pad(value: number) {
+  return value.toString().padStart(2, '0');
+}
+
+const styles = StyleSheet.create({
+  dateCaption: { ...typography.caption, color: colors.textMuted },
+  dateNavigator: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  dateTextBlock: { alignItems: 'center', gap: 2 },
+  dateTitle: { ...typography.subtitle, color: colors.text },
+  disabled: { opacity: 0.55 },
+  editor: { gap: spacing.md },
+  error: { ...typography.caption, color: colors.danger, fontWeight: '800' },
+  field: { flex: 1, gap: spacing.xs, minWidth: 130 },
+  fieldLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '700',
+  },
+  headerActions: { flexDirection: 'row', gap: spacing.sm },
+  iconButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
+  },
+  iconButtonPrimary: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  input: {
+    ...typography.body,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    color: colors.text,
+    minHeight: 46,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  inputRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  macroRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  macroText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '700',
+  },
+  mealCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  mealHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  mealKcal: { ...typography.body, color: colors.accent, fontWeight: '900' },
+  mealNotes: { ...typography.body, color: colors.textMuted },
+  mealTime: { ...typography.caption, color: colors.textMuted },
+  mealTitle: { ...typography.subtitle, color: colors.text },
+  mealTitleBlock: { flex: 1, gap: 2 },
+  notesInput: { minHeight: 84, textAlignVertical: 'top' },
+  saveButton: {
+    alignItems: 'center',
+    backgroundColor: colors.accent,
+    borderRadius: radius.md,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+  },
+  saveButtonText: {
+    ...typography.body,
+    color: colors.surface,
+    fontWeight: '800',
+  },
+  summary: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    paddingVertical: spacing.md,
+  },
+  summaryLabel: { ...typography.caption, color: colors.textMuted },
+  summaryMetric: {
+    alignItems: 'center',
+    borderRightColor: colors.border,
+    flex: 1,
+    minWidth: 70,
+    paddingHorizontal: spacing.xs,
+  },
+  summaryUnit: { ...typography.caption, color: colors.textSubtle },
+  summaryValue: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: '900',
+    lineHeight: 26,
+  },
+  typeButton: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  typeButtonSelected: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  typeText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '800',
+  },
+  typeTextSelected: { color: colors.surface },
+});

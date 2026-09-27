@@ -5,6 +5,7 @@ import type {
   NotificationPreferences,
   PushDeviceRegistration,
 } from '../../domain/notifications/entities';
+import type { Meal } from '../../domain/nutrition/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
@@ -33,6 +34,8 @@ import type {
   ListWorkoutTemplatesParams,
   ListPersonalRecordsParams,
   ListNotificationsParams,
+  ListMealsParams,
+  MealRepository,
   NotificationRepository,
   NotificationPreferencesRepository,
   PersonalRecordRepository,
@@ -53,6 +56,7 @@ export type InMemoryRepositorySeed = Partial<{
   goals: Goal[];
   goalProgressEvents: GoalProgressEvent[];
   notifications: Notification[];
+  meals: Meal[];
   notificationPreferences: NotificationPreferences[];
   personalRecords: PersonalRecord[];
   pushDevices: PushDeviceRegistration[];
@@ -71,6 +75,7 @@ class InMemoryForgeFlowRepository
     ExerciseFavoriteRepository,
     GoalRepository,
     GoalProgressEventRepository,
+    MealRepository,
     NotificationRepository,
     NotificationPreferencesRepository,
     PersonalRecordRepository,
@@ -88,6 +93,7 @@ class InMemoryForgeFlowRepository
   private goals: Goal[];
   private goalProgressEvents: GoalProgressEvent[];
   private notifications: Notification[];
+  private meals: Meal[];
   private notificationPreferences: NotificationPreferences[];
   private personalRecords: PersonalRecord[];
   private pushDevices: PushDeviceRegistration[];
@@ -105,6 +111,7 @@ class InMemoryForgeFlowRepository
     this.goals = seed.goals ?? [];
     this.goalProgressEvents = seed.goalProgressEvents ?? [];
     this.notifications = seed.notifications ?? [];
+    this.meals = seed.meals ?? [];
     this.notificationPreferences = seed.notificationPreferences ?? [];
     this.personalRecords = seed.personalRecords ?? [];
     this.pushDevices = seed.pushDevices ?? [];
@@ -157,6 +164,10 @@ class InMemoryForgeFlowRepository
 
   async findGoalById(id: EntityId) {
     return clone(this.goals.find((goal) => goal.id === id) ?? null);
+  }
+
+  async findMealById(id: EntityId) {
+    return clone(this.meals.find((meal) => meal.id === id) ?? null);
   }
 
   async findNotificationPreferences(userId: EntityId) {
@@ -334,6 +345,20 @@ class InMemoryForgeFlowRepository
           return true;
         })
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
+    );
+  }
+
+  async listMeals(params: ListMealsParams) {
+    return clone(
+      this.meals
+        .filter((meal) => {
+          if (meal.userId !== params.userId) return false;
+          if (!params.includeDeleted && meal.deletedAt !== null) return false;
+          if (params.from && meal.consumedAt < params.from) return false;
+          if (params.to && meal.consumedAt > params.to) return false;
+          return true;
+        })
+        .sort((left, right) => right.consumedAt.localeCompare(left.consumedAt)),
     );
   }
 
@@ -518,6 +543,10 @@ class InMemoryForgeFlowRepository
     );
   }
 
+  async saveMeal(meal: Meal) {
+    this.meals = upsertById(this.meals, meal, 'id');
+  }
+
   async saveNotificationPreferences(preferences: NotificationPreferences) {
     this.notificationPreferences = upsertByCompositeKey(
       this.notificationPreferences,
@@ -565,6 +594,7 @@ export function createInMemoryRepositories(
     exercises: repository,
     goals: repository,
     goalProgressEvents: repository,
+    meals: repository,
     notifications: repository,
     notificationPreferences: repository,
     personalRecords: repository,

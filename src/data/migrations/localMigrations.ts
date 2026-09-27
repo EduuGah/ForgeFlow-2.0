@@ -9,6 +9,7 @@ import { localGoalsMigration } from './goalsMigration';
 import { localGoalProgressMigration } from './goalProgressMigration';
 import { localSyncMetadataMigration } from './localSyncMetadataMigration';
 import { localPersonalRecordsMigration } from './personalRecordsMigration';
+import { localMealsMigration } from './mealsMigration';
 
 export const localMigrations = [
   initialLocalSchemaMigration,
@@ -21,4 +22,5 @@ export const localMigrations = [
   localNotificationsMigration,
   localPushDevicesMigration,
   localNotificationPreferencesMigration,
+  localMealsMigration,
 ] satisfies readonly MigrationDefinition[];

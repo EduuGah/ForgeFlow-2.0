@@ -170,6 +170,12 @@ Lightweight journal, not a full calorie database:
 - optional fat
 - notes
 
+FF-024 implements the first local-first nutrition journal. Users can record a
+meal type, local date/time, required kcal, optional protein/carbohydrate/fat and
+optional notes. The dedicated Nutrition screen shows per-day totals and lets the
+user browse previous or future dates. Photo capture remains reserved for the
+media implementation because it is outside FF-024's scope.
+
 ### Water
 - daily water entries
 - daily total

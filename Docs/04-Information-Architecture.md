@@ -14,6 +14,9 @@ Active workout should become a focused full-screen experience and should not dep
 
 Nutrition can be a dedicated section accessible from Home/Profile or a secondary navigation entry depending on final UX testing.
 
+FF-024 exposes the dedicated Nutrition journal from a compact action on Home,
+without adding a sixth persistent bottom-navigation item.
+
 ## Main screens
 
 - Splash/loading

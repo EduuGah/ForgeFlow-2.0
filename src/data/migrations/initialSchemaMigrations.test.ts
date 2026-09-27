@@ -4,6 +4,7 @@ import { serverAchievementsMigration } from './achievementsMigration';
 import { serverNotificationsMigration } from './notificationsMigration';
 import { serverPushDevicesMigration } from './pushDevicesMigration';
 import { serverNotificationPreferencesMigration } from './notificationPreferencesMigration';
+import { serverMealsMigration } from './mealsMigration';
 import { serverExerciseFavoritesMigration } from './exerciseFavoritesMigration';
 import { serverPersonalRecordsMigration } from './personalRecordsMigration';
 import { serverGoalsMigration } from './goalsMigration';
@@ -35,6 +36,7 @@ describe('initial schema migrations', () => {
       serverNotificationsMigration,
       serverPushDevicesMigration,
       serverNotificationPreferencesMigration,
+      serverMealsMigration,
     ]);
 
     expect(initialLocalSchemaMigration).toMatchObject({
