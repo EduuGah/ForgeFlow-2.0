@@ -32,9 +32,15 @@ import {
 } from '../application/useCases/goalProgress';
 import {
   cancelLocalNotification,
+  disablePushDevices,
   registerPushDevice,
   scheduleLocalNotification,
 } from '../application/useCases/notificationDelivery';
+import {
+  getNotificationPreferences,
+  updateNotificationPreferences,
+  type UpdateNotificationPreferencesInput,
+} from '../application/useCases/notificationPreferences';
 import { getTrainingAnalytics } from '../application/useCases/trainingAnalytics';
 import type { AnalyticsPeriod } from '../domain/training/analytics';
 import {
@@ -141,6 +147,14 @@ export function createAppServices() {
     repositories: {
       notifications: repositories.notifications,
       pushDevices: repositories.pushDevices,
+      syncOperations: repositories.syncOperations,
+    },
+  };
+  const notificationPreferencesDependencies = {
+    clock: () => new Date().toISOString(),
+    generateId: createLocalUuid,
+    repositories: {
+      notificationPreferences: repositories.notificationPreferences,
       syncOperations: repositories.syncOperations,
     },
   };
@@ -296,6 +310,31 @@ export function createAppServices() {
         ),
       subscribeToResponses: (listener: (url: string) => void) =>
         notificationGateway.subscribeToResponses(listener),
+    },
+    notificationPreferences: {
+      get: () =>
+        getNotificationPreferences(
+          {
+            timezoneOffsetMinutes: -new Date().getTimezoneOffset(),
+            userId: LOCAL_PREVIEW_USER_ID,
+          },
+          notificationPreferencesDependencies,
+        ),
+      update: async (
+        input: Omit<UpdateNotificationPreferencesInput, 'userId'>,
+      ) => {
+        const updated = await updateNotificationPreferences(
+          { ...input, userId: LOCAL_PREVIEW_USER_ID },
+          notificationPreferencesDependencies,
+        );
+        if (!updated.pushEnabled) {
+          await disablePushDevices(
+            { userId: LOCAL_PREVIEW_USER_ID },
+            notificationDeliveryDependencies,
+          );
+        }
+        return updated;
+      },
     },
     workouts: {
       archive: (workoutId: string, isArchived: boolean) =>

@@ -8,6 +8,21 @@ import type {
 export const DEFAULT_MOTIVATIONAL_DAILY_LIMIT = 3;
 export const DEFAULT_MOTIVATIONAL_CATEGORY_INTERVAL_MINUTES = 6 * 60;
 
+const frequencyLimits = {
+  frequent: { categoryIntervalMinutes: 3 * 60, dailyLimit: 6 },
+  intelligent: {
+    categoryIntervalMinutes: DEFAULT_MOTIVATIONAL_CATEGORY_INTERVAL_MINUTES,
+    dailyLimit: DEFAULT_MOTIVATIONAL_DAILY_LIMIT,
+  },
+  reduced: { categoryIntervalMinutes: 12 * 60, dailyLimit: 1 },
+} as const;
+
+export function notificationRateLimits(
+  mode: NotificationPreferencesSnapshot['frequencyMode'],
+) {
+  return frequencyLimits[mode];
+}
+
 export const notificationCategoryByType: Record<
   NotificationEventType,
   NotificationCategory

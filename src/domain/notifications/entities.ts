@@ -24,6 +24,8 @@ export type NotificationCategory =
   | 'reports'
   | 'workouts';
 
+export type NotificationFrequencyMode = 'frequent' | 'intelligent' | 'reduced';
+
 export type NotificationEvent = {
   body: string;
   data: Record<string, number | string> | null;
@@ -53,9 +55,31 @@ export type Notification = {
 
 export type NotificationPreferencesSnapshot = {
   enabledCategories: NotificationCategory[];
+  frequencyMode: NotificationFrequencyMode;
   quietHoursEnd: string | null;
   quietHoursStart: string | null;
   timezoneOffsetMinutes: number;
+};
+
+export type NotificationPreferences = {
+  achievementsEnabled: boolean;
+  createdAt: ISODateTimeString;
+  frequencyMode: NotificationFrequencyMode;
+  goalsEnabled: boolean;
+  hydrationEnabled: boolean;
+  id: EntityId;
+  inactivityEnabled: boolean;
+  nutritionEnabled: boolean;
+  personalRecordsEnabled: boolean;
+  progressEnabled: boolean;
+  pushEnabled: boolean;
+  quietHoursEnd: string | null;
+  quietHoursStart: string | null;
+  reportsEnabled: boolean;
+  timezoneOffsetMinutes: number;
+  updatedAt: ISODateTimeString;
+  userId: EntityId;
+  workoutsEnabled: boolean;
 };
 
 export type PushDeviceRegistration = {

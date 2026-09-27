@@ -2,6 +2,7 @@ import type { Achievement } from '../../domain/achievements/entities';
 import type { Goal, GoalProgressEvent } from '../../domain/goals/entities';
 import type {
   Notification,
+  NotificationPreferences,
   PushDeviceRegistration,
 } from '../../domain/notifications/entities';
 import type { EntityId } from '../../domain/shared/types';
@@ -33,6 +34,7 @@ import type {
   ListPersonalRecordsParams,
   ListNotificationsParams,
   NotificationRepository,
+  NotificationPreferencesRepository,
   PersonalRecordRepository,
   PushDeviceRepository,
   RepositoryProvider,
@@ -51,6 +53,7 @@ export type InMemoryRepositorySeed = Partial<{
   goals: Goal[];
   goalProgressEvents: GoalProgressEvent[];
   notifications: Notification[];
+  notificationPreferences: NotificationPreferences[];
   personalRecords: PersonalRecord[];
   pushDevices: PushDeviceRegistration[];
   sessionExercises: SessionExercise[];
@@ -69,6 +72,7 @@ class InMemoryForgeFlowRepository
     GoalRepository,
     GoalProgressEventRepository,
     NotificationRepository,
+    NotificationPreferencesRepository,
     PersonalRecordRepository,
     PushDeviceRepository,
     SessionExerciseRepository,
@@ -84,6 +88,7 @@ class InMemoryForgeFlowRepository
   private goals: Goal[];
   private goalProgressEvents: GoalProgressEvent[];
   private notifications: Notification[];
+  private notificationPreferences: NotificationPreferences[];
   private personalRecords: PersonalRecord[];
   private pushDevices: PushDeviceRegistration[];
   private sessionExercises: SessionExercise[];
@@ -100,6 +105,7 @@ class InMemoryForgeFlowRepository
     this.goals = seed.goals ?? [];
     this.goalProgressEvents = seed.goalProgressEvents ?? [];
     this.notifications = seed.notifications ?? [];
+    this.notificationPreferences = seed.notificationPreferences ?? [];
     this.personalRecords = seed.personalRecords ?? [];
     this.pushDevices = seed.pushDevices ?? [];
     this.sessionExercises = seed.sessionExercises ?? [];
@@ -151,6 +157,14 @@ class InMemoryForgeFlowRepository
 
   async findGoalById(id: EntityId) {
     return clone(this.goals.find((goal) => goal.id === id) ?? null);
+  }
+
+  async findNotificationPreferences(userId: EntityId) {
+    return clone(
+      this.notificationPreferences.find(
+        (preferences) => preferences.userId === userId,
+      ) ?? null,
+    );
   }
 
   async findWorkoutTemplateById(id: EntityId) {
@@ -504,6 +518,14 @@ class InMemoryForgeFlowRepository
     );
   }
 
+  async saveNotificationPreferences(preferences: NotificationPreferences) {
+    this.notificationPreferences = upsertByCompositeKey(
+      this.notificationPreferences,
+      preferences,
+      ['userId'],
+    );
+  }
+
   async saveSessionExercise(sessionExercise: SessionExercise) {
     this.sessionExercises = upsertById(
       this.sessionExercises,
@@ -544,6 +566,7 @@ export function createInMemoryRepositories(
     goals: repository,
     goalProgressEvents: repository,
     notifications: repository,
+    notificationPreferences: repository,
     personalRecords: repository,
     pushDevices: repository,
     syncOperations: repository,

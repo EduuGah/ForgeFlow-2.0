@@ -224,16 +224,21 @@ Optional audit/progress history.
 ### notification_preferences
 - id UUID PK
 - user_id
+- push_enabled
 - workouts_enabled
 - goals_enabled
 - prs_enabled
 - progress_enabled
+- inactivity_enabled
+- achievements_enabled
+- reports_enabled
 - nutrition_enabled
 - hydration_enabled
-- inactivity_enabled
 - quiet_hours_start nullable
 - quiet_hours_end nullable
+- timezone_offset_minutes
 - frequency_mode
+- created_at
 - updated_at
 
 ### notifications
@@ -410,3 +415,13 @@ Expo and native provider tokens per user/device, supports soft disabling token
 registrations and prevents duplicate registration retries with a unique
 `user_id + expo_push_token` constraint. `user_id + disabled_at` indexes active
 device lookup for future server delivery.
+
+## Notification preferences migration
+
+FF-023 adds migration `0010_notification_preferences` to SQLite and PostgreSQL.
+Each user has one local-first preference record covering the master push switch,
+notification categories, frequency mode, quiet hours and timezone offset. The
+defaults keep push permission opt-in, use intelligent frequency, enable the
+training-oriented categories, leave nutrition and hydration reminders disabled,
+and apply quiet hours from 22:00 to 08:00. Every update is queued as a
+`notification_preference` sync operation for later server reconciliation.

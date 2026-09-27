@@ -9,6 +9,7 @@ import type {
 } from '../../domain/goals/entities';
 import type {
   Notification,
+  NotificationPreferences,
   PushDeviceRegistration,
 } from '../../domain/notifications/entities';
 import type { EntityId } from '../../domain/shared/types';
@@ -96,6 +97,15 @@ export interface AchievementRepository {
 export interface NotificationRepository {
   listNotifications(params: ListNotificationsParams): Promise<Notification[]>;
   saveNotification(notification: Notification): Promise<void>;
+}
+
+export interface NotificationPreferencesRepository {
+  findNotificationPreferences(
+    userId: EntityId,
+  ): Promise<NotificationPreferences | null>;
+  saveNotificationPreferences(
+    preferences: NotificationPreferences,
+  ): Promise<void>;
 }
 
 export interface PushDeviceRepository {
@@ -198,6 +208,7 @@ export type RepositoryProvider = {
   goals: GoalRepository;
   goalProgressEvents: GoalProgressEventRepository;
   notifications: NotificationRepository;
+  notificationPreferences: NotificationPreferencesRepository;
   pushDevices: PushDeviceRepository;
   personalRecords: PersonalRecordRepository;
   syncOperations: SyncOperationRepository;

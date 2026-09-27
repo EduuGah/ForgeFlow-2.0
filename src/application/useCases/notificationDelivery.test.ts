@@ -3,6 +3,7 @@ import type { NotificationDeliveryGateway } from '../ports/notifications';
 import type { Notification } from '../../domain/notifications/entities';
 import {
   cancelLocalNotification,
+  disablePushDevices,
   registerPushDevice,
   scheduleLocalNotification,
 } from './notificationDelivery';
@@ -39,6 +40,22 @@ describe('notification delivery', () => {
     await expect(
       dependencies.repositories.syncOperations.listPendingSyncOperations(),
     ).resolves.toHaveLength(1);
+  });
+
+  it('disables active device registrations when push is turned off', async () => {
+    const dependencies = createDependencies();
+    await registerPushDevice({ requestPermission: true, userId }, dependencies);
+    const result = await disablePushDevices({ userId }, dependencies);
+
+    expect(result).toEqual({ disabledCount: 1 });
+    await expect(
+      dependencies.repositories.pushDevices.listPushDevices(userId),
+    ).resolves.toEqual([
+      expect.objectContaining({ disabledAt: now, updatedAt: now }),
+    ]);
+    await expect(
+      dependencies.repositories.syncOperations.listPendingSyncOperations(),
+    ).resolves.toHaveLength(2);
   });
 
   it('schedules and cancels a local notification without duplicating schedules', async () => {

@@ -7,6 +7,7 @@ import {
   exceedsMotivationalRateLimit,
   isNotificationCategoryEnabled,
   nextAllowedDeliveryTime,
+  notificationRateLimits,
 } from '../../domain/notifications/rules';
 import type { EntityId, ISODateTimeString } from '../../domain/shared/types';
 import type { SyncOperation } from '../../domain/sync/entities';
@@ -62,6 +63,7 @@ export async function processNotificationEvent(
   if (
     exceedsMotivationalRateLimit({
       existing,
+      ...notificationRateLimits(preferences.frequencyMode),
       now,
       type: event.type,
     })

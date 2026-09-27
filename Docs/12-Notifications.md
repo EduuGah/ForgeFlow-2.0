@@ -92,3 +92,18 @@ Users can enable/disable categories and choose a frequency mode.
 FF-021 consumes an immutable preference snapshot so category choices are
 respected without coupling the engine to a settings UI. FF-023 will persist and
 edit those preferences.
+
+FF-023 persists one local-first preference record per user and exposes the
+controls in Profile. Push starts disabled and permission is requested only when
+the user explicitly enables the master switch. Training, goals, personal
+records, progress, inactivity, achievements and reports are enabled by default;
+nutrition and hydration reminders start disabled.
+
+Frequency modes change only motivational rate limits:
+- reduced: 1 notification per rolling 24 hours and 12 hours per category;
+- intelligent: 3 per rolling 24 hours and 6 hours per category;
+- frequent: 6 per rolling 24 hours and 3 hours per category.
+
+Action-driven events keep their FF-021 exemption. Turning push off soft-disables
+active device registrations, while preference updates remain available offline
+and are queued for synchronization.

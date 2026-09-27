@@ -6,6 +6,7 @@ import type { AuthSession } from '../../domain/auth/entities';
 import type { AchievementCatalogItem } from '../../application/useCases/achievements';
 import { useAppServices } from '../../composition/AppServicesProvider';
 import { AppScreen, EmptyState, Section } from '../components/AppScreen';
+import { NotificationPreferencesPanel } from '../components/NotificationPreferencesPanel';
 import { colors, radius, spacing, typography } from '../theme/tokens';
 
 type AuthStatus =
@@ -85,6 +86,9 @@ export function ProfileScreen() {
 
   return (
     <AppScreen eyebrow="Perfil" title="Conta e preferencias">
+      <Section title="Notificacoes">
+        <NotificationPreferencesPanel />
+      </Section>
       <Section title="Conquistas">
         <View style={styles.achievementSummary}>
           <View style={styles.achievementSummaryIcon}>

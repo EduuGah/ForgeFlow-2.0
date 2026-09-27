@@ -2,6 +2,7 @@ import type { MigrationDefinition } from './types';
 import { serverAchievementsMigration } from './achievementsMigration';
 import { serverNotificationsMigration } from './notificationsMigration';
 import { serverPushDevicesMigration } from './pushDevicesMigration';
+import { serverNotificationPreferencesMigration } from './notificationPreferencesMigration';
 import { serverExerciseFavoritesMigration } from './exerciseFavoritesMigration';
 import { initialServerSchemaMigration } from './initialServerSchemaMigration';
 import { serverGoalsMigration } from './goalsMigration';
@@ -17,4 +18,5 @@ export const serverMigrations = [
   serverAchievementsMigration,
   serverNotificationsMigration,
   serverPushDevicesMigration,
+  serverNotificationPreferencesMigration,
 ] satisfies readonly MigrationDefinition[];
