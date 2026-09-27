@@ -68,6 +68,23 @@ Remote push can handle server-generated events and cross-device cases.
 
 The architecture must tolerate duplicate delivery from push providers.
 
+FF-022 uses `expo-notifications` behind an application port. Permission is never
+requested during app startup; registration reports `permission_required` until
+the user explicitly enables notifications. Web, simulators without push support,
+missing EAS project configuration and native failures return controlled states
+instead of interrupting the app.
+
+Local delivery records the native schedule identifier so an individual
+notification can be cancelled. Notification responses carry only allow-listed
+`forgeflow://` links for Home, Workouts, Progress, Goals and Profile. Both live
+responses and the response that launched a terminated app are handled, with
+response-level deduplication.
+
+Remote push registration stores the Expo token and native FCM/APNs token. The
+Expo token is only requested after permission is granted and an EAS project ID
+is available. Credentials and production builds remain environment setup, not
+hard-coded application data.
+
 ## User controls
 
 Users can enable/disable categories and choose a frequency mode.

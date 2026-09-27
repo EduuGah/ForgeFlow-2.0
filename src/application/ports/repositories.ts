@@ -7,7 +7,10 @@ import type {
   GoalProgressEvent,
   GoalStatus,
 } from '../../domain/goals/entities';
-import type { Notification } from '../../domain/notifications/entities';
+import type {
+  Notification,
+  PushDeviceRegistration,
+} from '../../domain/notifications/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
@@ -81,6 +84,7 @@ export type ListAchievementsParams = {
 
 export type ListNotificationsParams = {
   dedupeKey?: string;
+  id?: EntityId;
   userId: EntityId;
 };
 
@@ -92,6 +96,11 @@ export interface AchievementRepository {
 export interface NotificationRepository {
   listNotifications(params: ListNotificationsParams): Promise<Notification[]>;
   saveNotification(notification: Notification): Promise<void>;
+}
+
+export interface PushDeviceRepository {
+  listPushDevices(userId: EntityId): Promise<PushDeviceRegistration[]>;
+  savePushDevice(device: PushDeviceRegistration): Promise<void>;
 }
 
 export interface ExerciseRepository {
@@ -189,6 +198,7 @@ export type RepositoryProvider = {
   goals: GoalRepository;
   goalProgressEvents: GoalProgressEventRepository;
   notifications: NotificationRepository;
+  pushDevices: PushDeviceRepository;
   personalRecords: PersonalRecordRepository;
   syncOperations: SyncOperationRepository;
   syncState: SyncStateRepository;

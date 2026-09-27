@@ -1,6 +1,9 @@
 import type { Achievement } from '../../domain/achievements/entities';
 import type { Goal, GoalProgressEvent } from '../../domain/goals/entities';
-import type { Notification } from '../../domain/notifications/entities';
+import type {
+  Notification,
+  PushDeviceRegistration,
+} from '../../domain/notifications/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
@@ -31,6 +34,7 @@ import type {
   ListNotificationsParams,
   NotificationRepository,
   PersonalRecordRepository,
+  PushDeviceRepository,
   RepositoryProvider,
   SessionExerciseRepository,
   SyncOperationRepository,
@@ -48,6 +52,7 @@ export type InMemoryRepositorySeed = Partial<{
   goalProgressEvents: GoalProgressEvent[];
   notifications: Notification[];
   personalRecords: PersonalRecord[];
+  pushDevices: PushDeviceRegistration[];
   sessionExercises: SessionExercise[];
   syncOperations: SyncOperation[];
   syncStates: SyncState[];
@@ -65,6 +70,7 @@ class InMemoryForgeFlowRepository
     GoalProgressEventRepository,
     NotificationRepository,
     PersonalRecordRepository,
+    PushDeviceRepository,
     SessionExerciseRepository,
     SyncOperationRepository,
     SyncStateRepository,
@@ -79,6 +85,7 @@ class InMemoryForgeFlowRepository
   private goalProgressEvents: GoalProgressEvent[];
   private notifications: Notification[];
   private personalRecords: PersonalRecord[];
+  private pushDevices: PushDeviceRegistration[];
   private sessionExercises: SessionExercise[];
   private syncOperations: SyncOperation[];
   private syncStates: SyncState[];
@@ -94,6 +101,7 @@ class InMemoryForgeFlowRepository
     this.goalProgressEvents = seed.goalProgressEvents ?? [];
     this.notifications = seed.notifications ?? [];
     this.personalRecords = seed.personalRecords ?? [];
+    this.pushDevices = seed.pushDevices ?? [];
     this.sessionExercises = seed.sessionExercises ?? [];
     this.syncOperations = seed.syncOperations ?? [];
     this.syncStates = seed.syncStates ?? [];
@@ -296,11 +304,16 @@ class InMemoryForgeFlowRepository
     );
   }
 
+  async listPushDevices(userId: EntityId) {
+    return clone(this.pushDevices.filter((device) => device.userId === userId));
+  }
+
   async listNotifications(params: ListNotificationsParams) {
     return clone(
       this.notifications
         .filter((notification) => {
           if (notification.userId !== params.userId) return false;
+          if (params.id && notification.id !== params.id) return false;
           if (params.dedupeKey && notification.dedupeKey !== params.dedupeKey) {
             return false;
           }
@@ -476,6 +489,13 @@ class InMemoryForgeFlowRepository
     this.personalRecords = upsertById(this.personalRecords, record, 'id');
   }
 
+  async savePushDevice(device: PushDeviceRegistration) {
+    this.pushDevices = upsertByCompositeKey(this.pushDevices, device, [
+      'userId',
+      'expoPushToken',
+    ]);
+  }
+
   async saveNotification(notification: Notification) {
     this.notifications = upsertByCompositeKey(
       this.notifications,
@@ -525,6 +545,7 @@ export function createInMemoryRepositories(
     goalProgressEvents: repository,
     notifications: repository,
     personalRecords: repository,
+    pushDevices: repository,
     syncOperations: repository,
     syncState: repository,
     sessionExercises: repository,

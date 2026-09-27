@@ -2,6 +2,7 @@ import { initialLocalSchemaMigration } from './initialLocalSchemaMigration';
 import { initialServerSchemaMigration } from './initialServerSchemaMigration';
 import { serverAchievementsMigration } from './achievementsMigration';
 import { serverNotificationsMigration } from './notificationsMigration';
+import { serverPushDevicesMigration } from './pushDevicesMigration';
 import { serverExerciseFavoritesMigration } from './exerciseFavoritesMigration';
 import { serverPersonalRecordsMigration } from './personalRecordsMigration';
 import { serverGoalsMigration } from './goalsMigration';
@@ -31,6 +32,7 @@ describe('initial schema migrations', () => {
       serverGoalProgressMigration,
       serverAchievementsMigration,
       serverNotificationsMigration,
+      serverPushDevicesMigration,
     ]);
 
     expect(initialLocalSchemaMigration).toMatchObject({

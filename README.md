@@ -129,3 +129,14 @@ until 08:00, limits motivational events to three in a rolling 24-hour window and
 keeps a six-hour interval per category. Action-driven events remain exempt from
 the rate limit but are still deduplicated. Actual local/push delivery belongs to
 FF-022 and persisted preference editing belongs to FF-023.
+
+### Push and local delivery (FF-022)
+
+ForgeFlow now uses the official Expo Notifications adapter for contextual
+permission requests, local scheduling/cancellation, foreground presentation,
+Expo/native push token registration and notification-response deep links. The
+web preview degrades to an unavailable result without prompting or crashing.
+Remote push requires an EAS project ID, FCM/APNs credentials and a development
+build; Expo Go on Android cannot receive remote push on current SDKs. Device
+registrations are persisted by migration `0009_push_devices` and queued for
+offline synchronization.
