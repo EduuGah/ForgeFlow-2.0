@@ -6,6 +6,7 @@ import type {
   PushDeviceRegistration,
 } from '../../domain/notifications/entities';
 import type { Meal } from '../../domain/nutrition/entities';
+import type { Media, MediaUpload } from '../../domain/media/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
@@ -36,6 +37,9 @@ import type {
   ListNotificationsParams,
   ListMealsParams,
   MealRepository,
+  MediaRepository,
+  MediaUploadRepository,
+  ListMediaParams,
   NotificationRepository,
   NotificationPreferencesRepository,
   PersonalRecordRepository,
@@ -57,6 +61,8 @@ export type InMemoryRepositorySeed = Partial<{
   goalProgressEvents: GoalProgressEvent[];
   notifications: Notification[];
   meals: Meal[];
+  media: Media[];
+  mediaUploads: MediaUpload[];
   notificationPreferences: NotificationPreferences[];
   personalRecords: PersonalRecord[];
   pushDevices: PushDeviceRegistration[];
@@ -76,6 +82,8 @@ class InMemoryForgeFlowRepository
     GoalRepository,
     GoalProgressEventRepository,
     MealRepository,
+    MediaRepository,
+    MediaUploadRepository,
     NotificationRepository,
     NotificationPreferencesRepository,
     PersonalRecordRepository,
@@ -94,6 +102,8 @@ class InMemoryForgeFlowRepository
   private goalProgressEvents: GoalProgressEvent[];
   private notifications: Notification[];
   private meals: Meal[];
+  private media: Media[];
+  private mediaUploads: MediaUpload[];
   private notificationPreferences: NotificationPreferences[];
   private personalRecords: PersonalRecord[];
   private pushDevices: PushDeviceRegistration[];
@@ -112,6 +122,8 @@ class InMemoryForgeFlowRepository
     this.goalProgressEvents = seed.goalProgressEvents ?? [];
     this.notifications = seed.notifications ?? [];
     this.meals = seed.meals ?? [];
+    this.media = seed.media ?? [];
+    this.mediaUploads = seed.mediaUploads ?? [];
     this.notificationPreferences = seed.notificationPreferences ?? [];
     this.personalRecords = seed.personalRecords ?? [];
     this.pushDevices = seed.pushDevices ?? [];
@@ -168,6 +180,16 @@ class InMemoryForgeFlowRepository
 
   async findMealById(id: EntityId) {
     return clone(this.meals.find((meal) => meal.id === id) ?? null);
+  }
+
+  async findMediaById(id: EntityId) {
+    return clone(this.media.find((item) => item.id === id) ?? null);
+  }
+
+  async findMediaUploadByMediaId(mediaId: EntityId) {
+    return clone(
+      this.mediaUploads.find((upload) => upload.mediaId === mediaId) ?? null,
+    );
   }
 
   async findNotificationPreferences(userId: EntityId) {
@@ -362,6 +384,32 @@ class InMemoryForgeFlowRepository
     );
   }
 
+  async listMedia(params: ListMediaParams) {
+    return clone(
+      this.media.filter((item) => {
+        if (item.userId !== params.userId) return false;
+        if (!params.includeDeleted && item.deletedAt !== null) return false;
+        if (params.ids && !params.ids.includes(item.id)) return false;
+        return true;
+      }),
+    );
+  }
+
+  async listReadyMediaUploads(input: { limit: number; now: string }) {
+    return clone(
+      this.mediaUploads
+        .filter(
+          (upload) =>
+            (upload.status === 'pending' || upload.status === 'failed') &&
+            upload.nextAttemptAt <= input.now,
+        )
+        .sort((left, right) =>
+          left.nextAttemptAt.localeCompare(right.nextAttemptAt),
+        )
+        .slice(0, input.limit),
+    );
+  }
+
   async listSessionExercises(params: ListSessionExercisesParams) {
     return clone(
       this.sessionExercises.filter((sessionExercise) => {
@@ -547,6 +595,16 @@ class InMemoryForgeFlowRepository
     this.meals = upsertById(this.meals, meal, 'id');
   }
 
+  async saveMedia(media: Media) {
+    this.media = upsertById(this.media, media, 'id');
+  }
+
+  async saveMediaUpload(upload: MediaUpload) {
+    this.mediaUploads = upsertByCompositeKey(this.mediaUploads, upload, [
+      'mediaId',
+    ]);
+  }
+
   async saveNotificationPreferences(preferences: NotificationPreferences) {
     this.notificationPreferences = upsertByCompositeKey(
       this.notificationPreferences,
@@ -595,6 +653,8 @@ export function createInMemoryRepositories(
     goals: repository,
     goalProgressEvents: repository,
     meals: repository,
+    media: repository,
+    mediaUploads: repository,
     notifications: repository,
     notificationPreferences: repository,
     personalRecords: repository,

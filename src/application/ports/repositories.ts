@@ -13,6 +13,7 @@ import type {
   PushDeviceRegistration,
 } from '../../domain/notifications/entities';
 import type { Meal } from '../../domain/nutrition/entities';
+import type { Media, MediaUpload } from '../../domain/media/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
@@ -97,6 +98,12 @@ export type ListMealsParams = {
   userId: EntityId;
 };
 
+export type ListMediaParams = {
+  ids?: EntityId[];
+  includeDeleted?: boolean;
+  userId: EntityId;
+};
+
 export interface AchievementRepository {
   listAchievements(params: ListAchievementsParams): Promise<Achievement[]>;
   saveAchievement(achievement: Achievement): Promise<void>;
@@ -120,6 +127,21 @@ export interface MealRepository {
   findMealById(id: EntityId): Promise<Meal | null>;
   listMeals(params: ListMealsParams): Promise<Meal[]>;
   saveMeal(meal: Meal): Promise<void>;
+}
+
+export interface MediaRepository {
+  findMediaById(id: EntityId): Promise<Media | null>;
+  listMedia(params: ListMediaParams): Promise<Media[]>;
+  saveMedia(media: Media): Promise<void>;
+}
+
+export interface MediaUploadRepository {
+  findMediaUploadByMediaId(mediaId: EntityId): Promise<MediaUpload | null>;
+  listReadyMediaUploads(input: {
+    limit: number;
+    now: string;
+  }): Promise<MediaUpload[]>;
+  saveMediaUpload(upload: MediaUpload): Promise<void>;
 }
 
 export interface PushDeviceRepository {
@@ -222,6 +244,8 @@ export type RepositoryProvider = {
   goals: GoalRepository;
   goalProgressEvents: GoalProgressEventRepository;
   meals: MealRepository;
+  media: MediaRepository;
+  mediaUploads: MediaUploadRepository;
   notifications: NotificationRepository;
   notificationPreferences: NotificationPreferencesRepository;
   pushDevices: PushDeviceRepository;

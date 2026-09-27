@@ -33,6 +33,12 @@ Workout data must remain usable offline. Sensitive data should use platform/data
 
 Photos are personal data. Store only the required metadata in the database and use controlled object storage.
 
+FF-025 requests camera access only when the user explicitly chooses the camera;
+gallery selection uses the platform picker. Selected images are copied into
+app-owned storage on native clients, and database rows contain references and
+minimal metadata rather than image contents. Production uploads must use an
+authenticated, access-controlled object-storage adapter.
+
 ## Privacy
 
 Provide:

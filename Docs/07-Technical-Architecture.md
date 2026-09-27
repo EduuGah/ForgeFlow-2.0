@@ -117,6 +117,12 @@ If an unsafe conflict cannot be automatically resolved, preserve local data and 
 
 Photos are local pending uploads first. The database stores metadata and a local file reference. Upload queue retries independently. Do not store large Base64 blobs inside SQLite or PostgreSQL rows.
 
+FF-025 implements this boundary with a capture gateway, a media repository and
+a separate upload queue. Native clients copy selected images into app-owned
+document storage before linking them to a meal. The preview upload adapter is
+replaceable; a production object-storage adapter remains server infrastructure
+work.
+
 ## Security
 
 - per-user authorization on every server operation

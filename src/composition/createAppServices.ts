@@ -47,6 +47,13 @@ import {
   listNutritionJournal,
   type CreateMealInput,
 } from '../application/useCases/nutritionJournal';
+import {
+  attachMealPhoto,
+  listMealPhotos,
+  processMediaUploadQueue,
+  retryMediaUpload,
+} from '../application/useCases/mealPhotos';
+import type { MealPhotoSource } from '../application/ports/media';
 import { getTrainingAnalytics } from '../application/useCases/trainingAnalytics';
 import type { AnalyticsPeriod } from '../domain/training/analytics';
 import {
@@ -70,6 +77,8 @@ import {
 import { InMemoryAuthRemoteGateway } from '../data/auth/inMemoryAuthGateway';
 import { MemorySecureSessionStorage } from '../data/auth/memorySecureSessionStorage';
 import { ExpoNotificationGateway } from '../data/notifications/expoNotificationGateway';
+import { ExpoMealPhotoGateway } from '../data/media/expoMealPhotoGateway';
+import { InMemoryMediaUploadGateway } from '../data/media/inMemoryMediaUploadGateway';
 import { createInMemoryRepositories } from '../data/repositories/inMemoryRepositories';
 import { systemExercises } from '../data/seeds/systemExercises';
 
@@ -82,6 +91,8 @@ export function createAppServices() {
     exercises: systemExercises,
   });
   const notificationGateway = new ExpoNotificationGateway();
+  const mealPhotoGateway = new ExpoMealPhotoGateway();
+  const mediaUploadGateway = new InMemoryMediaUploadGateway();
   const authDependencies = {
     remote: authRemote,
     storage: authStorage,
@@ -171,6 +182,18 @@ export function createAppServices() {
       meals: repositories.meals,
       syncOperations: repositories.syncOperations,
     },
+  };
+  const mealPhotoDependencies = {
+    captureGateway: mealPhotoGateway,
+    clock: () => new Date().toISOString(),
+    generateId: createLocalUuid,
+    repositories: {
+      meals: repositories.meals,
+      media: repositories.media,
+      mediaUploads: repositories.mediaUploads,
+      syncOperations: repositories.syncOperations,
+    },
+    uploadGateway: mediaUploadGateway,
   };
 
   const refreshAchievements = () =>
@@ -365,6 +388,32 @@ export function createAppServices() {
         listNutritionJournal(
           { ...range, userId: LOCAL_PREVIEW_USER_ID },
           nutritionDependencies.repositories,
+        ),
+    },
+    mealPhotos: {
+      attach: async (mealId: string, source: MealPhotoSource) => {
+        const result = await attachMealPhoto(
+          { mealId, source, userId: LOCAL_PREVIEW_USER_ID },
+          mealPhotoDependencies,
+        );
+        if (result.status === 'attached') {
+          try {
+            await processMediaUploadQueue({ limit: 1 }, mealPhotoDependencies);
+          } catch {
+            // The local attachment is already durable; the queue can retry later.
+          }
+        }
+        return result;
+      },
+      list: (mediaIds: string[]) =>
+        listMealPhotos(
+          { mediaIds, userId: LOCAL_PREVIEW_USER_ID },
+          mealPhotoDependencies.repositories,
+        ),
+      retry: (mediaId: string) =>
+        retryMediaUpload(
+          { mediaId, userId: LOCAL_PREVIEW_USER_ID },
+          mealPhotoDependencies,
         ),
     },
     workouts: {

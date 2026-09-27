@@ -9,6 +9,7 @@ import { serverGoalsMigration } from './goalsMigration';
 import { serverGoalProgressMigration } from './goalProgressMigration';
 import { serverPersonalRecordsMigration } from './personalRecordsMigration';
 import { serverMealsMigration } from './mealsMigration';
+import { serverMediaMigration } from './mediaMigration';
 
 export const serverMigrations = [
   initialServerSchemaMigration,
@@ -21,4 +22,5 @@ export const serverMigrations = [
   serverPushDevicesMigration,
   serverNotificationPreferencesMigration,
   serverMealsMigration,
+  serverMediaMigration,
 ] satisfies readonly MigrationDefinition[];
