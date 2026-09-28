@@ -573,9 +573,9 @@ export function createAppServices(repositoryProvider?: RepositoryProvider) {
         await refreshAchievements();
         return workout;
       },
-      history: () =>
+      history: (page: { limit?: number; offset?: number } = {}) =>
         listCompletedWorkouts(
-          { userId: LOCAL_PREVIEW_USER_ID },
+          { ...page, userId: LOCAL_PREVIEW_USER_ID },
           workoutExecutionDependencies.repositories,
         ),
       abandonActive: () =>

@@ -139,6 +139,65 @@ describe('SQLite repositories', () => {
     ).resolves.toBeNull();
     database.close();
   });
+
+  it('skips the unchanged system exercise seed on later startups', async () => {
+    const database = new SQL.Database();
+    const connection = new SqlJsConnection(database);
+    await initializeLocalStorage(connection);
+    const run = jest.spyOn(connection, 'runAsync');
+
+    await initializeLocalStorage(connection);
+
+    expect(
+      run.mock.calls.filter(([sql]) => sql.includes('INSERT INTO exercises')),
+    ).toHaveLength(0);
+    database.close();
+  });
+
+  it('uses indexed SQL pagination for completed workout history', async () => {
+    const database = new SQL.Database();
+    const connection = new SqlJsConnection(database);
+    await initializeLocalStorage(connection);
+    const repositories = createSQLiteRepositories(connection);
+
+    await repositories.transaction.runInTransaction(async () => {
+      for (let index = 0; index < 45; index += 1) {
+        await repositories.workoutSessions.saveWorkoutSession({
+          ...createSession(null),
+          completedAt: new Date(Date.UTC(2026, 8, 1, 0, index)).toISOString(),
+          durationSeconds: 1800,
+          id: `history-${index}`,
+          startedAt: new Date(Date.UTC(2026, 8, 1, 0, index)).toISOString(),
+          status: 'completed',
+        });
+      }
+      await repositories.workoutSessions.saveWorkoutSession({
+        ...createSession(null),
+        id: 'active-session',
+      });
+    });
+
+    const page = await repositories.workoutSessions.listWorkoutSessions({
+      limit: 20,
+      offset: 20,
+      statuses: ['completed'],
+      userId: LOCAL_PREVIEW_USER_ID,
+    });
+    const queryPlan = await connection.getAllAsync<{ detail: string }>(
+      `EXPLAIN QUERY PLAN
+       SELECT * FROM workout_sessions
+       WHERE user_id = ? AND deleted_at IS NULL AND status IN (?)
+       ORDER BY started_at DESC LIMIT ? OFFSET ?`,
+      [LOCAL_PREVIEW_USER_ID, 'completed', 20, 20],
+    );
+
+    expect(page).toHaveLength(20);
+    expect(page[0].id).toBe('history-24');
+    expect(queryPlan.map((row) => row.detail).join(' ')).toContain(
+      'idx_workout_sessions_user_status_started',
+    );
+    database.close();
+  });
 });
 
 function createWorkout(exerciseId: string): WorkoutTemplate {

@@ -382,6 +382,10 @@ class InMemoryForgeFlowRepository
           !params.sourceSetIds.includes(record.sourceSetId)
         )
           return false;
+        if (params.achievedFrom && record.achievedAt < params.achievedFrom)
+          return false;
+        if (params.achievedTo && record.achievedAt > params.achievedTo)
+          return false;
         return true;
       }),
     );
@@ -513,9 +517,36 @@ class InMemoryForgeFlowRepository
           return false;
         }
 
+        if (params.statuses && !params.statuses.includes(session.status)) {
+          return false;
+        }
+
+        if (
+          params.completedFrom &&
+          (!session.completedAt || session.completedAt < params.completedFrom)
+        ) {
+          return false;
+        }
+
+        if (
+          params.completedTo &&
+          (!session.completedAt || session.completedAt > params.completedTo)
+        ) {
+          return false;
+        }
+
         return true;
       })
-      .slice(0, params.limit);
+      .sort(
+        (left, right) =>
+          Date.parse(right.startedAt) - Date.parse(left.startedAt),
+      )
+      .slice(
+        params.offset ?? 0,
+        typeof params.limit === 'number'
+          ? (params.offset ?? 0) + params.limit
+          : undefined,
+      );
 
     return clone(sessions);
   }

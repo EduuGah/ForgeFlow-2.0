@@ -19,6 +19,14 @@ describe('getTrainingAnalytics', () => {
       trainingSets: [workingSet, warmupSet],
       workoutSessions: [session, otherUserSession],
     });
+    const sessionQuery = jest.spyOn(
+      repositories.workoutSessions,
+      'listWorkoutSessions',
+    );
+    const recordQuery = jest.spyOn(
+      repositories.personalRecords,
+      'listPersonalRecords',
+    );
 
     const result = await getTrainingAnalytics(
       {
@@ -40,6 +48,17 @@ describe('getTrainingAnalytics', () => {
     });
     expect(result.exercises).toHaveLength(1);
     expect(JSON.parse(JSON.stringify(result))).toEqual(result);
+    expect(sessionQuery).toHaveBeenCalledWith({
+      completedFrom: '2026-08-02T00:00:00.000Z',
+      completedTo: '2026-09-30T23:59:59.999Z',
+      statuses: ['completed'],
+      userId: 'user-1',
+    });
+    expect(recordQuery).toHaveBeenCalledWith({
+      achievedFrom: '2026-08-02T00:00:00.000Z',
+      achievedTo: '2026-09-30T23:59:59.999Z',
+      userId: 'user-1',
+    });
   });
 });
 

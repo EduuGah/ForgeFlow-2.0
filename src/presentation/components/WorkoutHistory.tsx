@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ChevronRight, Medal, RefreshCw } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight,
+  Medal,
+  RefreshCw,
+} from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { CompletedWorkout } from '../../application/useCases/workoutExecution';
@@ -10,7 +16,9 @@ import { colors, radius, spacing, typography } from '../theme/tokens';
 type HistoryState =
   | { status: 'loading' }
   | { status: 'error' }
-  | { status: 'ready'; items: CompletedWorkout[] };
+  | { hasMore: boolean; status: 'ready'; items: CompletedWorkout[] };
+
+const historyPageSize = 20;
 
 export function WorkoutHistory({
   initialSessionId,
@@ -21,13 +29,21 @@ export function WorkoutHistory({
   const [state, setState] = useState<HistoryState>({ status: 'loading' });
   const [selectedId, setSelectedId] = useState(initialSessionId);
   const [reload, setReload] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadMoreFailed, setLoadMoreFailed] = useState(false);
 
   useEffect(() => {
     let mounted = true;
     services.workoutExecution
-      .history()
+      .history({ limit: historyPageSize + 1 })
       .then((items) => {
-        if (mounted) setState({ status: 'ready', items });
+        if (mounted) {
+          setState({
+            hasMore: items.length > historyPageSize,
+            items: items.slice(0, historyPageSize),
+            status: 'ready',
+          });
+        }
       })
       .catch(() => {
         if (mounted) setState({ status: 'error' });
@@ -36,6 +52,31 @@ export function WorkoutHistory({
       mounted = false;
     };
   }, [services, reload]);
+
+  const loadMore = async () => {
+    if (state.status !== 'ready' || !state.hasMore || isLoadingMore) return;
+    setIsLoadingMore(true);
+    setLoadMoreFailed(false);
+    try {
+      const items = await services.workoutExecution.history({
+        limit: historyPageSize + 1,
+        offset: state.items.length,
+      });
+      setState((current) =>
+        current.status === 'ready'
+          ? {
+              hasMore: items.length > historyPageSize,
+              items: [...current.items, ...items.slice(0, historyPageSize)],
+              status: 'ready',
+            }
+          : current,
+      );
+    } catch {
+      setLoadMoreFailed(true);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   if (state.status === 'loading')
     return (
@@ -155,6 +196,24 @@ export function WorkoutHistory({
           <WorkoutTotals workout={workout} />
         </Pressable>
       ))}
+      {state.hasMore ? (
+        <Pressable
+          accessibilityRole="button"
+          disabled={isLoadingMore}
+          onPress={loadMore}
+          style={styles.loadMore}
+        >
+          <ChevronDown color={colors.accent} size={18} />
+          <Text style={styles.link}>
+            {isLoadingMore ? 'Carregando...' : 'Carregar mais'}
+          </Text>
+        </Pressable>
+      ) : null}
+      {loadMoreFailed ? (
+        <Text accessibilityRole="alert" style={styles.meta}>
+          Nao foi possivel carregar mais treinos. Tente novamente.
+        </Text>
+      ) : null}
     </Section>
   );
 }
@@ -206,6 +265,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   link: { ...typography.body, color: colors.accent },
+  loadMore: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+  },
   meta: { ...typography.caption, color: colors.textMuted },
   records: { alignItems: 'center', flexDirection: 'row', gap: spacing.xs },
   recordText: {

@@ -189,6 +189,48 @@ describe('workout execution use cases', () => {
     ).resolves.toEqual([]);
   });
 
+  it('paginates completed history without including other session states', async () => {
+    const completedSessions = Array.from({ length: 45 }, (_, index) => ({
+      ...createActiveSessionFixture('workout-1'),
+      completedAt: new Date(Date.UTC(2026, 8, 1, 0, index)).toISOString(),
+      durationSeconds: 1800,
+      id: `completed-${index}`,
+      startedAt: new Date(Date.UTC(2026, 8, 1, 0, index)).toISOString(),
+      status: 'completed' as const,
+    }));
+    const repositories = createInMemoryRepositories({
+      workoutSessions: [
+        ...completedSessions,
+        createActiveSessionFixture('workout-1'),
+      ],
+    });
+
+    const firstPage = await listCompletedWorkouts(
+      { limit: 20, userId },
+      repositories,
+    );
+    const secondPage = await listCompletedWorkouts(
+      { limit: 20, offset: 20, userId },
+      repositories,
+    );
+    const finalPage = await listCompletedWorkouts(
+      { limit: 20, offset: 40, userId },
+      repositories,
+    );
+
+    expect(firstPage).toHaveLength(20);
+    expect(secondPage).toHaveLength(20);
+    expect(finalPage).toHaveLength(5);
+    expect(firstPage[0].id).toBe('completed-44');
+    expect(secondPage[0].id).toBe('completed-24');
+    expect(finalPage[0].id).toBe('completed-4');
+    expect(
+      new Set(
+        [...firstPage, ...secondPage, ...finalPage].map((item) => item.id),
+      ).size,
+    ).toBe(45);
+  });
+
   it('keeps completion retryable when the outbox write fails', async () => {
     const repositories = createInMemoryRepositories({
       workoutSessions: [createActiveSessionFixture('workout-1')],
