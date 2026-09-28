@@ -49,6 +49,7 @@ import {
 } from '../application/useCases/nutritionJournal';
 import { buildConsolidatedReport } from '../application/useCases/consolidatedReport';
 import type { ReportPeriod } from '../domain/reports/entities';
+import { RestTimerController } from '../application/useCases/restTimer';
 import {
   buildStructuredAiExport,
   shareStructuredAiExport,
@@ -108,6 +109,10 @@ export function createAppServices() {
   const mealPhotoGateway = new ExpoMealPhotoGateway();
   const mediaUploadGateway = new InMemoryMediaUploadGateway();
   const structuredExportGateway = new PlatformStructuredExportGateway();
+  const restTimerController = new RestTimerController({
+    clock: () => new Date().toISOString(),
+    notifications: notificationGateway,
+  });
   const authDependencies = {
     remote: authRemote,
     storage: authStorage,
@@ -475,6 +480,15 @@ export function createAppServices() {
       },
       shareAiExport: (document: ReturnType<typeof buildStructuredAiExport>) =>
         shareStructuredAiExport(document, structuredExportGateway),
+    },
+    restTimer: {
+      addSeconds: (seconds: number) => restTimerController.addSeconds(seconds),
+      cancel: () => restTimerController.cancel(),
+      get: () => restTimerController.getSnapshot(),
+      pause: () => restTimerController.pause(),
+      resume: () => restTimerController.resume(),
+      start: (input: { durationSeconds: number; exerciseName: string }) =>
+        restTimerController.start(input),
     },
     mealPhotos: {
       attach: async (mealId: string, source: MealPhotoSource) => {

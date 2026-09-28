@@ -68,6 +68,14 @@ npm run format:check
 
 Copy `.env.example` to `.env.local` for local-only values. Only `EXPO_PUBLIC_*` values are visible to the client bundle; do not put secrets there.
 
+### Rest timer (FF-014)
+
+Saving a set with a positive rest duration starts a shared deadline-based timer.
+It supports pause, resume, `+15s` and cancellation, and remains accurate across
+screen changes or time spent in the background. Native builds schedule a local
+completion alert when permission is available; web keeps the in-app completion
+state without requesting notification access.
+
 ### Workout completion preview (FF-015)
 
 The workout screen supports explicit completion and a History tab with session

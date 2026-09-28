@@ -4,7 +4,9 @@ import {
   Archive,
   CheckCircle2,
   Copy,
+  Pause,
   PenLine,
+  Play,
   PlayCircle,
   Plus,
   Search,
@@ -17,6 +19,7 @@ import {
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { ExerciseLibraryItem } from '../../application/useCases/exerciseLibrary';
+import type { RestTimerSnapshot } from '../../application/useCases/restTimer';
 import type {
   WorkoutExercisePlanInput,
   WorkoutTemplateSummary,
@@ -72,12 +75,6 @@ type ActiveWorkoutState =
 
 type ViewMode = 'library' | 'workouts' | 'history';
 
-type RestTimerState = {
-  durationSeconds: number;
-  exerciseName: string;
-  remainingSeconds: number;
-};
-
 export function WorkoutsScreen() {
   const services = useAppServices();
   const [viewMode, setViewMode] = useState<ViewMode>('workouts');
@@ -128,7 +125,9 @@ export function WorkoutsScreen() {
   const [completedSessionId, setCompletedSessionId] = useState<string | null>(
     null,
   );
-  const [restTimer, setRestTimer] = useState<RestTimerState | null>(null);
+  const [restTimer, setRestTimer] = useState<RestTimerSnapshot | null>(() =>
+    services.restTimer.get(),
+  );
   const [createName, setCreateName] = useState('');
   const [createMuscleGroup, setCreateMuscleGroup] = useState('');
   const [createEquipment, setCreateEquipment] = useState('');
@@ -213,25 +212,12 @@ export function WorkoutsScreen() {
   }, [favoritesOnly, query, selectedEquipment, selectedMuscleGroup, services]);
 
   useEffect(() => {
-    if (!restTimer || restTimer.remainingSeconds <= 0) {
-      return;
-    }
-
     const intervalId = setInterval(() => {
-      setRestTimer((current) => {
-        if (!current) {
-          return null;
-        }
-
-        return {
-          ...current,
-          remainingSeconds: Math.max(0, current.remainingSeconds - 1),
-        };
-      });
+      setRestTimer(services.restTimer.get());
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [restTimer]);
+  }, [services]);
 
   const refreshLibrary = async () => {
     const value = await services.exerciseLibrary.list({
@@ -408,7 +394,7 @@ export function WorkoutsScreen() {
 
   const handleAbandonActiveWorkout = async () => {
     await services.workoutExecution.abandonActive();
-    setRestTimer(null);
+    setRestTimer(await services.restTimer.cancel());
     setSelectedSessionExerciseId(null);
     await refreshActiveWorkout();
   };
@@ -428,7 +414,7 @@ export function WorkoutsScreen() {
         activeWorkout.value.id,
       );
       setActiveWorkout({ status: 'ready', value: null });
-      setRestTimer(null);
+      setRestTimer(await services.restTimer.cancel());
       setSelectedSessionExerciseId(null);
       setSetWeightKg('');
       setSetRepetitions('');
@@ -491,13 +477,14 @@ export function WorkoutsScreen() {
       setSetNotes('');
 
       if (typeof restSeconds === 'number' && restSeconds > 0) {
-        setRestTimer({
-          durationSeconds: restSeconds,
-          exerciseName: timerExerciseName,
-          remainingSeconds: restSeconds,
-        });
+        setRestTimer(
+          await services.restTimer.start({
+            durationSeconds: restSeconds,
+            exerciseName: timerExerciseName,
+          }),
+        );
       } else {
-        setRestTimer(null);
+        setRestTimer(await services.restTimer.cancel());
       }
     } catch {
       setSetFormError('Revise os dados da serie antes de salvar.');
@@ -695,28 +682,46 @@ export function WorkoutsScreen() {
                         <Timer color={colors.accent} size={22} />
                         <View style={styles.restTimerBody}>
                           <Text style={styles.timerValue}>
-                            {restTimer.remainingSeconds === 0
+                            {restTimer.status === 'completed'
                               ? 'Descanso concluido'
                               : formatDuration(restTimer.remainingSeconds)}
                           </Text>
                           <Text style={styles.exerciseMeta}>
-                            Depois de {restTimer.exerciseName}
+                            {restTimer.status === 'paused'
+                              ? 'Pausado'
+                              : `Depois de ${restTimer.exerciseName}`}
                           </Text>
                         </View>
                         <View style={styles.timerActions}>
+                          {restTimer.status !== 'completed' ? (
+                            <Pressable
+                              accessibilityLabel={
+                                restTimer.status === 'paused'
+                                  ? 'Retomar descanso'
+                                  : 'Pausar descanso'
+                              }
+                              accessibilityRole="button"
+                              onPress={async () =>
+                                setRestTimer(
+                                  restTimer.status === 'paused'
+                                    ? await services.restTimer.resume()
+                                    : await services.restTimer.pause(),
+                                )
+                              }
+                              style={styles.timerIconButton}
+                            >
+                              {restTimer.status === 'paused' ? (
+                                <Play color={colors.accent} size={18} />
+                              ) : (
+                                <Pause color={colors.accent} size={18} />
+                              )}
+                            </Pressable>
+                          ) : null}
                           <Pressable
                             accessibilityRole="button"
-                            onPress={() =>
-                              setRestTimer((current) =>
-                                current
-                                  ? {
-                                      ...current,
-                                      durationSeconds:
-                                        current.durationSeconds + 15,
-                                      remainingSeconds:
-                                        current.remainingSeconds + 15,
-                                    }
-                                  : current,
+                            onPress={async () =>
+                              setRestTimer(
+                                await services.restTimer.addSeconds(15),
                               )
                             }
                             style={styles.secondaryButton}
@@ -725,7 +730,9 @@ export function WorkoutsScreen() {
                           </Pressable>
                           <Pressable
                             accessibilityRole="button"
-                            onPress={() => setRestTimer(null)}
+                            onPress={async () =>
+                              setRestTimer(await services.restTimer.cancel())
+                            }
                             style={styles.secondaryButton}
                           >
                             <Text style={styles.secondaryButtonText}>
@@ -1816,6 +1823,15 @@ const styles = StyleSheet.create({
   },
   timerActions: {
     gap: spacing.xs,
+  },
+  timerIconButton: {
+    alignItems: 'center',
+    borderColor: colors.border,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
   },
   timerValue: {
     ...typography.subtitle,
