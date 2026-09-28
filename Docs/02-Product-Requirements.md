@@ -206,6 +206,13 @@ training, goal, meal and hydration sources. It reuses dashboard calculations,
 marks unavailable body-weight data explicitly and produces a versioned,
 serializable snapshot for later export without inventing missing records.
 
+FF-028 adds a user-initiated structured JSON export for AI analysis. The export
+uses a stable versioned schema and separates observed facts, calculated metrics,
+projections and interpretations. The user can inspect the complete payload
+before sharing or downloading it; no external transmission occurs while the
+report or preview is generated. The payload includes a clear professional-advice
+notice and leaves AI-produced sections empty.
+
 ### Notifications
 - workout reminders
 - goal progress

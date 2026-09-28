@@ -84,6 +84,13 @@ progress, meals/macros, hydration totals and explicit body-weight availability.
 The projection is JSON-serializable and can be handed to an export adapter
 without UI-specific formatting.
 
+FF-028 defines `forgeflow_ai_analysis` schema version `1`. Its top-level areas
+are `observedFacts`, `calculatedMetrics`, `projections` and `interpretations`.
+The latter two are emitted with `not_generated` status and empty items; the app
+does not manufacture AI output. Creating and previewing this document are pure
+local operations. Only the explicit share/download command invokes the platform
+export adapter, and the user chooses the final destination.
+
 ## Idempotency
 
 Every mutation has an operationId. Retrying an already accepted operation must return the same logical result rather than create duplicates.

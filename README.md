@@ -140,3 +140,11 @@ Remote push requires an EAS project ID, FCM/APNs credentials and a development
 build; Expo Go on Android cannot receive remote push on current SDKs. Device
 registrations are persisted by migration `0009_push_devices` and queued for
 offline synchronization.
+
+### Structured AI export preview (FF-028)
+
+The Reports screen can build and display a versioned JSON document that keeps
+observed facts separate from calculated metrics and leaves projections and AI
+interpretations explicitly ungenerated. Sharing is a separate user action:
+native platforms open the system share sheet, while web downloads the JSON for
+the user to choose its destination. No provider is contacted automatically.

@@ -131,6 +131,12 @@ of truth, so no report table or duplicate metric implementation is introduced.
 External file generation and AI transmission remain separate adapters and
 require explicit user action.
 
+FF-028 adds a pure mapper from the consolidated report to the stable AI export
+contract. Serialization is kept in the application layer, while a platform
+gateway owns the final native share or web download operation. Building and
+inspecting the document never calls that gateway; only the second, explicit
+user command can cross the application boundary.
+
 ## Security
 
 - per-user authorization on every server operation

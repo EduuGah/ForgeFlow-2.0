@@ -39,6 +39,14 @@ FF-027 prepares the consolidated report data but does not send it to an AI
 provider. Body weight is marked unavailable when no persisted source exists.
 FF-028 owns the explicit export/inspection flow and any future transmission.
 
+FF-028 exports JSON schema version `1` with the type
+`forgeflow_ai_analysis`. Observed meal, hydration, goal and body-weight records
+are kept apart from report-derived training, nutrition, hydration and goal
+metrics. `projections` and `interpretations` remain explicitly empty and marked
+`not_generated`; they can only be produced outside the ForgeFlow source-of-truth
+layer. The full JSON is shown before the platform share/download action becomes
+available.
+
 ## Privacy
 
 Sending data to an external AI provider requires explicit user action.
