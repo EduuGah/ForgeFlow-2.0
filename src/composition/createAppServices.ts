@@ -47,6 +47,8 @@ import {
   listNutritionJournal,
   type CreateMealInput,
 } from '../application/useCases/nutritionJournal';
+import { buildConsolidatedReport } from '../application/useCases/consolidatedReport';
+import type { ReportPeriod } from '../domain/reports/entities';
 import {
   deleteHydrationEntry,
   getHydrationReminderContext,
@@ -210,6 +212,22 @@ export function createAppServices() {
       syncOperations: repositories.syncOperations,
     },
     uploadGateway: mediaUploadGateway,
+  };
+  const reportDependencies = {
+    clock: () => new Date().toISOString(),
+    repositories: {
+      exercises: repositories.exercises,
+      goalProgressEvents: repositories.goalProgressEvents,
+      goals: repositories.goals,
+      hydrationEntries: repositories.hydrationEntries,
+      hydrationGoals: repositories.hydrationGoals,
+      meals: repositories.meals,
+      personalRecords: repositories.personalRecords,
+      sessionExercises: repositories.sessionExercises,
+      sets: repositories.sets,
+      syncOperations: repositories.syncOperations,
+      workoutSessions: repositories.workoutSessions,
+    },
   };
 
   const refreshAchievements = () =>
@@ -432,6 +450,22 @@ export function createAppServices() {
           { ...range, userId: LOCAL_PREVIEW_USER_ID },
           nutritionDependencies.repositories,
         ),
+    },
+    reports: {
+      generate: async (period: ReportPeriod) => {
+        await refreshActiveGoalProgress(
+          { userId: LOCAL_PREVIEW_USER_ID },
+          goalProgressDependencies,
+        );
+        return buildConsolidatedReport(
+          {
+            period,
+            timezoneOffsetMinutes: -new Date().getTimezoneOffset(),
+            userId: LOCAL_PREVIEW_USER_ID,
+          },
+          reportDependencies,
+        );
+      },
     },
     mealPhotos: {
       attach: async (mealId: string, source: MealPhotoSource) => {

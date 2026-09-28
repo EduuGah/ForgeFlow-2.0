@@ -201,6 +201,11 @@ hydration reminder eligibility.
 - exportable structured data for AI analysis
 - exportable human-readable report for professionals
 
+FF-027 implements a consolidated, selectable-period report over the existing
+training, goal, meal and hydration sources. It reuses dashboard calculations,
+marks unavailable body-weight data explicitly and produces a versioned,
+serializable snapshot for later export without inventing missing records.
+
 ### Notifications
 - workout reminders
 - goal progress

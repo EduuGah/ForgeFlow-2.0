@@ -7,6 +7,7 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { NutritionScreen } from '../screens/NutritionScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { ProgressScreen } from '../screens/ProgressScreen';
+import { ReportsScreen } from '../screens/ReportsScreen';
 import { WorkoutsScreen } from '../screens/WorkoutsScreen';
 import { colors } from '../theme/tokens';
 import type { RootTabParamList } from './types';
@@ -42,6 +43,14 @@ export function AppNavigator() {
             <Home color={color} size={size} strokeWidth={2.2} />
           ),
           title: 'Home',
+        }}
+      />
+      <Tab.Screen
+        component={ReportsScreen}
+        name="Reports"
+        options={{
+          tabBarButton: () => null,
+          title: 'Relatorios',
         }}
       />
       <Tab.Screen

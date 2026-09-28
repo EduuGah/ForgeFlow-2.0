@@ -17,6 +17,7 @@ const linking = {
       Nutrition: 'nutrition',
       Profile: 'profile',
       Progress: 'progress',
+      Reports: 'reports',
       Workouts: 'workouts',
     },
   },
