@@ -12,6 +12,11 @@ UI action
 
 The network is not part of the critical path for normal writes.
 
+On native startup, the SQLite migration ledger is checked before repositories
+are composed. Existing rows, active workouts and pending outbox operations are
+therefore available after process termination or device restart. Re-running
+startup is idempotent and does not duplicate system exercises.
+
 ## Sync path
 
 Connectivity available
@@ -34,6 +39,11 @@ Network failure:
 - increment retry metadata
 - backoff
 - retry later
+
+Local transaction failure:
+- roll back the entity mutation and its outbox operation together
+- keep the previously committed database state readable
+- allow the user action to be retried without a partial row
 
 Validation failure:
 - do not retry forever

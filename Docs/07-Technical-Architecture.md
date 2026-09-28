@@ -49,6 +49,17 @@ Repositories abstract:
 
 UI must not directly manipulate SQLite tables or network requests.
 
+### Local runtime composition
+
+FF-044 composes native Android and iOS builds with `expo-sqlite`. Startup opens
+`forgeflow.db`, applies every pending local migration, upserts the local preview
+user and seeds the system exercise catalog idempotently before rendering the
+application. All current repository ports share this database connection.
+
+The web preview keeps the in-memory repository adapter because Expo SQLite's
+web/WASM path is not part of the supported runtime in this issue. This is an
+explicit preview limitation; native builds are the durable offline target.
+
 ## Source boundaries
 
 Implemented source directories follow the same layer map:
@@ -75,6 +86,11 @@ Each mutable entity has:
 - revision/version metadata where needed
 
 Writes create/update the local row and enqueue an outbox operation.
+
+Training-template, workout-session and set writes enqueue their outbox records
+inside the same reentrant SQLite transaction. A failed operation rolls the
+whole local mutation back instead of leaving data without a synchronization
+record.
 
 When online:
 1. sync engine reads pending operations;

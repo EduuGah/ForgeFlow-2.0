@@ -322,6 +322,17 @@ Multi-table writes such as finishing a workout and persisting its sets must be t
 
 Server-side operations that change several related records must also be transactional.
 
+FF-044 implements a single Expo SQLite repository provider for every current
+application repository port. Workout templates and their exercise rows are
+replaced atomically, while training mutations and their outbox operations share
+one transaction. The transaction adapter is reentrant so a use case can compose
+repository operations without attempting nested SQLite transactions.
+
+Repository integration tests run the production migrations against SQLite,
+persist the database bytes, reopen them in a new connection and verify recovery
+of the workout template, active session, session exercise, set and pending
+outbox operation. A separate failure test verifies rollback.
+
 ## Indexing
 
 At minimum index:
@@ -369,7 +380,7 @@ FF-004 introduces the first local and server schema migrations for the core trai
 
 Both SQLite and PostgreSQL migrations use the same table names and relationship shape. Local SQLite stores UUIDs and timestamps as `TEXT`, boolean flags as checked integers, and `secondary_muscle_groups` as JSON text. Server PostgreSQL stores UUIDs as `UUID`, timestamps as `TIMESTAMPTZ`, boolean flags as `BOOLEAN`, and `secondary_muscle_groups` as `TEXT[]`.
 
-FF-004 intentionally does not add local sync metadata tables. `sync_operations` and `sync_state` remain reserved for FF-005.
+FF-004 intentionally does not add local sync metadata tables. `sync_operations` and `sync_state` are added by FF-005.
 
 ## Sync metadata migration
 

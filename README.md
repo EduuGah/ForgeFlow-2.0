@@ -68,6 +68,15 @@ npm run format:check
 
 Copy `.env.example` to `.env.local` for local-only values. Only `EXPO_PUBLIC_*` values are visible to the client bundle; do not put secrets there.
 
+### Native local persistence (FF-044)
+
+Android and iOS builds open `forgeflow.db` through Expo SQLite, apply versioned
+migrations and seed the system exercise catalog before composing application
+services. Current repository contracts persist to normalized tables, including
+the sync outbox, so committed workouts and history survive app restarts.
+Training writes and their outbox records are atomic. The web preview remains an
+in-memory environment and resets when the page reloads.
+
 ### Rest timer (FF-014)
 
 Saving a set with a positive rest duration starts a shared deadline-based timer.
@@ -83,12 +92,9 @@ duration, completed sets, working-set volume and exercise/set details including
 notes. Completion is scoped to the requested session and user; repeating a
 successful completion does not finish a subsequent active session.
 
-The current composition still uses in-memory repositories. History can be opened
-without network access while the app remains running, but reloading or restarting
-the app clears preview data. Durable local repositories and atomic session/outbox
-writes remain prerequisites for the offline-reopening requirement in issue #15.
-This implementation is partial and must not close that issue yet. Historical
-names are resolved from the current catalog/templates rather than immutable name
+Native composition now uses durable SQLite repositories, so history can be
+opened without network access after restarting the app. The web preview still
+resets on reload. Historical names are resolved from the current catalog/templates rather than immutable name
 snapshots. Missing names fall back to generic labels while recorded sets remain.
 
 ### Training analytics preview (FF-017)
@@ -97,16 +103,16 @@ The Progress tab calculates completed workout count, duration, frequency,
 working-set volume and repetitions, personal records and per-exercise metrics for
 7, 30 or 90 days. It compares each selection with the immediately preceding
 period of equal length and exposes serializable timeline/exercise series for
-charts and future exports. Preview data still uses the in-memory repository and
-resets when the app reloads.
+charts and future exports. Native data persists in SQLite; web preview data
+resets when the page reloads.
 
 ### Goal engine preview (FF-018)
 
 The Goals tab creates every supported goal type, captures its baseline, accepts
 an optional deadline and supports editing, pausing, resuming and cancelling.
 Training-based goals derive their baseline from completed workout analytics;
-body-weight and custom goals accept a manual current value. Goal preview data
-uses the in-memory repository and resets when the app reloads.
+body-weight and custom goals accept a manual current value. Native goal data is
+durable; the web preview resets when the page reloads.
 
 ### Goal progress preview (FF-019)
 
@@ -114,8 +120,8 @@ Goal cards show baseline, current value, target, percentage and projected status
 Training goals refresh from completed workout analytics; body-weight and custom
 goals expose manual measurement entry. Deadline projection distinguishes goals
 that are on track, behind or expired, and reached targets move to the completed
-section at 100%. Progress events and sync operations still use the in-memory
-preview repository and reset when the app reloads.
+section at 100%. Progress events and sync operations persist on native builds;
+the web preview resets when the page reloads.
 
 ### Achievements preview (FF-020)
 
@@ -123,9 +129,8 @@ The Profile tab now evaluates and displays 19 objective achievements for the
 first workout and record, consecutive training weeks, workout count, cumulative
 working-set volume, completed goals and estimated 1RM growth. Unlocks are
 idempotent and each new achievement enters the offline sync outbox. Achievement
-and outbox data use the in-memory preview repository and reset when the app
-reloads; migration `0007_achievements` defines durable SQLite and PostgreSQL
-storage for the production adapters.
+and outbox data use durable SQLite storage on native builds; the web preview
+resets when the page reloads.
 
 ### Notification engine (FF-021)
 

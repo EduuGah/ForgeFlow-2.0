@@ -56,6 +56,7 @@ import type {
   SyncOperationRepository,
   SyncStateRepository,
   TrainingSetRepository,
+  RepositoryTransactionRunner,
   WorkoutRepository,
   WorkoutSessionRepository,
 } from '../../application/ports/repositories';
@@ -103,6 +104,7 @@ class InMemoryForgeFlowRepository
     SyncOperationRepository,
     SyncStateRepository,
     TrainingSetRepository,
+    RepositoryTransactionRunner,
     WorkoutRepository,
     WorkoutSessionRepository
 {
@@ -154,6 +156,10 @@ class InMemoryForgeFlowRepository
     return this.syncOperations.filter(
       (operation) => operation.status === 'pending',
     ).length;
+  }
+
+  async runInTransaction<T>(work: () => Promise<T>) {
+    return work();
   }
 
   async enqueueSyncOperation(operation: SyncOperation) {
@@ -719,6 +725,7 @@ export function createInMemoryRepositories(
     syncState: repository,
     sessionExercises: repository,
     sets: repository,
+    transaction: repository,
     workoutSessions: repository,
     workouts: repository,
   };

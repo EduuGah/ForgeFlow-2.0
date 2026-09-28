@@ -63,6 +63,7 @@ type WorkoutExecutionRepositories = Pick<
   | 'sessionExercises'
   | 'sets'
   | 'syncOperations'
+  | 'transaction'
   | 'workoutSessions'
   | 'workouts'
 >;
@@ -163,17 +164,19 @@ export async function logWorkoutSet(
     weightKg: input.weightKg,
   };
 
-  await dependencies.repositories.sets.saveTrainingSet(set);
-  await dependencies.repositories.syncOperations.enqueueSyncOperation(
-    createSyncOperation({
-      clock: dependencies.clock,
-      entityId: set.id,
-      entityType: 'set',
-      generateId: dependencies.generateId,
-      operationType: 'upsert',
-      payload: set,
-    }),
-  );
+  await dependencies.repositories.transaction.runInTransaction(async () => {
+    await dependencies.repositories.sets.saveTrainingSet(set);
+    await dependencies.repositories.syncOperations.enqueueSyncOperation(
+      createSyncOperation({
+        clock: dependencies.clock,
+        entityId: set.id,
+        entityType: 'set',
+        generateId: dependencies.generateId,
+        operationType: 'upsert',
+        payload: set,
+      }),
+    );
+  });
 
   return summarizeActiveWorkout(activeSession, dependencies.repositories);
 }
@@ -223,15 +226,15 @@ export async function startWorkoutSession(
       updatedAt: now,
     }));
 
-  await dependencies.repositories.workoutSessions.saveWorkoutSession(session);
-  await Promise.all(
-    sessionExercises.map((sessionExercise) =>
-      dependencies.repositories.sessionExercises.saveSessionExercise(
+  await dependencies.repositories.transaction.runInTransaction(async () => {
+    await dependencies.repositories.workoutSessions.saveWorkoutSession(session);
+    for (const sessionExercise of sessionExercises) {
+      await dependencies.repositories.sessionExercises.saveSessionExercise(
         sessionExercise,
-      ),
-    ),
-  );
-  await enqueueSessionStart(session, sessionExercises, dependencies);
+      );
+    }
+    await enqueueSessionStart(session, sessionExercises, dependencies);
+  });
 
   return summarizeActiveWorkout(session, dependencies.repositories);
 }
@@ -256,19 +259,21 @@ export async function abandonActiveWorkout(
     updatedAt: now,
   };
 
-  await dependencies.repositories.workoutSessions.saveWorkoutSession(
-    nextSession,
-  );
-  await dependencies.repositories.syncOperations.enqueueSyncOperation(
-    createSyncOperation({
-      clock: dependencies.clock,
-      entityId: nextSession.id,
-      entityType: 'workout_session',
-      generateId: dependencies.generateId,
-      operationType: 'upsert',
-      payload: nextSession,
-    }),
-  );
+  await dependencies.repositories.transaction.runInTransaction(async () => {
+    await dependencies.repositories.workoutSessions.saveWorkoutSession(
+      nextSession,
+    );
+    await dependencies.repositories.syncOperations.enqueueSyncOperation(
+      createSyncOperation({
+        clock: dependencies.clock,
+        entityId: nextSession.id,
+        entityType: 'workout_session',
+        generateId: dependencies.generateId,
+        operationType: 'upsert',
+        payload: nextSession,
+      }),
+    );
+  });
 
   return nextSession;
 }
@@ -307,19 +312,22 @@ export async function completeActiveWorkout(
     status: 'completed',
     updatedAt: now,
   };
-  await createPersonalRecordsForSession({ session: completed }, dependencies);
-  // Queue first so a failed enqueue leaves the session available for retry.
-  await dependencies.repositories.syncOperations.enqueueSyncOperation(
-    createSyncOperation({
-      clock: dependencies.clock,
-      entityId: completed.id,
-      entityType: 'workout_session',
-      generateId: dependencies.generateId,
-      operationType: 'upsert',
-      payload: completed,
-    }),
-  );
-  await dependencies.repositories.workoutSessions.saveWorkoutSession(completed);
+  await dependencies.repositories.transaction.runInTransaction(async () => {
+    await createPersonalRecordsForSession({ session: completed }, dependencies);
+    await dependencies.repositories.syncOperations.enqueueSyncOperation(
+      createSyncOperation({
+        clock: dependencies.clock,
+        entityId: completed.id,
+        entityType: 'workout_session',
+        generateId: dependencies.generateId,
+        operationType: 'upsert',
+        payload: completed,
+      }),
+    );
+    await dependencies.repositories.workoutSessions.saveWorkoutSession(
+      completed,
+    );
+  });
   return summarizeCompletedWorkout(completed, dependencies.repositories);
 }
 
@@ -402,20 +410,18 @@ async function enqueueSessionStart(
       payload: session,
     }),
   );
-  await Promise.all(
-    sessionExercises.map((sessionExercise) =>
-      dependencies.repositories.syncOperations.enqueueSyncOperation(
-        createSyncOperation({
-          clock: dependencies.clock,
-          entityId: sessionExercise.id,
-          entityType: 'session_exercise',
-          generateId: dependencies.generateId,
-          operationType: 'upsert',
-          payload: sessionExercise,
-        }),
-      ),
-    ),
-  );
+  for (const sessionExercise of sessionExercises) {
+    await dependencies.repositories.syncOperations.enqueueSyncOperation(
+      createSyncOperation({
+        clock: dependencies.clock,
+        entityId: sessionExercise.id,
+        entityType: 'session_exercise',
+        generateId: dependencies.generateId,
+        operationType: 'upsert',
+        payload: sessionExercise,
+      }),
+    );
+  }
 }
 
 function createSyncOperation(
