@@ -11,6 +11,7 @@ import { localSyncMetadataMigration } from './localSyncMetadataMigration';
 import { localPersonalRecordsMigration } from './personalRecordsMigration';
 import { localMealsMigration } from './mealsMigration';
 import { localMediaMigration } from './mediaMigration';
+import { localHydrationMigration } from './hydrationMigration';
 
 export const localMigrations = [
   initialLocalSchemaMigration,
@@ -25,4 +26,5 @@ export const localMigrations = [
   localNotificationPreferencesMigration,
   localMealsMigration,
   localMediaMigration,
+  localHydrationMigration,
 ] satisfies readonly MigrationDefinition[];

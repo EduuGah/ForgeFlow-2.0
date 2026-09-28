@@ -47,6 +47,12 @@ Media upload failure:
 - retry with exponential backoff from 5 minutes up to 24 hours
 - allow the user to request an immediate retry
 
+Hydration writes:
+- save entries and optional goal changes locally first
+- calculate daily totals from non-deleted local entries
+- queue entry and goal mutations independently in the standard outbox
+- retain tombstones for offline deletion and deterministic reconciliation
+
 Conflict:
 - apply entity-specific policy
 - preserve user data

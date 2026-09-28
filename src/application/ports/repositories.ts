@@ -8,6 +8,10 @@ import type {
   GoalStatus,
 } from '../../domain/goals/entities';
 import type {
+  HydrationEntry,
+  HydrationGoal,
+} from '../../domain/hydration/entities';
+import type {
   Notification,
   NotificationPreferences,
   PushDeviceRegistration,
@@ -98,6 +102,13 @@ export type ListMealsParams = {
   userId: EntityId;
 };
 
+export type ListHydrationEntriesParams = {
+  from?: string;
+  includeDeleted?: boolean;
+  to?: string;
+  userId: EntityId;
+};
+
 export type ListMediaParams = {
   ids?: EntityId[];
   includeDeleted?: boolean;
@@ -127,6 +138,22 @@ export interface MealRepository {
   findMealById(id: EntityId): Promise<Meal | null>;
   listMeals(params: ListMealsParams): Promise<Meal[]>;
   saveMeal(meal: Meal): Promise<void>;
+}
+
+export interface HydrationEntryRepository {
+  findHydrationEntryById(id: EntityId): Promise<HydrationEntry | null>;
+  listHydrationEntries(
+    params: ListHydrationEntriesParams,
+  ): Promise<HydrationEntry[]>;
+  saveHydrationEntry(entry: HydrationEntry): Promise<void>;
+}
+
+export interface HydrationGoalRepository {
+  findHydrationGoalByUserId(
+    userId: EntityId,
+    includeDeleted?: boolean,
+  ): Promise<HydrationGoal | null>;
+  saveHydrationGoal(goal: HydrationGoal): Promise<void>;
 }
 
 export interface MediaRepository {
@@ -243,6 +270,8 @@ export type RepositoryProvider = {
   exercises: ExerciseRepository;
   goals: GoalRepository;
   goalProgressEvents: GoalProgressEventRepository;
+  hydrationEntries: HydrationEntryRepository;
+  hydrationGoals: HydrationGoalRepository;
   meals: MealRepository;
   media: MediaRepository;
   mediaUploads: MediaUploadRepository;

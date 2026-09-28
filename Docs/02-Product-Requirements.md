@@ -186,6 +186,11 @@ stores image Base64 in either database.
 - daily total
 - optional daily target
 
+FF-026 implements local-first hydration tracking with quick and custom amounts,
+an explicit recording time, per-day history and an optional user-level target.
+Daily summaries expose total, remaining amount and goal progress for reports and
+hydration reminder eligibility.
+
 ### Reports
 - workout report
 - progression report

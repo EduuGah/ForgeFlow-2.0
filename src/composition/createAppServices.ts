@@ -48,6 +48,13 @@ import {
   type CreateMealInput,
 } from '../application/useCases/nutritionJournal';
 import {
+  deleteHydrationEntry,
+  getHydrationReminderContext,
+  listHydrationHistory,
+  recordHydration,
+  setHydrationGoal,
+} from '../application/useCases/hydrationTracking';
+import {
   attachMealPhoto,
   listMealPhotos,
   processMediaUploadQueue,
@@ -180,6 +187,15 @@ export function createAppServices() {
     generateId: createLocalUuid,
     repositories: {
       meals: repositories.meals,
+      syncOperations: repositories.syncOperations,
+    },
+  };
+  const hydrationDependencies = {
+    clock: () => new Date().toISOString(),
+    generateId: createLocalUuid,
+    repositories: {
+      hydrationEntries: repositories.hydrationEntries,
+      hydrationGoals: repositories.hydrationGoals,
       syncOperations: repositories.syncOperations,
     },
   };
@@ -372,6 +388,33 @@ export function createAppServices() {
         }
         return updated;
       },
+    },
+    hydration: {
+      delete: (entryId: string) =>
+        deleteHydrationEntry(
+          { entryId, userId: LOCAL_PREVIEW_USER_ID },
+          hydrationDependencies,
+        ),
+      list: (range: { from?: string; to?: string } = {}) =>
+        listHydrationHistory(
+          { ...range, userId: LOCAL_PREVIEW_USER_ID },
+          hydrationDependencies.repositories,
+        ),
+      record: (input: { amountMl: number; recordedAt: string }) =>
+        recordHydration(
+          { ...input, userId: LOCAL_PREVIEW_USER_ID },
+          hydrationDependencies,
+        ),
+      reminderContext: (range: { from: string; to: string }) =>
+        getHydrationReminderContext(
+          { ...range, userId: LOCAL_PREVIEW_USER_ID },
+          hydrationDependencies.repositories,
+        ),
+      setGoal: (targetMl: number | null) =>
+        setHydrationGoal(
+          { targetMl, userId: LOCAL_PREVIEW_USER_ID },
+          hydrationDependencies,
+        ),
     },
     nutrition: {
       create: (input: Omit<CreateMealInput, 'userId'>) =>

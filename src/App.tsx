@@ -12,6 +12,7 @@ const linking = {
   config: {
     screens: {
       Goals: 'goals',
+      Hydration: 'hydration',
       Home: 'home',
       Nutrition: 'nutrition',
       Profile: 'profile',
