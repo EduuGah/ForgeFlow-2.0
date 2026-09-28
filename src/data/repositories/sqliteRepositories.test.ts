@@ -1,8 +1,4 @@
-import initSqlJs, {
-  type Database,
-  type SqlJsStatic,
-  type SqlValue,
-} from 'sql.js';
+import initSqlJs, { type SqlJsStatic } from 'sql.js';
 
 import { LOCAL_PREVIEW_USER_ID } from '../../config/localPreview';
 import type { Goal, GoalProgressEvent } from '../../domain/goals/entities';
@@ -20,7 +16,7 @@ import type {
   WorkoutTemplate,
 } from '../../domain/training/entities';
 import { initializeLocalStorage } from '../database/initializeLocalDatabase';
-import type { SQLiteMigrationConnection } from '../migrations/sqliteMigrationExecutor';
+import { SqlJsConnection } from '../testing/sqlJsConnection';
 import { createSQLiteRepositories } from './sqliteRepositories';
 
 const now = '2026-09-28T12:00:00.000Z';
@@ -144,53 +140,6 @@ describe('SQLite repositories', () => {
     database.close();
   });
 });
-
-class SqlJsConnection implements SQLiteMigrationConnection {
-  private transactionDepth = 0;
-
-  constructor(private readonly database: Database) {}
-
-  async execAsync(sql: string) {
-    this.database.run(sql);
-  }
-
-  async getAllAsync<T>(sql: string, params: readonly unknown[] = []) {
-    const statement = this.database.prepare(sql);
-    try {
-      statement.bind(toSqlValues(params));
-      const rows: T[] = [];
-      while (statement.step()) rows.push(statement.getAsObject() as T);
-      return rows;
-    } finally {
-      statement.free();
-    }
-  }
-
-  async runAsync(sql: string, params: readonly unknown[] = []) {
-    this.database.run(sql, toSqlValues(params));
-  }
-
-  async withTransactionAsync<T>(work: () => Promise<T>) {
-    if (this.transactionDepth > 0) return work();
-
-    this.database.run('BEGIN');
-    this.transactionDepth += 1;
-    try {
-      const result = await work();
-      this.database.run('COMMIT');
-      return result;
-    } catch (error) {
-      this.database.run('ROLLBACK');
-      throw error;
-    } finally {
-      this.transactionDepth -= 1;
-    }
-  }
-}
-
-function toSqlValues(values: readonly unknown[]) {
-  return values.map((value) => value as SqlValue);
-}
 
 function createWorkout(exerciseId: string): WorkoutTemplate {
   return {

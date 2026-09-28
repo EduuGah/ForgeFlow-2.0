@@ -68,6 +68,14 @@ Conflict:
 - preserve user data
 - never silently overwrite important training history
 
+## End-to-end recovery proof
+
+FF-029 exercises the complete offline write path across training, personal
+records, goals, nutrition, hydration and notifications. The test preserves the
+SQLite bytes after a failed synchronization, recreates the repository provider
+from those bytes and verifies that reconnecting acknowledges each pending
+operation exactly once. A following synchronization has an empty outbox.
+
 ## Deletion
 
 Delete locally by creating a tombstone. Synchronize tombstone. Physical deletion is a later cleanup concern.
