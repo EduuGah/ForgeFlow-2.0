@@ -50,6 +50,10 @@ import {
 import { buildConsolidatedReport } from '../application/useCases/consolidatedReport';
 import type { ReportPeriod } from '../domain/reports/entities';
 import {
+  buildStructuredAiExport,
+  shareStructuredAiExport,
+} from '../application/useCases/structuredAiExport';
+import {
   deleteHydrationEntry,
   getHydrationReminderContext,
   listHydrationHistory,
@@ -88,6 +92,7 @@ import { MemorySecureSessionStorage } from '../data/auth/memorySecureSessionStor
 import { ExpoNotificationGateway } from '../data/notifications/expoNotificationGateway';
 import { ExpoMealPhotoGateway } from '../data/media/expoMealPhotoGateway';
 import { InMemoryMediaUploadGateway } from '../data/media/inMemoryMediaUploadGateway';
+import { PlatformStructuredExportGateway } from '../data/export/platformStructuredExportGateway';
 import { createInMemoryRepositories } from '../data/repositories/inMemoryRepositories';
 import { systemExercises } from '../data/seeds/systemExercises';
 
@@ -102,6 +107,7 @@ export function createAppServices() {
   const notificationGateway = new ExpoNotificationGateway();
   const mealPhotoGateway = new ExpoMealPhotoGateway();
   const mediaUploadGateway = new InMemoryMediaUploadGateway();
+  const structuredExportGateway = new PlatformStructuredExportGateway();
   const authDependencies = {
     remote: authRemote,
     storage: authStorage,
@@ -452,6 +458,7 @@ export function createAppServices() {
         ),
     },
     reports: {
+      buildAiExport: buildStructuredAiExport,
       generate: async (period: ReportPeriod) => {
         await refreshActiveGoalProgress(
           { userId: LOCAL_PREVIEW_USER_ID },
@@ -466,6 +473,8 @@ export function createAppServices() {
           reportDependencies,
         );
       },
+      shareAiExport: (document: ReturnType<typeof buildStructuredAiExport>) =>
+        shareStructuredAiExport(document, structuredExportGateway),
     },
     mealPhotos: {
       attach: async (mealId: string, source: MealPhotoSource) => {

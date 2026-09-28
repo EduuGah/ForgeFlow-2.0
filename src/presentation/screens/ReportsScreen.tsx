@@ -3,20 +3,30 @@ import { useNavigation } from '@react-navigation/native';
 import {
   Activity,
   Beef,
+  Download,
   Droplets,
   Dumbbell,
   FileText,
   Flame,
   Home,
   RefreshCw,
+  ShieldCheck,
   Target,
   Trophy,
 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { useAppServices } from '../../composition/AppServicesProvider';
 import type { ConsolidatedReport } from '../../domain/reports/entities';
+import type { StructuredAiExport } from '../../domain/reports/aiExport';
 import { AppScreen, EmptyState, Section } from '../components/AppScreen';
 import type { RootTabParamList } from '../navigation/types';
 import { colors, radius, spacing, typography } from '../theme/tokens';
@@ -111,12 +121,35 @@ export function ReportsScreen() {
           title="Nao foi possivel gerar"
         />
       ) : null}
-      {state.status === 'ready' ? <ReportContent report={state.value} /> : null}
+      {state.status === 'ready' ? (
+        <ReportContent
+          key={`${state.value.period.from}-${state.value.period.to}-${state.value.generatedAt}`}
+          report={state.value}
+        />
+      ) : null}
     </AppScreen>
   );
 }
 
 function ReportContent({ report }: { report: ConsolidatedReport }) {
+  const services = useAppServices();
+  const [exportDocument, setExportDocument] =
+    useState<StructuredAiExport | null>(null);
+  const [exportStatus, setExportStatus] = useState<
+    'error' | 'idle' | 'sharing' | 'success'
+  >('idle');
+
+  async function shareExport() {
+    if (!exportDocument) return;
+    setExportStatus('sharing');
+    try {
+      const result = await services.reports.shareAiExport(exportDocument);
+      setExportStatus(result === 'cancelled' ? 'idle' : 'success');
+    } catch {
+      setExportStatus('error');
+    }
+  }
+
   return (
     <>
       <View style={styles.reportMeta}>
@@ -131,6 +164,114 @@ function ReportContent({ report }: { report: ConsolidatedReport }) {
           Estrutura v{report.schemaVersion}
         </Text>
       </View>
+
+      <Section title="Exportar para IA">
+        <View style={styles.exportIntro}>
+          <ShieldCheck color={colors.accent} size={22} />
+          <View style={styles.exportIntroText}>
+            <Text style={styles.exportTitle}>Voce controla o envio</Text>
+            <Text style={styles.exportBody}>
+              Revise o JSON antes de compartilhar. Nada e enviado
+              automaticamente e a IA nao se torna fonte de verdade.
+            </Text>
+          </View>
+        </View>
+        <View style={styles.classificationList}>
+          <Classification label="Fatos observados" value="Registros locais" />
+          <Classification label="Metricas calculadas" value="Identificadas" />
+          <Classification label="Projecoes" value="Nao geradas" />
+          <Classification label="Interpretacoes" value="Nao geradas" />
+        </View>
+        {exportDocument ? (
+          <View style={styles.exportReview}>
+            <View style={styles.exportReviewHeader}>
+              <View>
+                <Text style={styles.exportTitle}>
+                  Dados prontos para revisao
+                </Text>
+                <Text style={styles.exportCaption}>
+                  Schema v{exportDocument.schemaVersion} · Nenhum dado enviado
+                </Text>
+              </View>
+              <Text style={styles.readyStatus}>JSON valido</Text>
+            </View>
+            <ScrollView
+              nestedScrollEnabled
+              style={styles.exportPreview}
+              testID="ai-export-preview"
+            >
+              <Text selectable style={styles.exportCode}>
+                {JSON.stringify(exportDocument, null, 2)}
+              </Text>
+            </ScrollView>
+            <Text style={styles.exportWarning}>
+              Analises de treino e nutricao por IA nao substituem profissionais
+              de saude, nutricao ou educacao fisica.
+            </Text>
+            <View style={styles.exportActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setExportDocument(null);
+                  setExportStatus('idle');
+                }}
+                style={({ pressed }) => [
+                  styles.secondaryButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.secondaryButtonText}>Fechar revisao</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={exportStatus === 'sharing'}
+                onPress={shareExport}
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Download color={colors.surface} size={18} />
+                <Text style={styles.primaryButtonText}>
+                  {exportStatus === 'sharing'
+                    ? 'Preparando...'
+                    : Platform.OS === 'web'
+                      ? 'Baixar JSON'
+                      : 'Compartilhar JSON'}
+                </Text>
+              </Pressable>
+            </View>
+            {exportStatus === 'success' ? (
+              <Text style={styles.exportSuccess}>
+                {Platform.OS === 'web'
+                  ? 'Arquivo baixado. Voce decide onde envia-lo.'
+                  : 'Compartilhamento concluido.'}
+              </Text>
+            ) : null}
+            {exportStatus === 'error' ? (
+              <Text style={styles.exportError}>
+                Nao foi possivel exportar. Seus dados continuam preservados.
+              </Text>
+            ) : null}
+          </View>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setExportDocument(services.reports.buildAiExport(report));
+              setExportStatus('idle');
+            }}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              styles.reviewButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <FileText color={colors.surface} size={18} />
+            <Text style={styles.primaryButtonText}>Revisar dados para IA</Text>
+          </Pressable>
+        )}
+      </Section>
 
       <View style={styles.metrics}>
         <MetricCard
@@ -302,6 +443,15 @@ function ReportContent({ report }: { report: ConsolidatedReport }) {
   );
 }
 
+function Classification({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.classificationRow}>
+      <Text style={styles.classificationLabel}>{label}</Text>
+      <Text style={styles.classificationValue}>{value}</Text>
+    </View>
+  );
+}
+
 function MetricCard({
   detail,
   icon,
@@ -446,6 +596,30 @@ function formatGoalStatus(
 }
 
 const styles = StyleSheet.create({
+  classificationLabel: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '800',
+  },
+  classificationList: {
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+  },
+  classificationRow: {
+    alignItems: 'center',
+    borderBottomColor: colors.border,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 42,
+    paddingHorizontal: spacing.md,
+  },
+  classificationValue: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '700',
+  },
   coverageLabel: { ...typography.body, color: colors.text, fontWeight: '700' },
   coverageRow: {
     alignItems: 'center',
@@ -479,6 +653,46 @@ const styles = StyleSheet.create({
   },
   detailValue: { ...typography.body, color: colors.text, fontWeight: '900' },
   emptyLine: { ...typography.body, color: colors.textMuted },
+  exportActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  exportBody: { ...typography.body, color: colors.textMuted },
+  exportCaption: { ...typography.caption, color: colors.textMuted },
+  exportCode: {
+    color: colors.text,
+    fontFamily: Platform.select({
+      android: 'monospace',
+      ios: 'Courier',
+      web: 'monospace',
+    }),
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  exportError: { ...typography.caption, color: colors.danger },
+  exportIntro: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.successSoft,
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  exportIntroText: { flex: 1, gap: spacing.xs },
+  exportPreview: {
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    maxHeight: 320,
+    padding: spacing.sm,
+  },
+  exportReview: { gap: spacing.md },
+  exportReviewHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  exportSuccess: { ...typography.caption, color: colors.successText },
+  exportTitle: { ...typography.body, color: colors.text, fontWeight: '900' },
+  exportWarning: { ...typography.caption, color: colors.warning },
   goalLabel: { ...typography.caption, color: colors.textMuted },
   goalStat: { alignItems: 'center', flex: 1, gap: 3, minWidth: 80 },
   goalSummary: {
@@ -570,6 +784,21 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   periodTextActive: { color: colors.surface },
+  primaryButton: {
+    alignItems: 'center',
+    backgroundColor: colors.accent,
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'center',
+    minHeight: 46,
+    paddingHorizontal: spacing.md,
+  },
+  primaryButtonText: {
+    ...typography.body,
+    color: colors.surface,
+    fontWeight: '800',
+  },
   pressed: { opacity: 0.72 },
   rank: {
     color: colors.textSubtle,
@@ -594,4 +823,19 @@ const styles = StyleSheet.create({
   },
   reportMetaText: { flex: 1, gap: 2 },
   reportPeriod: { ...typography.body, color: colors.text, fontWeight: '800' },
+  reviewButton: { alignSelf: 'flex-start' },
+  secondaryButton: {
+    alignItems: 'center',
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 46,
+    paddingHorizontal: spacing.md,
+  },
+  secondaryButtonText: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '800',
+  },
 });
