@@ -16,7 +16,8 @@
           "microphonePermission": false,
           "photosPermission": "Permita que o ForgeFlow selecione fotos para suas refeicoes."
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "ios": {
       "supportsTablet": true,

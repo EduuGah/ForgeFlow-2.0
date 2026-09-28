@@ -49,7 +49,7 @@ export type WorkoutTemplateSummary = {
 
 type WorkoutCrudRepositories = Pick<
   RepositoryProvider,
-  'exercises' | 'syncOperations' | 'workouts'
+  'exercises' | 'syncOperations' | 'transaction' | 'workouts'
 >;
 
 type WorkoutCrudDependencies = {
@@ -124,8 +124,10 @@ export async function createWorkoutTemplate(
     userId: input.userId,
   };
 
-  await dependencies.repositories.workouts.saveWorkoutTemplate(workout);
-  await enqueueWorkoutUpserts(workout, dependencies);
+  await dependencies.repositories.transaction.runInTransaction(async () => {
+    await dependencies.repositories.workouts.saveWorkoutTemplate(workout);
+    await enqueueWorkoutUpserts(workout, dependencies);
+  });
 
   return workout;
 }
@@ -159,9 +161,11 @@ export async function updateWorkoutTemplate(
     updatedAt: now,
   };
 
-  await dependencies.repositories.workouts.saveWorkoutTemplate(nextWorkout);
-  await enqueueWorkoutUpserts(nextWorkout, dependencies);
-  await enqueueRemovedWorkoutExercises(existing, nextWorkout, dependencies);
+  await dependencies.repositories.transaction.runInTransaction(async () => {
+    await dependencies.repositories.workouts.saveWorkoutTemplate(nextWorkout);
+    await enqueueWorkoutUpserts(nextWorkout, dependencies);
+    await enqueueRemovedWorkoutExercises(existing, nextWorkout, dependencies);
+  });
 
   return nextWorkout;
 }
@@ -200,8 +204,10 @@ export async function duplicateWorkoutTemplate(
     updatedAt: now,
   };
 
-  await dependencies.repositories.workouts.saveWorkoutTemplate(workout);
-  await enqueueWorkoutUpserts(workout, dependencies);
+  await dependencies.repositories.transaction.runInTransaction(async () => {
+    await dependencies.repositories.workouts.saveWorkoutTemplate(workout);
+    await enqueueWorkoutUpserts(workout, dependencies);
+  });
 
   return workout;
 }
@@ -221,8 +227,10 @@ export async function archiveWorkoutTemplate(
     updatedAt: dependencies.clock(),
   };
 
-  await dependencies.repositories.workouts.saveWorkoutTemplate(workout);
-  await enqueueWorkoutOperation(workout, 'upsert', dependencies);
+  await dependencies.repositories.transaction.runInTransaction(async () => {
+    await dependencies.repositories.workouts.saveWorkoutTemplate(workout);
+    await enqueueWorkoutOperation(workout, 'upsert', dependencies);
+  });
 
   return workout;
 }
@@ -248,8 +256,10 @@ export async function deleteWorkoutTemplate(
     updatedAt: deletedAt,
   };
 
-  await dependencies.repositories.workouts.saveWorkoutTemplate(workout);
-  await enqueueWorkoutOperation(workout, 'delete', dependencies);
+  await dependencies.repositories.transaction.runInTransaction(async () => {
+    await dependencies.repositories.workouts.saveWorkoutTemplate(workout);
+    await enqueueWorkoutOperation(workout, 'delete', dependencies);
+  });
 
   return workout;
 }
@@ -349,20 +359,18 @@ async function enqueueRemovedWorkoutExercises(
       exercise.deletedAt === null && !nextExerciseIds.has(exercise.id),
   );
 
-  await Promise.all(
-    removed.map((exercise) =>
-      dependencies.repositories.syncOperations.enqueueSyncOperation(
-        createSyncOperation({
-          clock: dependencies.clock,
-          entityId: exercise.id,
-          entityType: 'workout_exercise',
-          generateId: dependencies.generateId,
-          operationType: 'delete',
-          payload: { workoutId: existing.id },
-        }),
-      ),
-    ),
-  );
+  for (const exercise of removed) {
+    await dependencies.repositories.syncOperations.enqueueSyncOperation(
+      createSyncOperation({
+        clock: dependencies.clock,
+        entityId: exercise.id,
+        entityType: 'workout_exercise',
+        generateId: dependencies.generateId,
+        operationType: 'delete',
+        payload: { workoutId: existing.id },
+      }),
+    );
+  }
 }
 
 async function enqueueWorkoutOperation(
@@ -387,22 +395,20 @@ async function enqueueWorkoutUpserts(
   dependencies: WorkoutCrudDependencies,
 ) {
   await enqueueWorkoutOperation(workout, 'upsert', dependencies);
-  await Promise.all(
-    workout.exercises
-      .filter((exercise) => exercise.deletedAt === null)
-      .map((exercise) =>
-        dependencies.repositories.syncOperations.enqueueSyncOperation(
-          createSyncOperation({
-            clock: dependencies.clock,
-            entityId: exercise.id,
-            entityType: 'workout_exercise',
-            generateId: dependencies.generateId,
-            operationType: 'upsert',
-            payload: exercise,
-          }),
-        ),
-      ),
-  );
+  for (const exercise of workout.exercises.filter(
+    (item) => item.deletedAt === null,
+  )) {
+    await dependencies.repositories.syncOperations.enqueueSyncOperation(
+      createSyncOperation({
+        clock: dependencies.clock,
+        entityId: exercise.id,
+        entityType: 'workout_exercise',
+        generateId: dependencies.generateId,
+        operationType: 'upsert',
+        payload: exercise,
+      }),
+    );
+  }
 }
 
 async function loadExercisesById(

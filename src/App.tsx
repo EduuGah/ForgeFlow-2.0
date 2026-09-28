@@ -2,7 +2,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { AppServicesProvider } from './composition/AppServicesProvider';
+import { AppRuntime } from './composition/AppRuntime';
 import { NotificationResponseHandler } from './presentation/components/NotificationResponseHandler';
 import { AppNavigator } from './presentation/navigation/AppNavigator';
 import type { RootTabParamList } from './presentation/navigation/types';
@@ -26,14 +26,20 @@ const linking = {
 
 export default function App() {
   return (
-    <AppServicesProvider>
-      <SafeAreaProvider>
-        <NavigationContainer linking={linking} theme={navigationTheme}>
-          <StatusBar style="dark" />
-          <NotificationResponseHandler />
-          <AppNavigator />
-        </NavigationContainer>
-      </SafeAreaProvider>
-    </AppServicesProvider>
+    <AppRuntime>
+      <AppContent />
+    </AppRuntime>
+  );
+}
+
+function AppContent() {
+  return (
+    <SafeAreaProvider>
+      <NavigationContainer linking={linking} theme={navigationTheme}>
+        <StatusBar style="dark" />
+        <NotificationResponseHandler />
+        <AppNavigator />
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }

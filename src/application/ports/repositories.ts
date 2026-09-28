@@ -264,6 +264,10 @@ export interface SyncStateRepository {
   saveSyncState(state: SyncState): Promise<void>;
 }
 
+export interface RepositoryTransactionRunner {
+  runInTransaction<T>(work: () => Promise<T>): Promise<T>;
+}
+
 export type RepositoryProvider = {
   achievements: AchievementRepository;
   exerciseFavorites: ExerciseFavoriteRepository;
@@ -283,6 +287,7 @@ export type RepositoryProvider = {
   syncState: SyncStateRepository;
   sessionExercises: SessionExerciseRepository;
   sets: TrainingSetRepository;
+  transaction: RepositoryTransactionRunner;
   workoutSessions: WorkoutSessionRepository;
   workouts: WorkoutRepository;
 };

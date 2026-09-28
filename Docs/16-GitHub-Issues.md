@@ -84,3 +84,10 @@ Implement server authorization and ownership tests.
 ### FF-041 — Profile dashboard and editable avatar
 ### FF-042 — Muscle distribution body map
 ### FF-043 — User-selectable app themes
+
+## Persistence follow-up
+
+### FF-044 — Durable SQLite repositories and runtime composition
+Compose native builds with the migrated SQLite database, implement every
+current repository port, seed system data idempotently and prove restart
+recovery plus transactional entity/outbox writes.

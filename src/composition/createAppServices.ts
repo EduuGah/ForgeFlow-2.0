@@ -96,15 +96,17 @@ import { InMemoryMediaUploadGateway } from '../data/media/inMemoryMediaUploadGat
 import { PlatformStructuredExportGateway } from '../data/export/platformStructuredExportGateway';
 import { createInMemoryRepositories } from '../data/repositories/inMemoryRepositories';
 import { systemExercises } from '../data/seeds/systemExercises';
+import { LOCAL_PREVIEW_USER_ID } from '../config/localPreview';
+import type { RepositoryProvider } from '../application/ports/repositories';
 
-const LOCAL_PREVIEW_USER_ID = 'local-preview-user';
-
-export function createAppServices() {
+export function createAppServices(repositoryProvider?: RepositoryProvider) {
   const authRemote = new InMemoryAuthRemoteGateway();
   const authStorage = new MemorySecureSessionStorage();
-  const repositories = createInMemoryRepositories({
-    exercises: systemExercises,
-  });
+  const repositories =
+    repositoryProvider ??
+    createInMemoryRepositories({
+      exercises: systemExercises,
+    });
   const notificationGateway = new ExpoNotificationGateway();
   const mealPhotoGateway = new ExpoMealPhotoGateway();
   const mediaUploadGateway = new InMemoryMediaUploadGateway();
@@ -128,6 +130,7 @@ export function createAppServices() {
     repositories: {
       exercises: repositories.exercises,
       syncOperations: repositories.syncOperations,
+      transaction: repositories.transaction,
       workouts: repositories.workouts,
     },
   };
@@ -140,6 +143,7 @@ export function createAppServices() {
       sessionExercises: repositories.sessionExercises,
       sets: repositories.sets,
       syncOperations: repositories.syncOperations,
+      transaction: repositories.transaction,
       workoutSessions: repositories.workoutSessions,
       workouts: repositories.workouts,
     },
