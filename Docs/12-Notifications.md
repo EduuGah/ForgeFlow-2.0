@@ -113,3 +113,12 @@ day: total consumed, optional target, remaining amount and latest entry time.
 This data can produce a `hydration_reminder` event only when a target exists and
 has not been reached; delivery still requires the user's hydration preference
 and follows the existing quiet-hours, deduplication and rate-limit rules.
+
+## Rest timer completion
+
+FF-014 uses a dedicated transient local-notification adapter for rest completion.
+Starting or resuming a timer schedules one native alert at its absolute deadline;
+pausing, adding time or cancelling removes the stale schedule before continuing.
+This action-driven alert is not a motivational notification or synchronized
+domain record. If permission is denied or delivery is unavailable, the in-app
+timer still completes and signals the result without failing the workout flow.

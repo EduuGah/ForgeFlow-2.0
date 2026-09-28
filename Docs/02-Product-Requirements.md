@@ -70,6 +70,13 @@ persisted immediately with set number, warm-up/working type, weight, repetitions
 optional rest, completion timestamp and optional notes. Invalid values are
 rejected before persistence, and the write is enqueued for synchronization.
 
+FF-014 implements a shared rest timer started from a completed set's configured
+rest duration. It uses an absolute deadline rather than relying on interval
+ticks, supports pause, resume, adding time and cancellation, and remains active
+when the user changes screens. Native clients schedule a local completion alert
+after contextual permission; the web preview keeps the reliable in-app signal
+without requesting unavailable notification access.
+
 ### History
 - Completed workouts
 - Date/time

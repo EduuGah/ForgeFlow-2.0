@@ -7,6 +7,7 @@ import type {
   NotificationDeliveryGateway,
   NotificationPermissionStatus,
 } from '../../application/ports/notifications';
+import type { RestTimerNotificationGateway } from '../../application/ports/restTimerNotifications';
 import type { Notification } from '../../domain/notifications/entities';
 import { notificationDeepLink } from '../../domain/notifications/deepLinks';
 
@@ -22,7 +23,13 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export class ExpoNotificationGateway implements NotificationDeliveryGateway {
+export class ExpoNotificationGateway
+  implements NotificationDeliveryGateway, RestTimerNotificationGateway
+{
+  async cancelCompletion(notificationId: string) {
+    await this.cancelScheduledNotification(notificationId);
+  }
+
   async cancelScheduledNotification(nativeNotificationId: string) {
     if (Platform.OS === 'web') return;
     await Notifications.cancelScheduledNotificationAsync(nativeNotificationId);
@@ -61,6 +68,29 @@ export class ExpoNotificationGateway implements NotificationDeliveryGateway {
     await ensureAndroidChannel();
     const permissions = await Notifications.requestPermissionsAsync();
     return permissionStatus(permissions.status, permissions.granted);
+  }
+
+  async scheduleCompletion(input: { endsAt: string; exerciseName: string }) {
+    if (Platform.OS === 'web') return null;
+    let permission = await this.getPermissionStatus();
+    if (permission === 'undetermined') {
+      permission = await this.requestPermission();
+    }
+    if (permission !== 'granted') return null;
+
+    await ensureAndroidChannel();
+    return Notifications.scheduleNotificationAsync({
+      content: {
+        body: `${input.exerciseName}: hora da proxima serie.`,
+        data: { url: 'forgeflow://workouts' },
+        title: 'Descanso concluido',
+      },
+      trigger: {
+        channelId: Platform.OS === 'android' ? ANDROID_CHANNEL_ID : undefined,
+        date: new Date(input.endsAt),
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+      },
+    });
   }
 
   async scheduleLocalNotification(notification: Notification) {

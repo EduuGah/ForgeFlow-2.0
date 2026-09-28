@@ -137,6 +137,14 @@ gateway owns the final native share or web download operation. Building and
 inspecting the document never calls that gateway; only the second, explicit
 user command can cross the application boundary.
 
+## Rest timer
+
+The rest timer controller is composed above the screen and stores an absolute
+deadline. Presentation code polls snapshots for display but never owns elapsed
+time, so navigation and suspended JavaScript intervals cannot extend a running
+rest accidentally. Native completion scheduling is isolated behind a port and
+can fail without changing timer state.
+
 ## Security
 
 - per-user authorization on every server operation
