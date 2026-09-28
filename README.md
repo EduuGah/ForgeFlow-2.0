@@ -77,6 +77,15 @@ the sync outbox, so committed workouts and history survive app restarts.
 Training writes and their outbox records are atomic. The web preview remains an
 in-memory environment and resets when the page reloads.
 
+### Offline end-to-end coverage (FF-029)
+
+The automated offline journey crosses registration, workout creation and
+execution, set logging, completion, personal records, goals, nutrition,
+hydration, notifications and synchronization. It simulates a network failure,
+reopens the persisted SQLite database, verifies the recovered state and then
+reconnects twice to prove that pending operations are accepted without data
+loss or duplication.
+
 ### Rest timer (FF-014)
 
 Saving a set with a positive rest duration starts a shared deadline-based timer.

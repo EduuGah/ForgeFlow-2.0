@@ -48,6 +48,20 @@ Critical journeys:
 9. verify cloud data
 10. verify no duplicates
 
+FF-029 implements this journey as an application-level end-to-end integration
+test against the migrated SQLite schema. The scenario registers an account,
+creates and executes a workout, records warm-up and working sets, finishes the
+session, creates personal records and a goal, records nutrition and hydration,
+and creates a notification while the synchronization endpoint is unavailable.
+It then exports and closes the database, reopens it through a new connection,
+verifies every domain record, reconnects synchronization and confirms that a
+second sync sends no operations and creates no duplicate operation IDs.
+
+The test uses an in-process protocol gateway and SQLite WASM so it remains
+deterministic in CI. Device UI automation, operating-system process death and a
+deployed PostgreSQL/API environment belong to release validation rather than
+this repository-level suite.
+
 ## Acceptance rule
 
 A feature is not complete because the screen works. Its offline, error, loading, synchronization and data integrity behavior must also be tested.
