@@ -221,6 +221,14 @@ Optional audit/progress history.
 - updated_at
 - deleted_at nullable
 
+### hydration_goals
+- id UUID PK
+- user_id unique
+- target_ml
+- created_at
+- updated_at
+- deleted_at nullable
+
 ### notification_preferences
 - id UUID PK
 - user_id
@@ -441,3 +449,11 @@ table stores file metadata, a local URI, an optional remote URL and upload
 status; it never stores image bytes or Base64. SQLite also owns the local-only
 `media_upload_queue`, which tracks attempts, retry timing and safe error
 metadata independently from entity synchronization.
+
+## Hydration migration
+
+FF-026 adds migration `0013_hydration` to SQLite and PostgreSQL. Positive
+integer milliliter entries are indexed by `user_id + recorded_at` for daily
+history and reports, and by `user_id + updated_at` for synchronization. A
+separate one-per-user goal table keeps the optional daily target local-first.
+Entries and goals use tombstones so offline deletions synchronize safely.

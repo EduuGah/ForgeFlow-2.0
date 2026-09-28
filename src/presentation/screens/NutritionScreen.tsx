@@ -4,6 +4,7 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
+  Droplets,
   Home,
   ImagePlus,
   Plus,
@@ -192,6 +193,11 @@ export function NutritionScreen() {
             icon={<Home color={colors.textMuted} size={20} />}
             label="Voltar para Home"
             onPress={() => navigation.navigate('Home')}
+          />
+          <IconButton
+            icon={<Droplets color={colors.accent} size={20} />}
+            label="Abrir hidratacao"
+            onPress={() => navigation.navigate('Hydration')}
           />
           <IconButton
             icon={

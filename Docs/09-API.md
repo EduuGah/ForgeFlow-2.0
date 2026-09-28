@@ -73,6 +73,11 @@ Errors must be machine-readable:
 
 Retry only errors classified as retryable.
 
+Hydration mutations use `hydration_entry` and `hydration_goal` sync entities.
+The client can derive a daily report/reminder context containing total,
+optional target, remaining amount and latest recording time without a network
+request.
+
 ## Idempotency
 
 Every mutation has an operationId. Retrying an already accepted operation must return the same logical result rather than create duplicates.

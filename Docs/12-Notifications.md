@@ -107,3 +107,9 @@ Frequency modes change only motivational rate limits:
 Action-driven events keep their FF-021 exemption. Turning push off soft-disables
 active device registrations, while preference updates remain available offline
 and are queued for synchronization.
+
+FF-026 exposes deterministic hydration reminder context from the selected local
+day: total consumed, optional target, remaining amount and latest entry time.
+This data can produce a `hydration_reminder` event only when a target exists and
+has not been reached; delivery still requires the user's hydration preference
+and follows the existing quiet-hours, deduplication and rate-limit rules.

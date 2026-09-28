@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Utensils, WifiOff } from 'lucide-react-native';
+import { ArrowRight, Droplets, Utensils, WifiOff } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -99,6 +99,25 @@ export function HomeScreen() {
           <View style={styles.nutritionText}>
             <Text style={styles.nutritionTitle}>Diario alimentar</Text>
             <Text style={styles.nutritionBody}>Refeicoes e totais do dia</Text>
+          </View>
+          <ArrowRight color={colors.textMuted} size={20} />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigation.navigate('Hydration')}
+          style={({ pressed }) => [
+            styles.nutritionAction,
+            pressed && styles.pressed,
+          ]}
+        >
+          <View style={styles.nutritionIcon}>
+            <Droplets color={colors.accent} size={20} strokeWidth={2.2} />
+          </View>
+          <View style={styles.nutritionText}>
+            <Text style={styles.nutritionTitle}>Hidratacao</Text>
+            <Text style={styles.nutritionBody}>
+              Agua, meta e historico diario
+            </Text>
           </View>
           <ArrowRight color={colors.textMuted} size={20} />
         </Pressable>

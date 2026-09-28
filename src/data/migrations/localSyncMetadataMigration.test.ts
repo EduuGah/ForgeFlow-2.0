@@ -17,6 +17,7 @@ describe('local sync metadata migration', () => {
       '0010_notification_preferences',
       '0011_meals',
       '0012_media',
+      '0013_hydration',
     ]);
     expect(localSyncMetadataMigration).toMatchObject({
       id: '0002_sync_metadata',

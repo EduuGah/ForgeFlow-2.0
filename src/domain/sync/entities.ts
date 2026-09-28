@@ -8,6 +8,7 @@ export type SyncEntityType =
   | 'goal'
   | 'goal_progress_event'
   | 'hydration_entry'
+  | 'hydration_goal'
   | 'meal'
   | 'media'
   | 'notification_preference'

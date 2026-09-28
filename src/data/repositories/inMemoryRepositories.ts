@@ -1,6 +1,10 @@
 import type { Achievement } from '../../domain/achievements/entities';
 import type { Goal, GoalProgressEvent } from '../../domain/goals/entities';
 import type {
+  HydrationEntry,
+  HydrationGoal,
+} from '../../domain/hydration/entities';
+import type {
   Notification,
   NotificationPreferences,
   PushDeviceRegistration,
@@ -26,8 +30,11 @@ import type {
   ListAchievementsParams,
   GoalRepository,
   GoalProgressEventRepository,
+  HydrationEntryRepository,
+  HydrationGoalRepository,
   ListExercisesParams,
   ListGoalsParams,
+  ListHydrationEntriesParams,
   ListGoalProgressEventsParams,
   ListSessionExercisesParams,
   ListTrainingSetsParams,
@@ -59,6 +66,8 @@ export type InMemoryRepositorySeed = Partial<{
   exercises: Exercise[];
   goals: Goal[];
   goalProgressEvents: GoalProgressEvent[];
+  hydrationEntries: HydrationEntry[];
+  hydrationGoals: HydrationGoal[];
   notifications: Notification[];
   meals: Meal[];
   media: Media[];
@@ -81,6 +90,8 @@ class InMemoryForgeFlowRepository
     ExerciseFavoriteRepository,
     GoalRepository,
     GoalProgressEventRepository,
+    HydrationEntryRepository,
+    HydrationGoalRepository,
     MealRepository,
     MediaRepository,
     MediaUploadRepository,
@@ -100,6 +111,8 @@ class InMemoryForgeFlowRepository
   private exercises: Exercise[];
   private goals: Goal[];
   private goalProgressEvents: GoalProgressEvent[];
+  private hydrationEntries: HydrationEntry[];
+  private hydrationGoals: HydrationGoal[];
   private notifications: Notification[];
   private meals: Meal[];
   private media: Media[];
@@ -120,6 +133,8 @@ class InMemoryForgeFlowRepository
     this.exercises = seed.exercises ?? [];
     this.goals = seed.goals ?? [];
     this.goalProgressEvents = seed.goalProgressEvents ?? [];
+    this.hydrationEntries = seed.hydrationEntries ?? [];
+    this.hydrationGoals = seed.hydrationGoals ?? [];
     this.notifications = seed.notifications ?? [];
     this.meals = seed.meals ?? [];
     this.media = seed.media ?? [];
@@ -176,6 +191,21 @@ class InMemoryForgeFlowRepository
 
   async findGoalById(id: EntityId) {
     return clone(this.goals.find((goal) => goal.id === id) ?? null);
+  }
+
+  async findHydrationEntryById(id: EntityId) {
+    return clone(
+      this.hydrationEntries.find((entry) => entry.id === id) ?? null,
+    );
+  }
+
+  async findHydrationGoalByUserId(userId: EntityId, includeDeleted = false) {
+    return clone(
+      this.hydrationGoals.find(
+        (goal) =>
+          goal.userId === userId && (includeDeleted || goal.deletedAt === null),
+      ) ?? null,
+    );
   }
 
   async findMealById(id: EntityId) {
@@ -381,6 +411,20 @@ class InMemoryForgeFlowRepository
           return true;
         })
         .sort((left, right) => right.consumedAt.localeCompare(left.consumedAt)),
+    );
+  }
+
+  async listHydrationEntries(params: ListHydrationEntriesParams) {
+    return clone(
+      this.hydrationEntries
+        .filter((entry) => {
+          if (entry.userId !== params.userId) return false;
+          if (!params.includeDeleted && entry.deletedAt !== null) return false;
+          if (params.from && entry.recordedAt < params.from) return false;
+          if (params.to && entry.recordedAt > params.to) return false;
+          return true;
+        })
+        .sort((left, right) => right.recordedAt.localeCompare(left.recordedAt)),
     );
   }
 
@@ -595,6 +639,16 @@ class InMemoryForgeFlowRepository
     this.meals = upsertById(this.meals, meal, 'id');
   }
 
+  async saveHydrationEntry(entry: HydrationEntry) {
+    this.hydrationEntries = upsertById(this.hydrationEntries, entry, 'id');
+  }
+
+  async saveHydrationGoal(goal: HydrationGoal) {
+    this.hydrationGoals = upsertByCompositeKey(this.hydrationGoals, goal, [
+      'userId',
+    ]);
+  }
+
   async saveMedia(media: Media) {
     this.media = upsertById(this.media, media, 'id');
   }
@@ -652,6 +706,8 @@ export function createInMemoryRepositories(
     exercises: repository,
     goals: repository,
     goalProgressEvents: repository,
+    hydrationEntries: repository,
+    hydrationGoals: repository,
     meals: repository,
     media: repository,
     mediaUploads: repository,
