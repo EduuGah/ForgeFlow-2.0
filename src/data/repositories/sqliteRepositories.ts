@@ -122,8 +122,12 @@ class SQLiteForgeFlowRepository
   }
 
   async findActiveWorkoutSession(userId: EntityId) {
-    const sessions = await this.listWorkoutSessions({ userId });
-    return sessions.find((item) => item.status === 'active') ?? null;
+    const sessions = await this.listWorkoutSessions({
+      limit: 1,
+      statuses: ['active'],
+      userId,
+    });
+    return sessions[0] ?? null;
   }
 
   async findExerciseById(id: EntityId) {
@@ -284,48 +288,66 @@ class SQLiteForgeFlowRepository
   }
 
   async listGoalProgressEvents(params: ListGoalProgressEventsParams) {
+    if (params.goalIds?.length === 0) return [];
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    if (params.goalId) {
+      conditions.push('goal_id = ?');
+      values.push(params.goalId);
+    }
+    if (params.goalIds) {
+      conditions.push(`goal_id IN (${placeholders(params.goalIds.length)})`);
+      values.push(...params.goalIds);
+    }
     return (
       await this.rows(
-        'SELECT * FROM goal_progress_events ORDER BY recorded_at ASC',
+        `SELECT * FROM goal_progress_events${whereClause(conditions)} ORDER BY recorded_at ASC`,
+        values,
       )
-    )
-      .map(toGoalProgressEvent)
-      .filter((event) =>
-        params.goalId ? event.goalId === params.goalId : true,
-      )
-      .filter((event) =>
-        params.goalIds ? params.goalIds.includes(event.goalId) : true,
-      );
+    ).map(toGoalProgressEvent);
   }
 
   async listPendingSyncOperations(limit?: number) {
-    const operations = (
+    return (
       await this.rows(
-        "SELECT * FROM sync_operations WHERE status = 'pending' ORDER BY created_at ASC",
+        `SELECT * FROM sync_operations WHERE status = 'pending' ORDER BY created_at ASC${typeof limit === 'number' ? ' LIMIT ?' : ''}`,
+        typeof limit === 'number' ? [limit] : [],
       )
     ).map(toSyncOperation);
-    return typeof limit === 'number' ? operations.slice(0, limit) : operations;
   }
 
   async listPersonalRecords(params: ListPersonalRecordsParams) {
+    if (params.sourceSetIds?.length === 0) return [];
+    const conditions = ['user_id = ?'];
+    const values: unknown[] = [params.userId];
+    if (params.exerciseId) {
+      conditions.push('exercise_id = ?');
+      values.push(params.exerciseId);
+    }
+    if (params.recordType) {
+      conditions.push('record_type = ?');
+      values.push(params.recordType);
+    }
+    if (params.sourceSetIds) {
+      conditions.push(
+        `source_set_id IN (${placeholders(params.sourceSetIds.length)})`,
+      );
+      values.push(...params.sourceSetIds);
+    }
+    if (params.achievedFrom) {
+      conditions.push('achieved_at >= ?');
+      values.push(params.achievedFrom);
+    }
+    if (params.achievedTo) {
+      conditions.push('achieved_at <= ?');
+      values.push(params.achievedTo);
+    }
     return (
       await this.rows(
-        'SELECT * FROM personal_records WHERE user_id = ? ORDER BY achieved_at ASC',
-        [params.userId],
+        `SELECT * FROM personal_records${whereClause(conditions)} ORDER BY achieved_at ASC`,
+        values,
       )
-    )
-      .map(toPersonalRecord)
-      .filter((record) =>
-        params.exerciseId ? record.exerciseId === params.exerciseId : true,
-      )
-      .filter((record) =>
-        params.recordType ? record.recordType === params.recordType : true,
-      )
-      .filter((record) =>
-        params.sourceSetIds
-          ? params.sourceSetIds.includes(record.sourceSetId)
-          : true,
-      );
+    ).map(toPersonalRecord);
   }
 
   async listPushDevices(userId: EntityId) {
@@ -396,44 +418,71 @@ class SQLiteForgeFlowRepository
   }
 
   async listSessionExercises(params: ListSessionExercisesParams) {
+    const conditions = ['session_id = ?'];
+    const values: unknown[] = [params.sessionId];
+    if (!params.includeDeleted) conditions.push('deleted_at IS NULL');
     return (
       await this.rows(
-        'SELECT * FROM session_exercises WHERE session_id = ? ORDER BY position ASC',
-        [params.sessionId],
+        `SELECT * FROM session_exercises${whereClause(conditions)} ORDER BY position ASC`,
+        values,
       )
-    )
-      .map(toSessionExercise)
-      .filter((item) => params.includeDeleted || item.deletedAt === null);
+    ).map(toSessionExercise);
   }
 
   async listTrainingSets(params: ListTrainingSetsParams) {
-    return (await this.rows('SELECT * FROM sets ORDER BY set_number ASC'))
-      .map(toTrainingSet)
-      .filter((set) => params.includeDeleted || set.deletedAt === null)
-      .filter((set) =>
-        params.sessionExerciseId
-          ? set.sessionExerciseId === params.sessionExerciseId
-          : true,
-      )
-      .filter((set) =>
-        params.sessionExerciseIds
-          ? params.sessionExerciseIds.includes(set.sessionExerciseId)
-          : true,
+    if (params.sessionExerciseIds?.length === 0) return [];
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    if (!params.includeDeleted) conditions.push('deleted_at IS NULL');
+    if (params.sessionExerciseId) {
+      conditions.push('session_exercise_id = ?');
+      values.push(params.sessionExerciseId);
+    }
+    if (params.sessionExerciseIds) {
+      conditions.push(
+        `session_exercise_id IN (${placeholders(params.sessionExerciseIds.length)})`,
       );
+      values.push(...params.sessionExerciseIds);
+    }
+    return (
+      await this.rows(
+        `SELECT * FROM sets${whereClause(conditions)} ORDER BY set_number ASC`,
+        values,
+      )
+    ).map(toTrainingSet);
   }
 
   async listWorkoutSessions(params: ListWorkoutSessionsParams) {
-    const sessions = (
+    if (params.statuses?.length === 0) return [];
+    const conditions = ['user_id = ?'];
+    const values: unknown[] = [params.userId];
+    if (!params.includeDeleted) conditions.push('deleted_at IS NULL');
+    if (params.statuses) {
+      conditions.push(`status IN (${placeholders(params.statuses.length)})`);
+      values.push(...params.statuses);
+    }
+    if (params.completedFrom) {
+      conditions.push('completed_at >= ?');
+      values.push(params.completedFrom);
+    }
+    if (params.completedTo) {
+      conditions.push('completed_at <= ?');
+      values.push(params.completedTo);
+    }
+    let pagination = '';
+    if (typeof params.limit === 'number') {
+      pagination = ' LIMIT ? OFFSET ?';
+      values.push(params.limit, params.offset ?? 0);
+    } else if (typeof params.offset === 'number') {
+      pagination = ' LIMIT -1 OFFSET ?';
+      values.push(params.offset);
+    }
+    return (
       await this.rows(
-        'SELECT * FROM workout_sessions WHERE user_id = ? ORDER BY started_at DESC',
-        [params.userId],
+        `SELECT * FROM workout_sessions${whereClause(conditions)} ORDER BY started_at DESC${pagination}`,
+        values,
       )
-    )
-      .map(toWorkoutSession)
-      .filter((session) => params.includeDeleted || session.deletedAt === null);
-    return typeof params.limit === 'number'
-      ? sessions.slice(0, params.limit)
-      : sessions;
+    ).map(toWorkoutSession);
   }
 
   async listWorkoutTemplates(
@@ -1184,6 +1233,14 @@ function toSyncState(row: Row): SyncState {
 
 function first<T>(items: T[]) {
   return items[0] ?? null;
+}
+
+function placeholders(count: number) {
+  return Array.from({ length: count }, () => '?').join(', ');
+}
+
+function whereClause(conditions: string[]) {
+  return conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
 }
 
 function flag(value: boolean) {

@@ -19,13 +19,15 @@ export async function getTrainingAnalytics(
   input: { period: AnalyticsPeriod; userId: EntityId },
   repositories: TrainingAnalyticsRepositories,
 ) {
+  const historyFrom = getAnalyticsHistoryFrom(input.period);
   const sessions = (
     await repositories.workoutSessions.listWorkoutSessions({
+      completedFrom: historyFrom,
+      completedTo: input.period.to,
+      statuses: ['completed'],
       userId: input.userId,
     })
-  ).filter(
-    (session) => session.status === 'completed' && session.completedAt !== null,
-  );
+  ).filter((session) => session.completedAt !== null);
   const sessionExerciseGroups = await Promise.all(
     sessions.map((session) =>
       repositories.sessionExercises.listSessionExercises({
@@ -66,6 +68,8 @@ export async function getTrainingAnalytics(
   );
   const personalRecords =
     await repositories.personalRecords.listPersonalRecords({
+      achievedFrom: historyFrom,
+      achievedTo: input.period.to,
       userId: input.userId,
     });
 
@@ -79,4 +83,13 @@ export async function getTrainingAnalytics(
     })),
     sets: analyticsSets,
   });
+}
+
+function getAnalyticsHistoryFrom(period: AnalyticsPeriod) {
+  const from = Date.parse(period.from);
+  const to = Date.parse(period.to);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from > to) {
+    return period.from;
+  }
+  return new Date(from - (to - from + 1)).toISOString();
 }

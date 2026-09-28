@@ -28,6 +28,7 @@ import type {
   SessionExercise,
   TrainingSet,
   WorkoutSession,
+  WorkoutSessionStatus,
   WorkoutTemplate,
 } from '../../domain/training/entities';
 
@@ -50,8 +51,12 @@ export type ListWorkoutTemplatesParams = {
 };
 
 export type ListWorkoutSessionsParams = {
+  completedFrom?: string;
+  completedTo?: string;
   includeDeleted?: boolean;
   limit?: number;
+  offset?: number;
+  statuses?: WorkoutSessionStatus[];
   userId: EntityId;
 };
 
@@ -67,6 +72,8 @@ export type ListTrainingSetsParams = {
 };
 
 export type ListPersonalRecordsParams = {
+  achievedFrom?: string;
+  achievedTo?: string;
   exerciseId?: EntityId;
   recordType?: PersonalRecordType;
   sourceSetIds?: EntityId[];

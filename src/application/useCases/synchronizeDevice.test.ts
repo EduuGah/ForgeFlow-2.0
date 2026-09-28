@@ -116,6 +116,37 @@ describe('synchronizeDevice', () => {
     );
   });
 
+  it('limits the default synchronization batch and leaves the remainder pending', async () => {
+    const operations = Array.from({ length: 125 }, (_, index) =>
+      buildOperation({
+        entityId: `entity-${index}`,
+        operationId: `operation-${index}`,
+      }),
+    );
+    const dependencies = createSyncDependencies({
+      operations,
+      response: {
+        accepted: operations.slice(0, 100).map((operation) => ({
+          operationId: operation.operationId,
+        })),
+        changes: [],
+        conflicts: [],
+        nextCursor: 'cursor-batch-1',
+      },
+    });
+
+    const result = await synchronizeDevice(
+      { deviceId: 'device-1', now: () => attemptedAt },
+      dependencies,
+    );
+
+    expect(result.sentOperationCount).toBe(100);
+    expect(dependencies.remote.requests[0].operations).toHaveLength(100);
+    await expect(
+      dependencies.operations.countPendingSyncOperations(),
+    ).resolves.toBe(25);
+  });
+
   it('marks non-retryable conflicts as failed without completing retryable conflicts', async () => {
     const retryableOperation = buildOperation({ operationId: 'operation-1' });
     const failedOperation = buildOperation({ operationId: 'operation-2' });

@@ -332,22 +332,15 @@ export async function completeActiveWorkout(
 }
 
 export async function listCompletedWorkouts(
-  input: { userId: EntityId },
+  input: { limit?: number; offset?: number; userId: EntityId },
   repositories: WorkoutExecutionRepositories,
 ): Promise<CompletedWorkout[]> {
-  const sessions =
-    await repositories.workoutSessions.listWorkoutSessions(input);
+  const sessions = await repositories.workoutSessions.listWorkoutSessions({
+    ...input,
+    statuses: ['completed'],
+  });
   return Promise.all(
-    sessions
-      .filter(
-        (session) =>
-          session.deletedAt === null && session.status === 'completed',
-      )
-      .sort(
-        (left, right) =>
-          Date.parse(right.startedAt) - Date.parse(left.startedAt),
-      )
-      .map((session) => summarizeCompletedWorkout(session, repositories)),
+    sessions.map((session) => summarizeCompletedWorkout(session, repositories)),
   );
 }
 

@@ -86,6 +86,14 @@ reopens the persisted SQLite database, verifies the recovered state and then
 reconnects twice to prove that pending operations are accepted without data
 loss or duplication.
 
+### Performance pass (FF-030)
+
+Workout history loads incrementally in pages of 20, analytics reads only its
+current and comparison periods, synchronization processes bounded batches and
+native startup skips an unchanged exercise seed. Migration
+`0014_performance_indexes` supports the principal history, analytics, set,
+record and goal queries on SQLite and PostgreSQL.
+
 ### Rest timer (FF-014)
 
 Saving a set with a positive rest duration starts a shared deadline-based timer.

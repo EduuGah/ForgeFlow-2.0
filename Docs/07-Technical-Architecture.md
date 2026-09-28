@@ -60,6 +60,11 @@ The web preview keeps the in-memory repository adapter because Expo SQLite's
 web/WASM path is not part of the supported runtime in this issue. This is an
 explicit preview limitation; native builds are the durable offline target.
 
+FF-030 bounds high-volume work at repository boundaries. History uses paged
+session reads, analytics loads only the current and comparison periods, sync
+uses finite batches, and a persisted catalog version avoids reseeding exercises
+on every startup. These limits apply before domain mapping and rendering.
+
 ## Source boundaries
 
 Implemented source directories follow the same layer map:

@@ -11,6 +11,8 @@ import { runMigrations } from '../migrations/migrationRunner';
 import { createSQLiteRepositories } from '../repositories/sqliteRepositories';
 import { createExpoSQLiteConnection } from './expoSQLiteConnection';
 
+export const systemExerciseCatalogVersion = '2026-09-28-v1';
+
 export async function initializeLocalDatabase(database: SQLiteDatabase) {
   const connection = createExpoSQLiteConnection(database);
 
@@ -44,9 +46,22 @@ export async function initializeLocalStorage(
   );
 
   const repositories = createSQLiteRepositories(connection);
+  const seedState = await repositories.syncState.getSyncState(
+    'bootstrap',
+    'system_exercises',
+  );
+  if (seedState?.serverCursor === systemExerciseCatalogVersion) return;
+
   await connection.withTransactionAsync(async () => {
     for (const exercise of systemExercises) {
       await repositories.exercises.saveExercise(exercise);
     }
+    await repositories.syncState.saveSyncState({
+      key: 'system_exercises',
+      lastError: null,
+      lastSuccessAt: now,
+      scope: 'bootstrap',
+      serverCursor: systemExerciseCatalogVersion,
+    });
   });
 }

@@ -347,6 +347,12 @@ At minimum index:
 
 The exact PostgreSQL indexes should be verified with real query plans after implementation.
 
+FF-030 adds migration `0014_performance_indexes` for the measured application
+access paths. It covers user/status/time workout history, completed-date
+analytics, active ordered session exercises and sets, template children,
+personal-record filters and goal lists. SQLite integration tests verify the
+history query plan selects its compound index instead of scanning the table.
+
 ## Database migration rule
 
 Every schema change requires a versioned migration. Never edit production tables manually as a normal development workflow.

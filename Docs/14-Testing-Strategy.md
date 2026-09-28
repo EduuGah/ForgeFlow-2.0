@@ -65,3 +65,10 @@ this repository-level suite.
 ## Acceptance rule
 
 A feature is not complete because the screen works. Its offline, error, loading, synchronization and data integrity behavior must also be tested.
+
+## Performance regression coverage
+
+FF-030 verifies stable 20-item history pages without overlap, SQLite index use
+through `EXPLAIN QUERY PLAN`, 100-operation default sync batches, date-bounded
+analytics repository calls and skipped catalog writes on unchanged startup.
+Device frame rate, heap and cold-start measurements remain release-build checks.

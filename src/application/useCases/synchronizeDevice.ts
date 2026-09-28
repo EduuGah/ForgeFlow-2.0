@@ -15,6 +15,7 @@ import type {
 
 export const defaultSyncScope = 'default';
 export const defaultSyncStateKey = 'main';
+export const defaultSyncBatchSize = 100;
 
 export type SynchronizeDeviceParams = {
   batchSize?: number;
@@ -60,7 +61,9 @@ export async function synchronizeDevice(
   const stateKey = params.stateKey ?? defaultSyncStateKey;
   const [syncState, pendingOperations] = await Promise.all([
     dependencies.state.getSyncState(scope, stateKey),
-    dependencies.operations.listPendingSyncOperations(params.batchSize),
+    dependencies.operations.listPendingSyncOperations(
+      params.batchSize ?? defaultSyncBatchSize,
+    ),
   ]);
 
   await Promise.all(
