@@ -123,6 +123,14 @@ document storage before linking them to a meal. The preview upload adapter is
 replaceable; a production object-storage adapter remains server infrastructure
 work.
 
+## Derived reports
+
+FF-027 builds reports on demand from local repositories and existing analytics
+use cases. A report is a versioned serializable projection, not another source
+of truth, so no report table or duplicate metric implementation is introduced.
+External file generation and AI transmission remain separate adapters and
+require explicit user action.
+
 ## Security
 
 - per-user authorization on every server operation

@@ -78,6 +78,12 @@ The client can derive a daily report/reminder context containing total,
 optional target, remaining amount and latest recording time without a network
 request.
 
+FF-027 defines report schema version `1` as a client-derived projection. It
+contains the selected period, generation timestamp, training analytics, goal
+progress, meals/macros, hydration totals and explicit body-weight availability.
+The projection is JSON-serializable and can be handed to an export adapter
+without UI-specific formatting.
+
 ## Idempotency
 
 Every mutation has an operationId. Retrying an already accepted operation must return the same logical result rather than create duplicates.

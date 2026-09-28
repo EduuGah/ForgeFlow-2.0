@@ -35,6 +35,10 @@ The app should distinguish:
 
 AI must not invent missing training/nutrition records.
 
+FF-027 prepares the consolidated report data but does not send it to an AI
+provider. Body weight is marked unavailable when no persisted source exists.
+FF-028 owns the explicit export/inspection flow and any future transmission.
+
 ## Privacy
 
 Sending data to an external AI provider requires explicit user action.
