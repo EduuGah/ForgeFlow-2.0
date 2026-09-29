@@ -81,16 +81,18 @@ export function WorkoutHistory({
   if (state.status === 'loading')
     return (
       <EmptyState
-        title="Carregando historico"
         body="Buscando seus treinos concluidos."
+        kind="loading"
+        title="Carregando historico"
       />
     );
   if (state.status === 'error')
     return (
       <View style={styles.section}>
         <EmptyState
-          title="Erro ao carregar"
           body="Nao foi possivel abrir seu historico."
+          kind="error"
+          title="Erro ao carregar"
         />
         <Pressable
           accessibilityRole="button"
@@ -199,6 +201,7 @@ export function WorkoutHistory({
       {state.hasMore ? (
         <Pressable
           accessibilityRole="button"
+          accessibilityState={{ busy: isLoadingMore, disabled: isLoadingMore }}
           disabled={isLoadingMore}
           onPress={loadMore}
           style={styles.loadMore}
@@ -210,7 +213,11 @@ export function WorkoutHistory({
         </Pressable>
       ) : null}
       {loadMoreFailed ? (
-        <Text accessibilityRole="alert" style={styles.meta}>
+        <Text
+          accessibilityLiveRegion="assertive"
+          accessibilityRole="alert"
+          style={styles.meta}
+        >
           Nao foi possivel carregar mais treinos. Tente novamente.
         </Text>
       ) : null}

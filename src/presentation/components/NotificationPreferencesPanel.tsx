@@ -124,7 +124,16 @@ export function NotificationPreferencesPanel() {
   }
 
   if (!preferences) {
-    return <Text style={styles.status}>{message || 'Carregando...'}</Text>;
+    return (
+      <Text
+        accessibilityLiveRegion="polite"
+        accessibilityRole={message ? 'alert' : 'progressbar'}
+        accessibilityState={{ busy: !message }}
+        style={styles.status}
+      >
+        {message || 'Carregando...'}
+      </Text>
+    );
   }
 
   const quietHoursEnabled = preferences.quietHoursStart !== null;
@@ -152,13 +161,14 @@ export function NotificationPreferencesPanel() {
 
       <View style={styles.group}>
         <Text style={styles.groupTitle}>Frequencia</Text>
-        <View style={styles.segmentedControl}>
+        <View accessibilityRole="radiogroup" style={styles.segmentedControl}>
           {frequencies.map((frequency) => {
             const selected = preferences.frequencyMode === frequency.value;
             return (
               <Pressable
-                accessibilityState={{ selected }}
-                accessibilityRole="button"
+                accessibilityState={{ checked: selected }}
+                accessibilityRole="radio"
+                aria-checked={selected}
                 key={frequency.value}
                 onPress={() => update({ frequencyMode: frequency.value })}
                 style={[styles.segment, selected && styles.segmentSelected]}
@@ -198,6 +208,7 @@ export function NotificationPreferencesPanel() {
                 maxLength={5}
                 onChangeText={setQuietStart}
                 placeholder="22:00"
+                placeholderTextColor={colors.textSubtle}
                 style={styles.timeInput}
                 value={quietStart}
               />
@@ -209,6 +220,7 @@ export function NotificationPreferencesPanel() {
                 maxLength={5}
                 onChangeText={setQuietEnd}
                 placeholder="08:00"
+                placeholderTextColor={colors.textSubtle}
                 style={styles.timeInput}
                 value={quietEnd}
               />
@@ -229,7 +241,11 @@ export function NotificationPreferencesPanel() {
         ) : null}
       </View>
 
-      {message ? <Text style={styles.status}>{message}</Text> : null}
+      {message ? (
+        <Text accessibilityLiveRegion="polite" style={styles.status}>
+          {message}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -315,7 +331,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     flex: 1,
     justifyContent: 'center',
-    minHeight: 42,
+    minHeight: 44,
     paddingHorizontal: spacing.xs,
   },
   segmentSelected: {

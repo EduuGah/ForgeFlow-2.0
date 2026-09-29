@@ -26,7 +26,9 @@ export function AppScreen({
           <View style={styles.header}>
             <View style={styles.headerText}>
               <Text style={styles.eyebrow}>{eyebrow}</Text>
-              <Text style={styles.title}>{title}</Text>
+              <Text accessibilityRole="header" style={styles.title}>
+                {title}
+              </Text>
             </View>
             {action}
           </View>
@@ -44,7 +46,9 @@ type SectionProps = PropsWithChildren<{
 export function Section({ children, title }: SectionProps) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text accessibilityRole="header" style={styles.sectionTitle}>
+        {title}
+      </Text>
       {children}
     </View>
   );
@@ -52,13 +56,28 @@ export function Section({ children, title }: SectionProps) {
 
 type EmptyStateProps = {
   body: string;
+  kind?: 'empty' | 'error' | 'loading';
   title: string;
 };
 
-export function EmptyState({ body, title }: EmptyStateProps) {
+export function EmptyState({ body, kind = 'empty', title }: EmptyStateProps) {
   return (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyTitle}>{title}</Text>
+    <View
+      accessibilityLiveRegion={kind === 'empty' ? 'none' : 'polite'}
+      accessibilityRole={
+        kind === 'error'
+          ? 'alert'
+          : kind === 'loading'
+            ? 'progressbar'
+            : 'summary'
+      }
+      accessibilityState={{ busy: kind === 'loading' }}
+      accessible
+      style={styles.emptyState}
+    >
+      <Text accessibilityRole="header" style={styles.emptyTitle}>
+        {title}
+      </Text>
       <Text style={styles.emptyBody}>{body}</Text>
     </View>
   );

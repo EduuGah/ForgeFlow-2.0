@@ -198,6 +198,7 @@ export function GoalsScreen() {
       action={
         <Pressable
           accessibilityLabel={editorOpen ? 'Fechar editor' : 'Criar meta'}
+          accessibilityRole="button"
           onPress={() => {
             if (editorOpen) {
               closeEditor();
@@ -225,9 +226,12 @@ export function GoalsScreen() {
         <Section title={editingGoal ? 'Editar meta' : 'Nova meta'}>
           <View style={styles.editor}>
             {!editingGoal ? (
-              <View style={styles.typeGrid}>
+              <View accessibilityRole="radiogroup" style={styles.typeGrid}>
                 {goalTypes.map((type) => (
                   <Pressable
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: form.type === type }}
+                    aria-checked={form.type === type}
                     key={type}
                     onPress={() =>
                       setForm((current) => ({
@@ -258,6 +262,7 @@ export function GoalsScreen() {
             )}
 
             <TextInput
+              accessibilityLabel="Titulo da meta"
               onChangeText={(title) =>
                 setForm((current) => ({ ...current, title }))
               }
@@ -270,6 +275,7 @@ export function GoalsScreen() {
             {definition.exerciseRequired && !editingGoal ? (
               <View style={styles.exercisePicker}>
                 <TextInput
+                  accessibilityLabel="Buscar exercicio"
                   onChangeText={(exerciseQuery) =>
                     setForm((current) => ({ ...current, exerciseQuery }))
                   }
@@ -283,9 +289,17 @@ export function GoalsScreen() {
                     Selecionado: {selectedExercise.name}
                   </Text>
                 ) : null}
-                <View style={styles.exerciseResults}>
+                <View
+                  accessibilityRole="radiogroup"
+                  style={styles.exerciseResults}
+                >
                   {exerciseResults.map((exercise) => (
                     <Pressable
+                      accessibilityRole="radio"
+                      accessibilityState={{
+                        checked: form.exerciseId === exercise.id,
+                      }}
+                      aria-checked={form.exerciseId === exercise.id}
                       key={exercise.id}
                       onPress={() =>
                         setForm((current) => ({
@@ -312,6 +326,7 @@ export function GoalsScreen() {
             <View style={styles.numberRow}>
               {definition.manualBaseline && !editingGoal ? (
                 <TextInput
+                  accessibilityLabel={`Valor atual${definition.unit ? ` em ${definition.unit}` : ''}`}
                   keyboardType="decimal-pad"
                   onChangeText={(baseline) =>
                     setForm((current) => ({ ...current, baseline }))
@@ -323,6 +338,7 @@ export function GoalsScreen() {
                 />
               ) : null}
               <TextInput
+                accessibilityLabel={`Alvo${definition.unit ? ` em ${definition.unit}` : ''}`}
                 keyboardType="decimal-pad"
                 onChangeText={(target) =>
                   setForm((current) => ({ ...current, target }))
@@ -334,6 +350,7 @@ export function GoalsScreen() {
               />
             </View>
             <TextInput
+              accessibilityLabel="Prazo opcional no formato ano, mes e dia"
               autoCapitalize="none"
               onChangeText={(deadline) =>
                 setForm((current) => ({ ...current, deadline }))
@@ -343,8 +360,18 @@ export function GoalsScreen() {
               style={styles.input}
               value={form.deadline}
             />
-            {message ? <Text style={styles.error}>{message}</Text> : null}
+            {message ? (
+              <Text
+                accessibilityLiveRegion="assertive"
+                accessibilityRole="alert"
+                style={styles.error}
+              >
+                {message}
+              </Text>
+            ) : null}
             <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ busy: saving, disabled: saving }}
               disabled={saving}
               onPress={submit}
               style={({ pressed }) => [
@@ -382,6 +409,7 @@ export function GoalsScreen() {
               />
             </View>
             <TextInput
+              accessibilityLabel={`Progresso atual${goalTypeDefinitions[progressGoal.type].unit ? ` em ${goalTypeDefinitions[progressGoal.type].unit}` : ''}`}
               keyboardType="decimal-pad"
               onChangeText={setProgressValue}
               placeholder={`Valor atual${goalTypeDefinitions[progressGoal.type].unit ? ` (${goalTypeDefinitions[progressGoal.type].unit})` : ''}`}
@@ -389,8 +417,18 @@ export function GoalsScreen() {
               style={styles.input}
               value={progressValue}
             />
-            {message ? <Text style={styles.error}>{message}</Text> : null}
+            {message ? (
+              <Text
+                accessibilityLiveRegion="assertive"
+                accessibilityRole="alert"
+                style={styles.error}
+              >
+                {message}
+              </Text>
+            ) : null}
             <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ busy: saving, disabled: saving }}
               disabled={saving}
               onPress={submitProgress}
               style={({ pressed }) => [
@@ -408,14 +446,25 @@ export function GoalsScreen() {
       ) : null}
 
       {message && !editorOpen && !progressGoal ? (
-        <Text style={styles.error}>{message}</Text>
+        <Text
+          accessibilityLiveRegion="assertive"
+          accessibilityRole="alert"
+          style={styles.error}
+        >
+          {message}
+        </Text>
       ) : null}
       {state.status === 'loading' ? (
-        <EmptyState body="Carregando objetivos locais..." title="Atualizando" />
+        <EmptyState
+          body="Carregando objetivos locais..."
+          kind="loading"
+          title="Atualizando"
+        />
       ) : null}
       {state.status === 'error' ? (
         <EmptyState
           body="Seus dados foram preservados. Abra a tela novamente."
+          kind="error"
           title="Falha ao carregar"
         />
       ) : null}
@@ -570,7 +619,16 @@ function GoalCard({
         </View>
       </View>
       <View style={styles.progressBlock}>
-        <View style={styles.progressTrack}>
+        <View
+          accessibilityLabel={`Progresso de ${goal.title}`}
+          accessibilityRole="progressbar"
+          accessibilityValue={{
+            max: 100,
+            min: 0,
+            now: Math.round(progress.progressPercent),
+          }}
+          style={styles.progressTrack}
+        >
           <View style={[styles.progressFill, { width: progressWidth }]} />
         </View>
         <Text style={styles.progressLabel}>
@@ -598,6 +656,7 @@ function IconAction({
   return (
     <Pressable
       accessibilityLabel={label}
+      accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
     >
@@ -654,9 +713,9 @@ function formatValue(value: number | null, unit: string) {
 const styles = StyleSheet.create({
   actionButton: {
     alignItems: 'center',
-    height: 36,
+    height: 44,
     justifyContent: 'center',
-    width: 36,
+    width: 44,
   },
   actions: { flexDirection: 'row' },
   currentValue: { alignItems: 'center' },
@@ -674,6 +733,8 @@ const styles = StyleSheet.create({
   exerciseOption: {
     borderBottomColor: colors.border,
     borderBottomWidth: 1,
+    justifyContent: 'center',
+    minHeight: 44,
     paddingVertical: spacing.sm,
   },
   exerciseOptionActive: {
@@ -710,9 +771,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
-    height: 42,
+    height: 44,
     justifyContent: 'center',
-    width: 42,
+    width: 44,
   },
   input: {
     ...typography.body,
@@ -788,6 +849,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 44,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
   },

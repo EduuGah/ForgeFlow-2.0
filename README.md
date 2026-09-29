@@ -94,6 +94,15 @@ native startup skips an unchanged exercise seed. Migration
 `0014_performance_indexes` supports the principal history, analytics, set,
 record and goal queries on SQLite and PostgreSQL.
 
+### Accessibility pass (FF-031)
+
+Screen and section headings, loading/error announcements, tabs, radio groups,
+selected states, progress values and icon-only actions expose React Native
+accessibility semantics. Every text input has an explicit accessible name,
+principal touch targets use a 44-point minimum and text colors are covered by
+WCAG AA contrast regression tests. TalkBack traversal and large-font validation
+remain part of the Android release-device checklist.
+
 ### Rest timer (FF-014)
 
 Saving a set with a positive rest duration starts a shared deadline-based timer.

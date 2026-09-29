@@ -11,7 +11,12 @@ type StatusPillProps = {
 
 export function StatusPill({ icon, label, tone = 'neutral' }: StatusPillProps) {
   return (
-    <View style={[styles.root, tone === 'positive' && styles.positive]}>
+    <View
+      accessibilityLabel={label}
+      accessibilityRole="summary"
+      accessible
+      style={[styles.root, tone === 'positive' && styles.positive]}
+    >
       {icon}
       <Text style={[styles.label, tone === 'positive' && styles.positiveText]}>
         {label}

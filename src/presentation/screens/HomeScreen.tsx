@@ -50,16 +50,56 @@ export function HomeScreen() {
     };
   }, [services]);
 
-  const activeSessionTitle =
-    overview.status === 'ready' && overview.value.activeSession
-      ? 'Sessao em andamento'
-      : 'Pronto para iniciar';
-  const activeSessionBody =
-    overview.status === 'error'
-      ? 'Nao foi possivel carregar o estado local.'
-      : 'Nenhuma sessao em andamento.';
+  const activeSessionState =
+    overview.status === 'loading'
+      ? {
+          body: 'Consultando os dados salvos neste aparelho.',
+          kind: 'loading' as const,
+          title: 'Carregando treino',
+        }
+      : overview.status === 'error'
+        ? {
+            body: 'Nao foi possivel carregar o estado local.',
+            kind: 'error' as const,
+            title: 'Falha ao carregar',
+          }
+        : overview.value.activeSession
+          ? {
+              body: `Iniciado as ${new Date(overview.value.activeSession.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`,
+              kind: 'empty' as const,
+              title: 'Sessao em andamento',
+            }
+          : {
+              body: 'Nenhuma sessao em andamento.',
+              kind: 'empty' as const,
+              title: 'Pronto para iniciar',
+            };
   const savedWorkoutCount =
     overview.status === 'ready' ? overview.value.savedWorkoutCount : 0;
+  const savedWorkoutState =
+    overview.status === 'loading'
+      ? {
+          body: 'Consultando sua biblioteca local.',
+          kind: 'loading' as const,
+          title: 'Carregando treinos',
+        }
+      : overview.status === 'error'
+        ? {
+            body: 'Nao foi possivel carregar os treinos salvos.',
+            kind: 'error' as const,
+            title: 'Falha ao carregar',
+          }
+        : {
+            body:
+              savedWorkoutCount > 0
+                ? `${savedWorkoutCount} treino${savedWorkoutCount === 1 ? '' : 's'} salvo${savedWorkoutCount === 1 ? '' : 's'} para escolher.`
+                : 'Sem treino criado ainda.',
+            kind: 'empty' as const,
+            title:
+              savedWorkoutCount > 0
+                ? 'Treinos disponiveis'
+                : 'Biblioteca vazia',
+          };
   const syncLabel =
     overview.status === 'ready' && overview.value.pendingSyncOperationCount > 0
       ? `${overview.value.pendingSyncOperationCount} pendente`
@@ -78,17 +118,10 @@ export function HomeScreen() {
       title="Treine, registre, evolua"
     >
       <Section title="Treino ativo">
-        <EmptyState body={activeSessionBody} title={activeSessionTitle} />
+        <EmptyState {...activeSessionState} />
       </Section>
       <Section title="Proxima sessao">
-        <EmptyState
-          body={
-            savedWorkoutCount > 0
-              ? `${savedWorkoutCount} treino salvo para escolher.`
-              : 'Sem treino criado ainda.'
-          }
-          title="Biblioteca vazia"
-        />
+        <EmptyState {...savedWorkoutState} />
       </Section>
       <Section title="Nutricao">
         <Pressable

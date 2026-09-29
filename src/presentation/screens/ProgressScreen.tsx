@@ -50,6 +50,7 @@ export function ProgressScreen() {
       action={
         <Pressable
           accessibilityLabel="Atualizar analise"
+          accessibilityRole="button"
           onPress={() => {
             setState({ status: 'loading' });
             setRefreshKey((value) => value + 1);
@@ -70,6 +71,7 @@ export function ProgressScreen() {
           <Pressable
             accessibilityRole="tab"
             accessibilityState={{ selected: days === option }}
+            aria-selected={days === option}
             key={option}
             onPress={() => {
               setState({ status: 'loading' });
@@ -93,11 +95,16 @@ export function ProgressScreen() {
       </View>
 
       {state.status === 'loading' ? (
-        <EmptyState body="Calculando seus treinos..." title="Atualizando" />
+        <EmptyState
+          body="Calculando seus treinos..."
+          kind="loading"
+          title="Atualizando"
+        />
       ) : null}
       {state.status === 'error' ? (
         <EmptyState
           body="Tente atualizar novamente. Seus registros locais foram preservados."
+          kind="error"
           title="Nao foi possivel calcular"
         />
       ) : null}
@@ -211,7 +218,12 @@ function MetricCard({
   value: string;
 }) {
   return (
-    <View style={styles.metricCard}>
+    <View
+      accessibilityLabel={`${label}: ${value}. ${comparison !== undefined ? `${formatComparison(comparison)} versus periodo anterior` : 'No periodo selecionado'}`}
+      accessibilityRole="summary"
+      accessible
+      style={styles.metricCard}
+    >
       <View style={styles.metricLabelRow}>
         {icon}
         <Text style={styles.metricLabel}>{label}</Text>
@@ -254,7 +266,8 @@ function VolumeChart({ points }: { points: TrainingAnalytics['timeline'] }) {
 
   return (
     <View
-      accessibilityLabel={`Grafico de volume com ${points.length} dias registrados`}
+      accessibilityLabel={`Grafico de volume com ${points.length} dias registrados, de ${formatDate(points[0].date)} a ${formatDate(points[points.length - 1].date)}. Pico de ${formatNumber(max)} quilogramas.`}
+      accessibilityRole="image"
       style={styles.chart}
     >
       <Svg height={height} viewBox={`0 0 ${width} ${height}`} width="100%">
@@ -387,9 +400,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
-    height: 42,
+    height: 44,
     justifyContent: 'center',
-    width: 42,
+    width: 44,
   },
   metricCard: {
     backgroundColor: colors.surface,
@@ -423,6 +436,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: radius.md,
     flex: 1,
+    minHeight: 44,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
   },

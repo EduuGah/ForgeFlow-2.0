@@ -87,6 +87,7 @@ export function ReportsScreen() {
           <Pressable
             accessibilityRole="tab"
             accessibilityState={{ selected: days === option }}
+            aria-selected={days === option}
             key={option}
             onPress={() => {
               setState({ status: 'loading' });
@@ -112,12 +113,14 @@ export function ReportsScreen() {
       {state.status === 'loading' ? (
         <EmptyState
           body="Consolidando seus dados locais..."
+          kind="loading"
           title="Gerando relatorio"
         />
       ) : null}
       {state.status === 'error' ? (
         <EmptyState
           body="Seus registros foram preservados. Tente atualizar novamente."
+          kind="error"
           title="Nao foi possivel gerar"
         />
       ) : null}
@@ -224,6 +227,10 @@ function ReportContent({ report }: { report: ConsolidatedReport }) {
               </Pressable>
               <Pressable
                 accessibilityRole="button"
+                accessibilityState={{
+                  busy: exportStatus === 'sharing',
+                  disabled: exportStatus === 'sharing',
+                }}
                 disabled={exportStatus === 'sharing'}
                 onPress={shareExport}
                 style={({ pressed }) => [
@@ -242,14 +249,21 @@ function ReportContent({ report }: { report: ConsolidatedReport }) {
               </Pressable>
             </View>
             {exportStatus === 'success' ? (
-              <Text style={styles.exportSuccess}>
+              <Text
+                accessibilityLiveRegion="polite"
+                style={styles.exportSuccess}
+              >
                 {Platform.OS === 'web'
                   ? 'Arquivo baixado. Voce decide onde envia-lo.'
                   : 'Compartilhamento concluido.'}
               </Text>
             ) : null}
             {exportStatus === 'error' ? (
-              <Text style={styles.exportError}>
+              <Text
+                accessibilityLiveRegion="assertive"
+                accessibilityRole="alert"
+                style={styles.exportError}
+              >
                 Nao foi possivel exportar. Seus dados continuam preservados.
               </Text>
             ) : null}
@@ -464,7 +478,12 @@ function MetricCard({
   value: string;
 }) {
   return (
-    <View style={styles.metricCard}>
+    <View
+      accessibilityLabel={`${label}: ${value}. ${detail}`}
+      accessibilityRole="summary"
+      accessible
+      style={styles.metricCard}
+    >
       <View style={styles.metricLabelRow}>
         {icon}
         <Text style={styles.metricLabel}>{label}</Text>
@@ -711,9 +730,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
-    height: 42,
+    height: 44,
     justifyContent: 'center',
-    width: 42,
+    width: 44,
   },
   list: { gap: spacing.xs },
   listCaption: { ...typography.caption, color: colors.textMuted },
@@ -763,7 +782,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     flex: 1,
     justifyContent: 'center',
-    minHeight: 40,
+    minHeight: 44,
     minWidth: 70,
     paddingHorizontal: spacing.sm,
   },
