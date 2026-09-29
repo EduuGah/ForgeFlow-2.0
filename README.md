@@ -206,3 +206,10 @@ observed facts separate from calculated metrics and leaves projections and AI
 interpretations explicitly ungenerated. Sharing is a separate user action:
 native platforms open the system share sheet, while web downloads the JSON for
 the user to choose its destination. No provider is contacted automatically.
+
+### Amigos e privacidade
+
+A tela `Perfil > Amigos` permite pesquisar pessoas por nome ou `@usuario`, gerenciar
+pedidos, remover amizades, bloquear usuarios e controlar a visibilidade das estatisticas.
+O fluxo e offline-first e nunca usa email para descoberta de perfis. Consulte
+[`Docs/26-Friends.md`](Docs/26-Friends.md) para as regras completas.

@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { ChartLine, Dumbbell, Home, Target, User } from 'lucide-react-native';
 
 import { GoalsScreen } from '../screens/GoalsScreen';
+import { FriendsScreen } from '../screens/FriendsScreen';
 import { HydrationScreen } from '../screens/HydrationScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { NutritionScreen } from '../screens/NutritionScreen';
@@ -91,6 +92,14 @@ export function AppNavigator() {
             <User color={color} size={size} strokeWidth={2.2} />
           ),
           title: 'Perfil',
+        }}
+      />
+      <Tab.Screen
+        component={FriendsScreen}
+        name="Friends"
+        options={{
+          tabBarButton: () => null,
+          title: 'Amigos',
         }}
       />
       <Tab.Screen

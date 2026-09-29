@@ -14,6 +14,11 @@ import type { Media, MediaUpload } from '../../domain/media/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
+  Friendship,
+  SocialProfile,
+  UserBlock,
+} from '../../domain/social/entities';
+import type {
   Exercise,
   ExerciseFavorite,
   PersonalRecord,
@@ -29,6 +34,7 @@ import type {
   ListExerciseFavoritesParams,
   ListAchievementsParams,
   GoalRepository,
+  FriendshipRepository,
   GoalProgressEventRepository,
   HydrationEntryRepository,
   HydrationGoalRepository,
@@ -55,16 +61,19 @@ import type {
   SessionExerciseRepository,
   SyncOperationRepository,
   SyncStateRepository,
+  SocialProfileRepository,
   TrainingSetRepository,
   RepositoryTransactionRunner,
   WorkoutRepository,
   WorkoutSessionRepository,
+  UserBlockRepository,
 } from '../../application/ports/repositories';
 
 export type InMemoryRepositorySeed = Partial<{
   achievements: Achievement[];
   exerciseFavorites: ExerciseFavorite[];
   exercises: Exercise[];
+  friendships: Friendship[];
   goals: Goal[];
   goalProgressEvents: GoalProgressEvent[];
   hydrationEntries: HydrationEntry[];
@@ -79,9 +88,11 @@ export type InMemoryRepositorySeed = Partial<{
   sessionExercises: SessionExercise[];
   syncOperations: SyncOperation[];
   syncStates: SyncState[];
+  socialProfiles: SocialProfile[];
   trainingSets: TrainingSet[];
   workoutSessions: WorkoutSession[];
   workoutTemplates: WorkoutTemplate[];
+  userBlocks: UserBlock[];
 }>;
 
 class InMemoryForgeFlowRepository
@@ -89,6 +100,7 @@ class InMemoryForgeFlowRepository
     AchievementRepository,
     ExerciseRepository,
     ExerciseFavoriteRepository,
+    FriendshipRepository,
     GoalRepository,
     GoalProgressEventRepository,
     HydrationEntryRepository,
@@ -103,14 +115,17 @@ class InMemoryForgeFlowRepository
     SessionExerciseRepository,
     SyncOperationRepository,
     SyncStateRepository,
+    SocialProfileRepository,
     TrainingSetRepository,
     RepositoryTransactionRunner,
     WorkoutRepository,
-    WorkoutSessionRepository
+    WorkoutSessionRepository,
+    UserBlockRepository
 {
   private achievements: Achievement[];
   private exerciseFavorites: ExerciseFavorite[];
   private exercises: Exercise[];
+  private friendships: Friendship[];
   private goals: Goal[];
   private goalProgressEvents: GoalProgressEvent[];
   private hydrationEntries: HydrationEntry[];
@@ -125,14 +140,17 @@ class InMemoryForgeFlowRepository
   private sessionExercises: SessionExercise[];
   private syncOperations: SyncOperation[];
   private syncStates: SyncState[];
+  private socialProfiles: SocialProfile[];
   private trainingSets: TrainingSet[];
   private workoutSessions: WorkoutSession[];
   private workoutTemplates: WorkoutTemplate[];
+  private userBlocks: UserBlock[];
 
   constructor(seed: InMemoryRepositorySeed = {}) {
     this.achievements = seed.achievements ?? [];
     this.exerciseFavorites = seed.exerciseFavorites ?? [];
     this.exercises = seed.exercises ?? [];
+    this.friendships = seed.friendships ?? [];
     this.goals = seed.goals ?? [];
     this.goalProgressEvents = seed.goalProgressEvents ?? [];
     this.hydrationEntries = seed.hydrationEntries ?? [];
@@ -147,9 +165,11 @@ class InMemoryForgeFlowRepository
     this.sessionExercises = seed.sessionExercises ?? [];
     this.syncOperations = seed.syncOperations ?? [];
     this.syncStates = seed.syncStates ?? [];
+    this.socialProfiles = seed.socialProfiles ?? [];
     this.trainingSets = seed.trainingSets ?? [];
     this.workoutSessions = seed.workoutSessions ?? [];
     this.workoutTemplates = seed.workoutTemplates ?? [];
+    this.userBlocks = seed.userBlocks ?? [];
   }
 
   async countPendingSyncOperations() {
@@ -192,6 +212,83 @@ class InMemoryForgeFlowRepository
         (favorite) =>
           favorite.userId === userId && favorite.exerciseId === exerciseId,
       ) ?? null,
+    );
+  }
+
+  async findSocialProfileByUserId(userId: EntityId) {
+    return clone(
+      this.socialProfiles.find((profile) => profile.userId === userId) ?? null,
+    );
+  }
+
+  async searchSocialProfiles(input: {
+    excludeUserId: EntityId;
+    query: string;
+  }) {
+    const query = input.query.trim().toLocaleLowerCase('pt-BR');
+    return clone(
+      this.socialProfiles
+        .filter((profile) => profile.userId !== input.excludeUserId)
+        .filter(
+          (profile) =>
+            profile.displayName.toLocaleLowerCase('pt-BR').includes(query) ||
+            profile.username.toLocaleLowerCase('pt-BR').includes(query),
+        )
+        .sort((left, right) =>
+          left.displayName.localeCompare(right.displayName, 'pt-BR'),
+        ),
+    );
+  }
+
+  async findFriendshipById(id: EntityId) {
+    return clone(this.friendships.find((item) => item.id === id) ?? null);
+  }
+
+  async findFriendshipBetween(firstUserId: EntityId, secondUserId: EntityId) {
+    return clone(
+      this.friendships.find(
+        (item) =>
+          (item.requesterUserId === firstUserId &&
+            item.addresseeUserId === secondUserId) ||
+          (item.requesterUserId === secondUserId &&
+            item.addresseeUserId === firstUserId),
+      ) ?? null,
+    );
+  }
+
+  async listFriendships(
+    params: import('../../application/ports/repositories').ListFriendshipsParams,
+  ) {
+    return clone(
+      this.friendships
+        .filter(
+          (item) =>
+            item.requesterUserId === params.userId ||
+            item.addresseeUserId === params.userId,
+        )
+        .filter(
+          (item) => !params.statuses || params.statuses.includes(item.status),
+        )
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+    );
+  }
+
+  async findUserBlock(blockerUserId: EntityId, blockedUserId: EntityId) {
+    return clone(
+      this.userBlocks.find(
+        (item) =>
+          item.blockerUserId === blockerUserId &&
+          item.blockedUserId === blockedUserId,
+      ) ?? null,
+    );
+  }
+
+  async listUserBlocks(userId: EntityId) {
+    return clone(
+      this.userBlocks.filter(
+        (item) =>
+          item.blockerUserId === userId || item.blockedUserId === userId,
+      ),
     );
   }
 
@@ -630,6 +727,18 @@ class InMemoryForgeFlowRepository
     this.exercises = upsertById(this.exercises, exercise, 'id');
   }
 
+  async saveSocialProfile(profile: SocialProfile) {
+    this.socialProfiles = upsertById(this.socialProfiles, profile, 'userId');
+  }
+
+  async saveFriendship(friendship: Friendship) {
+    this.friendships = upsertById(this.friendships, friendship, 'id');
+  }
+
+  async saveUserBlock(block: UserBlock) {
+    this.userBlocks = upsertById(this.userBlocks, block, 'id');
+  }
+
   async saveAchievement(achievement: Achievement) {
     this.achievements = upsertByCompositeKey(this.achievements, achievement, [
       'userId',
@@ -741,6 +850,7 @@ export function createInMemoryRepositories(
     achievements: repository,
     exerciseFavorites: repository,
     exercises: repository,
+    friendships: repository,
     goals: repository,
     goalProgressEvents: repository,
     hydrationEntries: repository,
@@ -754,9 +864,11 @@ export function createInMemoryRepositories(
     pushDevices: repository,
     syncOperations: repository,
     syncState: repository,
+    socialProfiles: repository,
     sessionExercises: repository,
     sets: repository,
     transaction: repository,
+    userBlocks: repository,
     workoutSessions: repository,
     workouts: repository,
   };

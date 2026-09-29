@@ -242,3 +242,9 @@ notice and leaves AI-produced sections empty.
 - challenges
 - achievements
 - shareable milestones
+## FF-034 - Amigos
+
+A area de Perfil oferece pesquisa por nome ou nome de usuario, pedidos de amizade,
+remocao e bloqueio. Perfis privados permanecem encontraveis com dados basicos, enquanto
+estatisticas de treino dependem da preferencia de compartilhamento e, para perfis privados,
+de amizade aceita. Todas as mutacoes funcionam offline e entram na fila de sincronizacao.

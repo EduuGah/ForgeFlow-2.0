@@ -21,6 +21,12 @@ import type { Media, MediaUpload } from '../../domain/media/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
+  Friendship,
+  FriendshipStatus,
+  SocialProfile,
+  UserBlock,
+} from '../../domain/social/entities';
+import type {
   Exercise,
   ExerciseFavorite,
   PersonalRecord,
@@ -119,6 +125,11 @@ export type ListHydrationEntriesParams = {
 export type ListMediaParams = {
   ids?: EntityId[];
   includeDeleted?: boolean;
+  userId: EntityId;
+};
+
+export type ListFriendshipsParams = {
+  statuses?: FriendshipStatus[];
   userId: EntityId;
 };
 
@@ -250,6 +261,34 @@ export interface GoalProgressEventRepository {
   saveGoalProgressEvent(event: GoalProgressEvent): Promise<void>;
 }
 
+export interface SocialProfileRepository {
+  findSocialProfileByUserId(userId: EntityId): Promise<SocialProfile | null>;
+  saveSocialProfile(profile: SocialProfile): Promise<void>;
+  searchSocialProfiles(input: {
+    excludeUserId: EntityId;
+    query: string;
+  }): Promise<SocialProfile[]>;
+}
+
+export interface FriendshipRepository {
+  findFriendshipBetween(
+    firstUserId: EntityId,
+    secondUserId: EntityId,
+  ): Promise<Friendship | null>;
+  findFriendshipById(id: EntityId): Promise<Friendship | null>;
+  listFriendships(params: ListFriendshipsParams): Promise<Friendship[]>;
+  saveFriendship(friendship: Friendship): Promise<void>;
+}
+
+export interface UserBlockRepository {
+  findUserBlock(
+    blockerUserId: EntityId,
+    blockedUserId: EntityId,
+  ): Promise<UserBlock | null>;
+  listUserBlocks(userId: EntityId): Promise<UserBlock[]>;
+  saveUserBlock(block: UserBlock): Promise<void>;
+}
+
 export interface SyncOperationRepository {
   countPendingSyncOperations(): Promise<number>;
   enqueueSyncOperation(operation: SyncOperation): Promise<void>;
@@ -280,6 +319,7 @@ export type RepositoryProvider = {
   exerciseFavorites: ExerciseFavoriteRepository;
   exercises: ExerciseRepository;
   goals: GoalRepository;
+  friendships: FriendshipRepository;
   goalProgressEvents: GoalProgressEventRepository;
   hydrationEntries: HydrationEntryRepository;
   hydrationGoals: HydrationGoalRepository;
@@ -292,9 +332,11 @@ export type RepositoryProvider = {
   personalRecords: PersonalRecordRepository;
   syncOperations: SyncOperationRepository;
   syncState: SyncStateRepository;
+  socialProfiles: SocialProfileRepository;
   sessionExercises: SessionExerciseRepository;
   sets: TrainingSetRepository;
   transaction: RepositoryTransactionRunner;
+  userBlocks: UserBlockRepository;
   workoutSessions: WorkoutSessionRepository;
   workouts: WorkoutRepository;
 };

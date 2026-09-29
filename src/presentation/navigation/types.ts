@@ -1,4 +1,5 @@
 export type RootTabParamList = {
+  Friends: undefined;
   Goals: undefined;
   Hydration: undefined;
   Home: undefined;

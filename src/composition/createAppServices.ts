@@ -17,6 +17,17 @@ import {
 } from '../application/useCases/exerciseLibrary';
 import { getHomeOverview } from '../application/useCases/getHomeOverview';
 import {
+  acceptFriendRequest,
+  blockUser,
+  declineFriendRequest,
+  getFriendsOverview,
+  removeFriend,
+  searchUsers,
+  sendFriendRequest,
+  unblockUser,
+  updateSocialPrivacy,
+} from '../application/useCases/friends';
+import {
   cancelGoal,
   createGoal,
   pauseGoal,
@@ -96,6 +107,7 @@ import { InMemoryMediaUploadGateway } from '../data/media/inMemoryMediaUploadGat
 import { PlatformStructuredExportGateway } from '../data/export/platformStructuredExportGateway';
 import { createInMemoryRepositories } from '../data/repositories/inMemoryRepositories';
 import { systemExercises } from '../data/seeds/systemExercises';
+import { previewSocialProfiles } from '../data/seeds/socialProfiles';
 import { LOCAL_PREVIEW_USER_ID } from '../config/localPreview';
 import type { RepositoryProvider } from '../application/ports/repositories';
 import type { SecureSessionStorage } from '../application/ports/auth';
@@ -114,6 +126,7 @@ export function createAppServices(
     repositoryProvider ??
     createInMemoryRepositories({
       exercises: systemExercises,
+      socialProfiles: previewSocialProfiles,
     });
   const notificationGateway = new ExpoNotificationGateway();
   const mealPhotoGateway = new ExpoMealPhotoGateway();
@@ -313,6 +326,82 @@ export function createAppServices(
             clock: () => new Date().toISOString(),
             generateId: createLocalUuid,
             repositories: exerciseLibraryRepositories,
+          },
+        ),
+    },
+    friends: {
+      accept: (friendshipId: string) =>
+        acceptFriendRequest(
+          { friendshipId, userId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            repositories,
+          },
+        ),
+      block: (blockedUserId: string) =>
+        blockUser(
+          { blockedUserId, blockerUserId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            repositories,
+          },
+        ),
+      decline: (friendshipId: string) =>
+        declineFriendRequest(
+          { friendshipId, userId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            repositories,
+          },
+        ),
+      getOverview: () =>
+        getFriendsOverview(LOCAL_PREVIEW_USER_ID, repositories),
+      remove: (friendshipId: string) =>
+        removeFriend(
+          { friendshipId, userId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            repositories,
+          },
+        ),
+      search: (query: string) =>
+        searchUsers({ query, userId: LOCAL_PREVIEW_USER_ID }, repositories),
+      sendRequest: (addresseeUserId: string) =>
+        sendFriendRequest(
+          {
+            addresseeUserId,
+            requesterUserId: LOCAL_PREVIEW_USER_ID,
+          },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            repositories,
+          },
+        ),
+      unblock: (blockedUserId: string) =>
+        unblockUser(
+          { blockedUserId, blockerUserId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            repositories,
+          },
+        ),
+      updatePrivacy: (isPrivate: boolean, sharesWorkoutStats: boolean) =>
+        updateSocialPrivacy(
+          {
+            isPrivate,
+            sharesWorkoutStats,
+            userId: LOCAL_PREVIEW_USER_ID,
+          },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            repositories,
           },
         ),
     },

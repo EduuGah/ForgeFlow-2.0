@@ -8,6 +8,7 @@ import { serverMealsMigration } from './mealsMigration';
 import { serverMediaMigration } from './mediaMigration';
 import { serverHydrationMigration } from './hydrationMigration';
 import { serverPerformanceIndexesMigration } from './performanceIndexesMigration';
+import { serverSocialMigration } from './socialMigration';
 import { serverExerciseFavoritesMigration } from './exerciseFavoritesMigration';
 import { serverPersonalRecordsMigration } from './personalRecordsMigration';
 import { serverGoalsMigration } from './goalsMigration';
@@ -43,6 +44,7 @@ describe('initial schema migrations', () => {
       serverMediaMigration,
       serverHydrationMigration,
       serverPerformanceIndexesMigration,
+      serverSocialMigration,
     ]);
 
     expect(initialLocalSchemaMigration).toMatchObject({

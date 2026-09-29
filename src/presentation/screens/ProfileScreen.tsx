@@ -1,4 +1,6 @@
-import { Check, LockKeyhole, Trophy } from 'lucide-react-native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
+import { Check, LockKeyhole, Trophy, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -7,6 +9,7 @@ import type { AchievementCatalogItem } from '../../application/useCases/achievem
 import { useAppServices } from '../../composition/AppServicesProvider';
 import { AppScreen, EmptyState, Section } from '../components/AppScreen';
 import { NotificationPreferencesPanel } from '../components/NotificationPreferencesPanel';
+import type { RootTabParamList } from '../navigation/types';
 import { colors, radius, spacing, typography } from '../theme/tokens';
 
 type AuthStatus =
@@ -15,6 +18,7 @@ type AuthStatus =
 
 export function ProfileScreen() {
   const services = useAppServices();
+  const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const [authState, setAuthState] = useState<AuthStatus>({ status: 'loading' });
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -86,6 +90,23 @@ export function ProfileScreen() {
 
   return (
     <AppScreen eyebrow="Perfil" title="Conta e preferencias">
+      <Section title="Social">
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigation.navigate('Friends')}
+          style={styles.socialLink}
+        >
+          <View style={styles.achievementSummaryIcon}>
+            <Users color={colors.accent} size={22} strokeWidth={2.2} />
+          </View>
+          <View style={styles.achievementSummaryText}>
+            <Text style={styles.panelTitle}>Amigos</Text>
+            <Text style={styles.panelBody}>
+              Encontre pessoas, gerencie pedidos e privacidade.
+            </Text>
+          </View>
+        </Pressable>
+      </Section>
       <Section title="Notificacoes">
         <NotificationPreferencesPanel />
       </Section>
@@ -385,5 +406,16 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     backgroundColor: colors.accent,
+  },
+  socialLink: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    minHeight: 72,
+    padding: spacing.md,
   },
 });
