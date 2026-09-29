@@ -19,6 +19,7 @@ describe('local sync metadata migration', () => {
       '0012_media',
       '0013_hydration',
       '0014_performance_indexes',
+      '0015_social_relationships',
     ]);
     expect(localSyncMetadataMigration).toMatchObject({
       id: '0002_sync_metadata',

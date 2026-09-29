@@ -2,6 +2,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { LOCAL_PREVIEW_USER_ID } from '../../config/localPreview';
 import { systemExercises } from '../seeds/systemExercises';
+import { previewSocialProfiles } from '../seeds/socialProfiles';
 import {
   createSQLiteMigrationExecutor,
   type SQLiteMigrationConnection,
@@ -12,6 +13,7 @@ import { createSQLiteRepositories } from '../repositories/sqliteRepositories';
 import { createExpoSQLiteConnection } from './expoSQLiteConnection';
 
 export const systemExerciseCatalogVersion = '2026-09-28-v1';
+export const socialProfileCatalogVersion = '2026-09-29-v1';
 
 export async function initializeLocalDatabase(database: SQLiteDatabase) {
   const connection = createExpoSQLiteConnection(database);
@@ -46,6 +48,24 @@ export async function initializeLocalStorage(
   );
 
   const repositories = createSQLiteRepositories(connection);
+  const socialSeedState = await repositories.syncState.getSyncState(
+    'bootstrap',
+    'social_profiles',
+  );
+  if (socialSeedState?.serverCursor !== socialProfileCatalogVersion) {
+    await connection.withTransactionAsync(async () => {
+      for (const profile of previewSocialProfiles) {
+        await repositories.socialProfiles.saveSocialProfile(profile);
+      }
+      await repositories.syncState.saveSyncState({
+        key: 'social_profiles',
+        lastError: null,
+        lastSuccessAt: now,
+        scope: 'bootstrap',
+        serverCursor: socialProfileCatalogVersion,
+      });
+    });
+  }
   const seedState = await repositories.syncState.getSyncState(
     'bootstrap',
     'system_exercises',

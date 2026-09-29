@@ -2,6 +2,7 @@ import type {
   AchievementRepository,
   ExerciseFavoriteRepository,
   ExerciseRepository,
+  FriendshipRepository,
   GoalProgressEventRepository,
   GoalRepository,
   HydrationEntryRepository,
@@ -20,6 +21,7 @@ import type {
   ListTrainingSetsParams,
   ListWorkoutSessionsParams,
   ListWorkoutTemplatesParams,
+  ListFriendshipsParams,
   MealRepository,
   MediaRepository,
   MediaUploadRepository,
@@ -32,9 +34,11 @@ import type {
   SessionExerciseRepository,
   SyncOperationRepository,
   SyncStateRepository,
+  SocialProfileRepository,
   TrainingSetRepository,
   WorkoutRepository,
   WorkoutSessionRepository,
+  UserBlockRepository,
 } from '../../application/ports/repositories';
 import type { Achievement } from '../../domain/achievements/entities';
 import type { Goal, GoalProgressEvent } from '../../domain/goals/entities';
@@ -51,6 +55,12 @@ import type {
 import type { Meal } from '../../domain/nutrition/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
+import type {
+  Friendship,
+  FriendshipStatus,
+  SocialProfile,
+  UserBlock,
+} from '../../domain/social/entities';
 import type {
   Exercise,
   ExerciseFavorite,
@@ -70,6 +80,7 @@ class SQLiteForgeFlowRepository
     AchievementRepository,
     ExerciseFavoriteRepository,
     ExerciseRepository,
+    FriendshipRepository,
     GoalProgressEventRepository,
     GoalRepository,
     HydrationEntryRepository,
@@ -85,9 +96,11 @@ class SQLiteForgeFlowRepository
     SessionExerciseRepository,
     SyncOperationRepository,
     SyncStateRepository,
+    SocialProfileRepository,
     TrainingSetRepository,
     WorkoutRepository,
-    WorkoutSessionRepository
+    WorkoutSessionRepository,
+    UserBlockRepository
 {
   constructor(private readonly database: SQLiteMigrationConnection) {}
 
@@ -147,6 +160,88 @@ class SQLiteForgeFlowRepository
         )
       ).map(toExerciseFavorite),
     );
+  }
+
+  async findSocialProfileByUserId(userId: EntityId) {
+    return first(
+      (
+        await this.rows('SELECT * FROM social_profiles WHERE user_id = ?', [
+          userId,
+        ])
+      ).map(toSocialProfile),
+    );
+  }
+
+  async searchSocialProfiles(input: {
+    excludeUserId: EntityId;
+    query: string;
+  }) {
+    const query = `%${input.query.trim().toLocaleLowerCase('pt-BR')}%`;
+    return (
+      await this.rows(
+        `SELECT * FROM social_profiles
+         WHERE user_id <> ?
+           AND (LOWER(display_name) LIKE ? OR LOWER(username) LIKE ?)
+         ORDER BY display_name COLLATE NOCASE ASC`,
+        [input.excludeUserId, query, query],
+      )
+    ).map(toSocialProfile);
+  }
+
+  async findFriendshipById(id: EntityId) {
+    return first(
+      (await this.rows('SELECT * FROM friendships WHERE id = ?', [id])).map(
+        toFriendship,
+      ),
+    );
+  }
+
+  async findFriendshipBetween(firstUserId: EntityId, secondUserId: EntityId) {
+    return first(
+      (
+        await this.rows(
+          `SELECT * FROM friendships
+           WHERE (requester_user_id = ? AND addressee_user_id = ?)
+              OR (requester_user_id = ? AND addressee_user_id = ?)
+           ORDER BY updated_at DESC LIMIT 1`,
+          [firstUserId, secondUserId, secondUserId, firstUserId],
+        )
+      ).map(toFriendship),
+    );
+  }
+
+  async listFriendships(params: ListFriendshipsParams) {
+    const values: unknown[] = [params.userId, params.userId];
+    let sql = `SELECT * FROM friendships
+      WHERE (requester_user_id = ? OR addressee_user_id = ?)`;
+    if (params.statuses?.length) {
+      sql += ` AND status IN (${params.statuses.map(() => '?').join(', ')})`;
+      values.push(...params.statuses);
+    }
+    sql += ' ORDER BY updated_at DESC';
+    return (await this.rows(sql, values)).map(toFriendship);
+  }
+
+  async findUserBlock(blockerUserId: EntityId, blockedUserId: EntityId) {
+    return first(
+      (
+        await this.rows(
+          `SELECT * FROM user_blocks
+           WHERE blocker_user_id = ? AND blocked_user_id = ?`,
+          [blockerUserId, blockedUserId],
+        )
+      ).map(toUserBlock),
+    );
+  }
+
+  async listUserBlocks(userId: EntityId) {
+    return (
+      await this.rows(
+        `SELECT * FROM user_blocks
+         WHERE blocker_user_id = ? OR blocked_user_id = ?`,
+        [userId, userId],
+      )
+    ).map(toUserBlock);
   }
 
   async findGoalById(id: EntityId) {
@@ -838,6 +933,53 @@ class SQLiteForgeFlowRepository
     });
   }
 
+  async saveSocialProfile(profile: SocialProfile) {
+    await this.save(
+      'social_profiles',
+      {
+        avatar_url: profile.avatarUrl,
+        bio: profile.bio,
+        display_name: profile.displayName,
+        is_private: profile.isPrivate ? 1 : 0,
+        shares_workout_stats: profile.sharesWorkoutStats ? 1 : 0,
+        updated_at: profile.updatedAt,
+        user_id: profile.userId,
+        username: profile.username,
+      },
+      ['user_id'],
+    );
+  }
+
+  async saveFriendship(friendship: Friendship) {
+    await this.save(
+      'friendships',
+      {
+        addressee_user_id: friendship.addresseeUserId,
+        created_at: friendship.createdAt,
+        id: friendship.id,
+        requester_user_id: friendship.requesterUserId,
+        status: friendship.status,
+        updated_at: friendship.updatedAt,
+      },
+      ['id'],
+    );
+  }
+
+  async saveUserBlock(block: UserBlock) {
+    await this.save(
+      'user_blocks',
+      {
+        blocked_user_id: block.blockedUserId,
+        blocker_user_id: block.blockerUserId,
+        created_at: block.createdAt,
+        deleted_at: block.deletedAt,
+        id: block.id,
+        updated_at: block.updatedAt,
+      },
+      ['id'],
+    );
+  }
+
   private async saveWorkoutExercise(item: WorkoutExercise) {
     await this.save('workout_exercises', {
       created_at: item.createdAt,
@@ -907,6 +1049,7 @@ export function createSQLiteRepositories(
     achievements: repository,
     exerciseFavorites: repository,
     exercises: repository,
+    friendships: repository,
     goals: repository,
     goalProgressEvents: repository,
     hydrationEntries: repository,
@@ -922,7 +1065,9 @@ export function createSQLiteRepositories(
     sets: repository,
     syncOperations: repository,
     syncState: repository,
+    socialProfiles: repository,
     transaction: repository,
+    userBlocks: repository,
     workoutSessions: repository,
     workouts: repository,
   };
@@ -940,6 +1085,41 @@ function toExercise(row: Row): Exercise {
     ownerUserId: nullableString(row.owner_user_id),
     primaryMuscleGroup: stringValue(row.primary_muscle_group),
     secondaryMuscleGroups: jsonValue<string[]>(row.secondary_muscle_groups, []),
+    updatedAt: stringValue(row.updated_at),
+  };
+}
+
+function toSocialProfile(row: Row): SocialProfile {
+  return {
+    avatarUrl: nullableString(row.avatar_url),
+    bio: nullableString(row.bio),
+    displayName: stringValue(row.display_name),
+    isPrivate: booleanValue(row.is_private),
+    sharesWorkoutStats: booleanValue(row.shares_workout_stats),
+    updatedAt: stringValue(row.updated_at),
+    userId: stringValue(row.user_id),
+    username: stringValue(row.username),
+  };
+}
+
+function toFriendship(row: Row): Friendship {
+  return {
+    addresseeUserId: stringValue(row.addressee_user_id),
+    createdAt: stringValue(row.created_at),
+    id: stringValue(row.id),
+    requesterUserId: stringValue(row.requester_user_id),
+    status: stringValue(row.status) as FriendshipStatus,
+    updatedAt: stringValue(row.updated_at),
+  };
+}
+
+function toUserBlock(row: Row): UserBlock {
+  return {
+    blockedUserId: stringValue(row.blocked_user_id),
+    blockerUserId: stringValue(row.blocker_user_id),
+    createdAt: stringValue(row.created_at),
+    deletedAt: nullableString(row.deleted_at),
+    id: stringValue(row.id),
     updatedAt: stringValue(row.updated_at),
   };
 }

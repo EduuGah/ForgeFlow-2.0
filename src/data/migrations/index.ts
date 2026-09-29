@@ -12,6 +12,7 @@ export {
   type PostgresQueryResult,
 } from './postgresMigrationExecutor';
 export { serverMigrations } from './serverMigrations';
+export { localSocialMigration, serverSocialMigration } from './socialMigration';
 export {
   createSQLiteMigrationExecutor,
   type SQLiteMigrationConnection,
