@@ -16,9 +16,9 @@ type AuthStatus =
 export function ProfileScreen() {
   const services = useAppServices();
   const [authState, setAuthState] = useState<AuthStatus>({ status: 'loading' });
-  const [displayName, setDisplayName] = useState('Carlos Eduardo');
-  const [email, setEmail] = useState('carlos@example.com');
-  const [password, setPassword] = useState('strong-password');
+  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [achievements, setAchievements] = useState<AchievementCatalogItem[]>(
     [],
   );

@@ -17,7 +17,8 @@
           "photosPermission": "Permita que o ForgeFlow selecione fotos para suas refeicoes."
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-secure-store"
     ],
     "ios": {
       "supportsTablet": true,

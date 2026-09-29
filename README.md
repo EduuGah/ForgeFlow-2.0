@@ -103,6 +103,16 @@ principal touch targets use a 44-point minimum and text colors are covered by
 WCAG AA contrast regression tests. TalkBack traversal and large-font validation
 remain part of the Android release-device checklist.
 
+### Security audit (FF-032)
+
+Native sessions now use Expo SecureStore, production configuration requires an
+HTTPS API endpoint, authentication fields are bounded, meal photos use a MIME
+and 10 MB allowlist, and persisted sync/upload diagnostics redact credentials.
+The repository audit found no high or critical dependency advisory. Moderate
+transitive Expo/React Navigation findings and production-backend, SQLite
+encryption and signed-device checks are documented in
+`Docs/24-Security-Audit.md` as FF-033 release gates.
+
 ### Rest timer (FF-014)
 
 Saving a set with a positive rest duration starts a shared deadline-based timer.

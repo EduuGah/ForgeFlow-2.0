@@ -1,4 +1,8 @@
-import { normalizeOptionalUrl, resolveAppEnvironment } from './env';
+import {
+  normalizeOptionalUrl,
+  resolveAppEnvironment,
+  validatePublicEnvironment,
+} from './env';
 
 describe('environment config', () => {
   it('falls back to development for missing or unknown app environments', () => {
@@ -18,5 +22,38 @@ describe('environment config', () => {
     expect(normalizeOptionalUrl('https://api.forgeflow.app///')).toBe(
       'https://api.forgeflow.app',
     );
+  });
+
+  it('requires an HTTPS API URL in production', () => {
+    expect(() =>
+      validatePublicEnvironment({ apiBaseUrl: null, appEnv: 'production' }),
+    ).toThrow('required in production');
+    expect(() =>
+      validatePublicEnvironment({
+        apiBaseUrl: 'http://api.forgeflow.app',
+        appEnv: 'production',
+      }),
+    ).toThrow('must use HTTPS');
+    expect(
+      validatePublicEnvironment({
+        apiBaseUrl: 'https://api.forgeflow.app',
+        appEnv: 'production',
+      }),
+    ).toEqual({
+      apiBaseUrl: 'https://api.forgeflow.app',
+      appEnv: 'production',
+    });
+  });
+
+  it('rejects malformed and non-HTTP API URLs', () => {
+    expect(() =>
+      validatePublicEnvironment({ apiBaseUrl: 'not-a-url', appEnv: 'staging' }),
+    ).toThrow('valid URL');
+    expect(() =>
+      validatePublicEnvironment({
+        apiBaseUrl: 'file:///tmp/server',
+        appEnv: 'development',
+      }),
+    ).toThrow('HTTP or HTTPS');
   });
 });

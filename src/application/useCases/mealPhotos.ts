@@ -12,6 +12,7 @@ import type {
   SyncOperation,
   SyncOperationType,
 } from '../../domain/sync/entities';
+import { sanitizeDiagnosticMessage } from '../../domain/security/redaction';
 
 type MealPhotoRepositories = Pick<
   RepositoryProvider,
@@ -154,7 +155,9 @@ export async function processMediaUploadQueue(
     } catch (error) {
       await failUpload(
         processingUpload,
-        error instanceof Error ? error.message : 'Media upload failed.',
+        error instanceof Error
+          ? sanitizeDiagnosticMessage(error)
+          : 'Media upload failed.',
         dependencies,
       );
       results.push({ mediaId: media.id, status: 'failed' });

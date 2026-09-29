@@ -80,6 +80,31 @@ describe('authentication use cases', () => {
     expect(dependencies.storage.session).toBeNull();
   });
 
+  it.each([
+    {
+      displayName: 'C'.repeat(81),
+      email: 'user@example.com',
+      password: 'strong-password',
+    },
+    {
+      displayName: 'Carlos',
+      email: `${'a'.repeat(244)}@example.com`,
+      password: 'strong-password',
+    },
+    {
+      displayName: 'Carlos',
+      email: 'user@example.com',
+      password: 'strong-password\n',
+    },
+  ])('rejects oversized or unsafe registration fields', async (request) => {
+    const dependencies = createAuthDependencies({ session: activeSession });
+
+    await expect(registerAccount(request, dependencies)).rejects.toBeInstanceOf(
+      AuthenticationInputError,
+    );
+    expect(dependencies.remote.registerRequests).toStrictEqual([]);
+  });
+
   it('restores a valid persisted session without refreshing it', async () => {
     const dependencies = createAuthDependencies({
       initialStoredSession: activeSession,
