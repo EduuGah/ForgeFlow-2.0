@@ -12,8 +12,8 @@ export const colors = {
   successText: '#146C45',
   text: '#161917',
   textMuted: '#56615C',
-  textSubtle: '#7A817D',
-  warning: '#B46B2A',
+  textSubtle: '#626B67',
+  warning: '#8A4B16',
 } as const;
 
 export const spacing = {

@@ -537,6 +537,9 @@ export function WorkoutsScreen() {
       action={
         viewMode !== 'history' ? (
           <Pressable
+            accessibilityLabel={
+              viewMode === 'workouts' ? 'Criar treino' : 'Criar exercicio'
+            }
             accessibilityRole="button"
             onPress={
               viewMode === 'workouts'
@@ -558,7 +561,7 @@ export function WorkoutsScreen() {
             : 'Biblioteca de exercicios'
       }
     >
-      <View style={styles.segmentedControl}>
+      <View accessibilityRole="tablist" style={styles.segmentedControl}>
         <SegmentButton
           isActive={viewMode === 'workouts'}
           label="Treinos"
@@ -592,12 +595,14 @@ export function WorkoutsScreen() {
             {activeWorkout.status === 'loading' ? (
               <EmptyState
                 body="Carregando a sessao ativa local."
+                kind="loading"
                 title="Buscando treino"
               />
             ) : null}
             {activeWorkout.status === 'error' ? (
               <EmptyState
                 body="Nao foi possivel carregar a sessao ativa."
+                kind="error"
                 title="Erro ao carregar"
               />
             ) : null}
@@ -624,6 +629,9 @@ export function WorkoutsScreen() {
                   </View>
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityState={{
+                      disabled: isCompleting || isLoggingSet,
+                    }}
                     disabled={isCompleting || isLoggingSet}
                     onPress={handleAbandonActiveWorkout}
                     style={styles.dangerButton}
@@ -634,6 +642,10 @@ export function WorkoutsScreen() {
                 </View>
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityState={{
+                    busy: isCompleting,
+                    disabled: isCompleting || isLoggingSet,
+                  }}
                   disabled={isCompleting || isLoggingSet}
                   onPress={handleCompleteWorkout}
                   style={[
@@ -647,11 +659,18 @@ export function WorkoutsScreen() {
                   </Text>
                 </Pressable>
                 {completionError ? (
-                  <Text accessibilityRole="alert" style={styles.errorText}>
+                  <Text
+                    accessibilityLiveRegion="assertive"
+                    accessibilityRole="alert"
+                    style={styles.errorText}
+                  >
                     {completionError}
                   </Text>
                 ) : null}
-                <View style={styles.activeExerciseList}>
+                <View
+                  accessibilityRole="radiogroup"
+                  style={styles.activeExerciseList}
+                >
                   {activeWorkout.value.exercises.map((exercise) => (
                     <ActiveWorkoutExerciseBlock
                       exercise={exercise}
@@ -678,7 +697,11 @@ export function WorkoutsScreen() {
                       </Text>
                     ) : null}
                     {restTimer ? (
-                      <View style={styles.restTimerPanel}>
+                      <View
+                        accessibilityLiveRegion="polite"
+                        accessibilityRole="timer"
+                        style={styles.restTimerPanel}
+                      >
                         <Timer color={colors.accent} size={22} />
                         <View style={styles.restTimerBody}>
                           <Text style={styles.timerValue}>
@@ -718,6 +741,7 @@ export function WorkoutsScreen() {
                             </Pressable>
                           ) : null}
                           <Pressable
+                            accessibilityLabel="Adicionar 15 segundos ao descanso"
                             accessibilityRole="button"
                             onPress={async () =>
                               setRestTimer(
@@ -729,6 +753,7 @@ export function WorkoutsScreen() {
                             <Text style={styles.secondaryButtonText}>+15s</Text>
                           </Pressable>
                           <Pressable
+                            accessibilityLabel="Pular descanso"
                             accessibilityRole="button"
                             onPress={async () =>
                               setRestTimer(await services.restTimer.cancel())
@@ -780,10 +805,20 @@ export function WorkoutsScreen() {
                       value={setNotes}
                     />
                     {setFormError ? (
-                      <Text style={styles.errorText}>{setFormError}</Text>
+                      <Text
+                        accessibilityLiveRegion="assertive"
+                        accessibilityRole="alert"
+                        style={styles.errorText}
+                      >
+                        {setFormError}
+                      </Text>
                     ) : null}
                     <Pressable
                       accessibilityRole="button"
+                      accessibilityState={{
+                        busy: isLoggingSet,
+                        disabled: isLoggingSet || isCompleting,
+                      }}
                       disabled={isLoggingSet || isCompleting}
                       onPress={handleLogSet}
                       style={[
@@ -803,6 +838,7 @@ export function WorkoutsScreen() {
           <Section title="Editor">
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ expanded: isWorkoutFormOpen }}
               onPress={openCreateWorkoutForm}
               style={styles.primaryButton}
             >
@@ -811,7 +847,9 @@ export function WorkoutsScreen() {
               </Text>
             </Pressable>
             <Pressable
-              accessibilityRole="button"
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: includeArchived }}
+              aria-checked={includeArchived}
               onPress={() => setIncludeArchived((value) => !value)}
               style={[
                 styles.favoriteFilter,
@@ -893,7 +931,9 @@ export function WorkoutsScreen() {
 
                         return (
                           <Pressable
-                            accessibilityRole="button"
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: isSelected }}
+                            aria-checked={isSelected}
                             key={exercise.id}
                             onPress={() =>
                               handleToggleWorkoutExercise(exercise.id)
@@ -917,7 +957,13 @@ export function WorkoutsScreen() {
                     : null}
                 </View>
                 {workoutFormError ? (
-                  <Text style={styles.errorText}>{workoutFormError}</Text>
+                  <Text
+                    accessibilityLiveRegion="assertive"
+                    accessibilityRole="alert"
+                    style={styles.errorText}
+                  >
+                    {workoutFormError}
+                  </Text>
                 ) : null}
                 <Pressable
                   accessibilityRole="button"
@@ -934,12 +980,14 @@ export function WorkoutsScreen() {
             {workouts.status === 'loading' ? (
               <EmptyState
                 body="Carregando templates locais."
+                kind="loading"
                 title="Buscando treinos"
               />
             ) : null}
             {workouts.status === 'error' ? (
               <EmptyState
                 body="Nao foi possivel carregar os treinos locais."
+                kind="error"
                 title="Erro ao carregar"
               />
             ) : null}
@@ -993,7 +1041,9 @@ export function WorkoutsScreen() {
               selectedValue={selectedEquipment}
             />
             <Pressable
-              accessibilityRole="button"
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: favoritesOnly }}
+              aria-checked={favoritesOnly}
               onPress={() => setFavoritesOnly((value) => !value)}
               style={[
                 styles.favoriteFilter,
@@ -1063,7 +1113,13 @@ export function WorkoutsScreen() {
                   value={createDescription}
                 />
                 {exerciseFormError ? (
-                  <Text style={styles.errorText}>{exerciseFormError}</Text>
+                  <Text
+                    accessibilityLiveRegion="assertive"
+                    accessibilityRole="alert"
+                    style={styles.errorText}
+                  >
+                    {exerciseFormError}
+                  </Text>
                 ) : null}
                 <Pressable
                   accessibilityRole="button"
@@ -1080,12 +1136,14 @@ export function WorkoutsScreen() {
             {library.status === 'loading' ? (
               <EmptyState
                 body="Carregando o catalogo local de exercicios."
+                kind="loading"
                 title="Buscando biblioteca"
               />
             ) : null}
             {library.status === 'error' ? (
               <EmptyState
                 body="Nao foi possivel carregar a biblioteca local."
+                kind="error"
                 title="Erro ao carregar"
               />
             ) : null}
@@ -1121,7 +1179,9 @@ type SegmentButtonProps = {
 function SegmentButton({ isActive, label, onPress }: SegmentButtonProps) {
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole="tab"
+      accessibilityState={{ selected: isActive }}
+      aria-selected={isActive}
       onPress={onPress}
       style={[styles.segmentButton, isActive && styles.activeSegmentButton]}
     >
@@ -1176,9 +1236,11 @@ function FilterRow({
   return (
     <View style={styles.filterBlock}>
       <Text style={styles.filterLabel}>{label}</Text>
-      <View style={styles.chipRow}>
+      <View accessibilityRole="radiogroup" style={styles.chipRow}>
         <Pressable
-          accessibilityRole="button"
+          accessibilityRole="radio"
+          accessibilityState={{ checked: selectedValue === null }}
+          aria-checked={selectedValue === null}
           onPress={() => onSelect(null)}
           style={[styles.chip, selectedValue === null && styles.activeChip]}
         >
@@ -1196,7 +1258,9 @@ function FilterRow({
 
           return (
             <Pressable
-              accessibilityRole="button"
+              accessibilityRole="radio"
+              accessibilityState={{ checked: isActive }}
+              aria-checked={isActive}
               key={option}
               onPress={() => onSelect(isActive ? null : option)}
               style={[styles.chip, isActive && styles.activeChip]}
@@ -1307,7 +1371,10 @@ function ActiveWorkoutExerciseBlock({
 }: ActiveWorkoutExerciseBlockProps) {
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityLabel={`Selecionar ${exercise.exerciseName}`}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: isSelected }}
+      aria-checked={isSelected}
       onPress={onSelect}
       style={[
         styles.activeExerciseBlock,
@@ -1378,7 +1445,18 @@ function ExerciseRow({
         ) : null}
       </View>
       <Pressable
-        accessibilityRole="button"
+        accessibilityLabel={
+          exercise.isFavorite
+            ? `Remover ${exercise.name} dos favoritos`
+            : `Adicionar ${exercise.name} aos favoritos`
+        }
+        accessibilityRole="checkbox"
+        accessibilityState={{
+          busy: isPending,
+          checked: exercise.isFavorite,
+          disabled: isPending,
+        }}
+        aria-checked={exercise.isFavorite}
         disabled={isPending}
         onPress={() => onToggleFavorite(exercise.id)}
         style={styles.favoriteButton}
@@ -1411,6 +1489,7 @@ function IconAction({
     <Pressable
       accessibilityLabel={label}
       accessibilityRole="button"
+      accessibilityState={{ disabled: isDisabled }}
       disabled={isDisabled}
       onPress={onPress}
       style={[styles.favoriteButton, isDisabled && styles.disabledButton]}
@@ -1537,6 +1616,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.full,
     borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 44,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
@@ -1558,6 +1639,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.xs,
+    minHeight: 44,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
@@ -1572,6 +1654,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     flexDirection: 'row',
     gap: spacing.xs,
+    minHeight: 44,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
@@ -1625,9 +1708,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.full,
     borderWidth: 1,
-    height: 40,
+    height: 44,
     justifyContent: 'center',
-    width: 40,
+    width: 44,
   },
   favoriteFilter: {
     alignItems: 'center',
@@ -1637,6 +1720,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.xs,
+    minHeight: 44,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
@@ -1692,6 +1776,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 44,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
@@ -1702,6 +1788,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.xs,
     justifyContent: 'center',
+    minHeight: 44,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
@@ -1746,13 +1833,14 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.text,
     flex: 1,
-    minHeight: 42,
+    minHeight: 44,
     padding: 0,
   },
   segmentButton: {
     alignItems: 'center',
     borderRadius: radius.md,
     flex: 1,
+    minHeight: 44,
     paddingVertical: spacing.sm,
   },
   segmentButtonText: {
@@ -1800,6 +1888,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.full,
     borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 44,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
@@ -1829,9 +1919,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.full,
     borderWidth: 1,
-    height: 34,
+    height: 44,
     justifyContent: 'center',
-    width: 34,
+    width: 44,
   },
   timerValue: {
     ...typography.subtitle,

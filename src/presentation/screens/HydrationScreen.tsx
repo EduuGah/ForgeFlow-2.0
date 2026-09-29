@@ -204,6 +204,12 @@ export function HydrationScreen() {
           <>
             <View
               accessibilityLabel={`${Math.round((summary.progress ?? 0) * 100)} por cento da meta`}
+              accessibilityRole="progressbar"
+              accessibilityValue={{
+                max: 100,
+                min: 0,
+                now: Math.round((summary.progress ?? 0) * 100),
+              }}
               style={styles.progressTrack}
             >
               <View
@@ -233,6 +239,7 @@ export function HydrationScreen() {
             />
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ busy: saving, disabled: saving }}
               disabled={saving}
               onPress={saveGoal}
               style={styles.primaryButton}
@@ -242,6 +249,7 @@ export function HydrationScreen() {
             {summary.goal ? (
               <Pressable
                 accessibilityRole="button"
+                accessibilityState={{ busy: saving, disabled: saving }}
                 disabled={saving}
                 onPress={removeGoal}
                 style={styles.removeGoalButton}
@@ -259,6 +267,7 @@ export function HydrationScreen() {
             <Pressable
               accessibilityLabel={`Adicionar ${value} mililitros`}
               accessibilityRole="button"
+              accessibilityState={{ busy: saving, disabled: saving }}
               disabled={saving}
               key={value}
               onPress={() => addWater(value)}
@@ -281,6 +290,7 @@ export function HydrationScreen() {
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Quantidade (ml)</Text>
             <TextInput
+              accessibilityLabel="Quantidade de agua em mililitros"
               keyboardType="number-pad"
               onChangeText={setAmount}
               placeholder="Ex.: 300"
@@ -292,6 +302,7 @@ export function HydrationScreen() {
           <View style={styles.timeField}>
             <Text style={styles.fieldLabel}>Horario</Text>
             <TextInput
+              accessibilityLabel="Horario do registro"
               onChangeText={setTime}
               placeholder="HH:MM"
               placeholderTextColor={colors.textSubtle}
@@ -302,6 +313,7 @@ export function HydrationScreen() {
           <Pressable
             accessibilityLabel="Adicionar quantidade personalizada"
             accessibilityRole="button"
+            accessibilityState={{ busy: saving, disabled: saving }}
             disabled={saving}
             onPress={saveCustomAmount}
             style={[styles.addButton, saving && styles.disabled]}
@@ -309,19 +321,29 @@ export function HydrationScreen() {
             <Plus color={colors.surface} size={22} />
           </Pressable>
         </View>
-        {message ? <Text style={styles.error}>{message}</Text> : null}
+        {message ? (
+          <Text
+            accessibilityLiveRegion="assertive"
+            accessibilityRole="alert"
+            style={styles.error}
+          >
+            {message}
+          </Text>
+        ) : null}
       </Section>
 
       <Section title="Historico do dia">
         {state.status === 'loading' ? (
           <EmptyState
             body="Carregando registros locais..."
+            kind="loading"
             title="Atualizando"
           />
         ) : null}
         {state.status === 'error' ? (
           <EmptyState
             body="Seus dados permanecem no aparelho. Tente abrir a tela novamente."
+            kind="error"
             title="Falha ao carregar"
           />
         ) : null}
@@ -481,7 +503,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.xs,
-    minHeight: 40,
+    minHeight: 44,
     paddingHorizontal: spacing.sm,
   },
   goalActionText: {
@@ -523,9 +545,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
-    height: 42,
+    height: 44,
     justifyContent: 'center',
-    width: 42,
+    width: 44,
   },
   input: {
     ...typography.body,
@@ -584,7 +606,7 @@ const styles = StyleSheet.create({
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   quickUnit: { ...typography.caption, color: colors.textMuted },
   quickValue: { color: colors.text, fontSize: 18, fontWeight: '900' },
-  removeGoalButton: { minHeight: 40, padding: spacing.sm },
+  removeGoalButton: { minHeight: 44, padding: spacing.sm },
   removeGoalText: {
     ...typography.caption,
     color: colors.danger,

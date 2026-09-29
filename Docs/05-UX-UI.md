@@ -48,11 +48,17 @@ Avoid motion that slows repetitive logging.
 ## Accessibility
 
 - readable type
-- sufficient contrast
-- touch targets appropriate for mobile
+- normal text meets WCAG AA contrast of at least 4.5:1
+- primary interactive touch targets are at least 44 x 44 points
 - support dynamic text where practical
 - never communicate state by color alone
 - clear validation messages
+- icon-only actions have explicit accessible names
+- loading, error and asynchronous feedback are announced
+- tabs, radio groups, progress bars and selected states expose semantics
+
+The implementation audit and release-device checklist live in
+`Docs/23-Accessibility-Audit.md`.
 
 ## Data visualization
 

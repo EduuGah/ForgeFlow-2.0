@@ -72,3 +72,11 @@ FF-030 verifies stable 20-item history pages without overlap, SQLite index use
 through `EXPLAIN QUERY PLAN`, 100-operation default sync batches, date-bounded
 analytics repository calls and skipped catalog writes on unchanged startup.
 Device frame rate, heap and cold-start measurements remain release-build checks.
+
+## Accessibility regression coverage
+
+FF-031 tests shared heading, loading and error semantics and checks the normal
+text palette against the WCAG AA 4.5:1 contrast threshold. Code review also
+requires explicit roles for pressable controls and accessible names for text
+inputs. TalkBack traversal, large-font layout and Android switch-access behavior
+remain release-device checks because they depend on platform services.

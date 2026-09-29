@@ -247,13 +247,14 @@ export function NutritionScreen() {
       {editorOpen ? (
         <Section title="Nova refeicao">
           <View style={styles.editor}>
-            <View style={styles.typeGrid}>
+            <View accessibilityRole="radiogroup" style={styles.typeGrid}>
               {mealTypes.map((type) => {
                 const selected = form.mealType === type.value;
                 return (
                   <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected }}
+                    aria-checked={selected}
                     key={type.value}
                     onPress={() =>
                       setForm((current) => ({
@@ -339,6 +340,7 @@ export function NutritionScreen() {
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Observacao</Text>
               <TextInput
+                accessibilityLabel="Observacao da refeicao"
                 multiline
                 onChangeText={(notes) =>
                   setForm((current) => ({ ...current, notes }))
@@ -349,9 +351,18 @@ export function NutritionScreen() {
                 value={form.notes}
               />
             </View>
-            {message ? <Text style={styles.error}>{message}</Text> : null}
+            {message ? (
+              <Text
+                accessibilityLiveRegion="assertive"
+                accessibilityRole="alert"
+                style={styles.error}
+              >
+                {message}
+              </Text>
+            ) : null}
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ busy: saving, disabled: saving }}
               disabled={saving}
               onPress={submit}
               style={[styles.saveButton, saving && styles.disabled]}
@@ -366,17 +377,21 @@ export function NutritionScreen() {
 
       <Section title="Refeicoes">
         {photoMessage ? (
-          <Text style={styles.photoMessage}>{photoMessage}</Text>
+          <Text accessibilityLiveRegion="polite" style={styles.photoMessage}>
+            {photoMessage}
+          </Text>
         ) : null}
         {state.status === 'loading' ? (
           <EmptyState
             body="Carregando registros locais..."
+            kind="loading"
             title="Atualizando"
           />
         ) : null}
         {state.status === 'error' ? (
           <EmptyState
             body="Seus dados permanecem no aparelho. Tente abrir a tela novamente."
+            kind="error"
             title="Falha ao carregar"
           />
         ) : null}
@@ -446,6 +461,7 @@ function Field({
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
+        accessibilityLabel={label}
         keyboardType={keyboardType}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -507,6 +523,7 @@ function MealCard({
         {media ? (
           <View style={styles.uploadStatusRow}>
             <Text
+              accessibilityLiveRegion="polite"
               style={[
                 styles.uploadStatus,
                 media.uploadStatus === 'failed' && styles.uploadStatusFailed,
@@ -518,6 +535,7 @@ function MealCard({
               <Pressable
                 accessibilityLabel="Tentar upload novamente"
                 accessibilityRole="button"
+                accessibilityState={{ busy: attaching, disabled: attaching }}
                 disabled={attaching}
                 onPress={onRetry}
                 style={styles.photoButton}
@@ -531,6 +549,7 @@ function MealCard({
           <>
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ busy: attaching, disabled: attaching }}
               disabled={attaching}
               onPress={() => onAttach('camera')}
               style={styles.photoButton}
@@ -540,6 +559,7 @@ function MealCard({
             </Pressable>
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ busy: attaching, disabled: attaching }}
               disabled={attaching}
               onPress={() => onAttach('library')}
               style={styles.photoButton}
@@ -720,9 +740,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
-    height: 42,
+    height: 44,
     justifyContent: 'center',
-    width: 42,
+    width: 44,
   },
   iconButtonPrimary: {
     backgroundColor: colors.accent,
@@ -779,7 +799,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.xs,
-    minHeight: 38,
+    minHeight: 44,
     paddingHorizontal: spacing.sm,
   },
   photoButtonText: {
@@ -833,6 +853,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 44,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
   },

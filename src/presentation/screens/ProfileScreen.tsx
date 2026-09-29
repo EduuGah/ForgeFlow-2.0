@@ -108,7 +108,13 @@ export function ProfileScreen() {
         </View>
       </Section>
       <Section title="Sessao">
-        {session ? (
+        {authState.status === 'loading' ? (
+          <EmptyState
+            body="Restaurando a sessao salva neste aparelho."
+            kind="loading"
+            title="Carregando sessao"
+          />
+        ) : session ? (
           <View style={styles.panel}>
             <Text style={styles.panelTitle}>{session.user.displayName}</Text>
             <Text style={styles.panelBody}>{session.user.email}</Text>
@@ -130,29 +136,37 @@ export function ProfileScreen() {
           />
         )}
         {authState.status === 'ready' && authState.message ? (
-          <Text style={styles.message}>{authState.message}</Text>
+          <Text accessibilityLiveRegion="polite" style={styles.message}>
+            {authState.message}
+          </Text>
         ) : null}
       </Section>
       <Section title="Autenticacao">
         <View style={styles.form}>
           <TextInput
+            accessibilityLabel="Nome"
             autoCapitalize="words"
             onChangeText={setDisplayName}
             placeholder="Nome"
+            placeholderTextColor={colors.textSubtle}
             style={styles.input}
             value={displayName}
           />
           <TextInput
+            accessibilityLabel="Email"
             autoCapitalize="none"
             keyboardType="email-address"
             onChangeText={setEmail}
             placeholder="Email"
+            placeholderTextColor={colors.textSubtle}
             style={styles.input}
             value={email}
           />
           <TextInput
+            accessibilityLabel="Senha"
             onChangeText={setPassword}
             placeholder="Senha"
+            placeholderTextColor={colors.textSubtle}
             secureTextEntry
             style={styles.input}
             value={password}
@@ -188,6 +202,9 @@ function AchievementItem({ item }: { item: AchievementCatalogItem }) {
 
   return (
     <View
+      accessibilityLabel={`${item.definition.title}. ${item.definition.description}. ${unlocked ? 'Desbloqueada' : 'Bloqueada'}`}
+      accessibilityRole="summary"
+      accessible
       style={[
         styles.achievementItem,
         unlocked && styles.achievementItemUnlocked,
