@@ -3,6 +3,7 @@
     "name": "ForgeFlow",
     "slug": "forgeflow-2",
     "version": "1.0.0",
+    "description": "Treinos, progresso, metas e nutricao em um fluxo local-first.",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "forgeflow",
@@ -18,14 +19,38 @@
         }
       ],
       "expo-sqlite",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F7F7F2",
+          "dark": {
+            "backgroundColor": "#161917"
+          },
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": false
+          }
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.forgeflow.app"
     },
     "android": {
+      "allowBackup": false,
+      "blockedPermissions": ["android.permission.SYSTEM_ALERT_WINDOW"],
+      "icon": "./assets/icon.png",
       "package": "com.forgeflow.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -39,7 +64,7 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "projectPhase": "FF-001"
+      "projectPhase": "FF-033"
     }
   }
 }
