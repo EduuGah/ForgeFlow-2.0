@@ -4,6 +4,7 @@ import { type PropsWithChildren, useMemo } from 'react';
 import { initializeLocalDatabase } from '../data/database/initializeLocalDatabase';
 import { createExpoSQLiteConnection } from '../data/database/expoSQLiteConnection';
 import { createSQLiteRepositories } from '../data/repositories/sqliteRepositories';
+import { ExpoSecureSessionStorage } from '../data/auth/expoSecureSessionStorage';
 import { AppServicesProvider } from './AppServicesProvider';
 import { createAppServices } from './createAppServices';
 
@@ -24,6 +25,7 @@ function SQLiteServices({ children }: PropsWithChildren) {
     () =>
       createAppServices(
         createSQLiteRepositories(createExpoSQLiteConnection(database)),
+        { authStorage: new ExpoSecureSessionStorage() },
       ),
     [database],
   );

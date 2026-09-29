@@ -88,25 +88,31 @@ export async function logout(dependencies: AuthDependencies) {
 }
 
 function validateDisplayName(value: string) {
-  if (value.trim().length < 2) {
+  const displayName = value.trim();
+  if (displayName.length < 2 || displayName.length > 80) {
     throw new AuthenticationInputError(
       'displayName',
-      'Display name must have at least 2 characters.',
+      'Display name must have between 2 and 80 characters.',
     );
   }
 }
 
 function validateEmail(value: string) {
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
+  const email = value.trim();
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new AuthenticationInputError('email', 'Enter a valid email address.');
   }
 }
 
 function validatePassword(value: string) {
-  if (value.length < 8) {
+  if (
+    value.length < 8 ||
+    value.length > 128 ||
+    /[\u0000-\u001f\u007f]/.test(value)
+  ) {
     throw new AuthenticationInputError(
       'password',
-      'Password must have at least 8 characters.',
+      'Password must have between 8 and 128 characters and no control characters.',
     );
   }
 }

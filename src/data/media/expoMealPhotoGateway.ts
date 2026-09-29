@@ -6,6 +6,7 @@ import type {
   LocalMediaAsset,
   MealPhotoCaptureGateway,
 } from '../../application/ports/media';
+import { validateLocalImage } from '../../domain/media/validation';
 
 export class ExpoMealPhotoGateway implements MealPhotoCaptureGateway {
   async capture(input: Parameters<MealPhotoCaptureGateway['capture']>[0]) {
@@ -21,25 +22,31 @@ export class ExpoMealPhotoGateway implements MealPhotoCaptureGateway {
     if (result.canceled || !result.assets[0]) return null;
 
     const asset = result.assets[0];
-    const mimeType =
+    const inferredMimeType =
       asset.mimeType ?? inferMimeType(asset.fileName ?? asset.uri);
+    const validated = validateLocalImage({
+      mimeType: inferredMimeType,
+      sizeBytes: asset.fileSize ?? null,
+    });
     if (Platform.OS === 'web') {
       return {
         localUri: asset.uri,
-        mimeType,
+        mimeType: validated.mimeType,
         sizeBytes: asset.fileSize ?? null,
       } satisfies LocalMediaAsset;
     }
 
     const directory = new Directory(Paths.document, 'meal-photos');
     directory.create({ idempotent: true, intermediates: true });
-    const extension = fileExtension(asset.fileName ?? asset.uri, mimeType);
-    const destination = new File(directory, `${input.mediaId}.${extension}`);
+    const destination = new File(
+      directory,
+      `${input.mediaId}.${validated.extension}`,
+    );
     await new File(asset.uri).copy(destination, { overwrite: true });
 
     return {
       localUri: destination.uri,
-      mimeType,
+      mimeType: validated.mimeType,
       sizeBytes: asset.fileSize ?? destination.size ?? null,
     } satisfies LocalMediaAsset;
   }
@@ -59,13 +66,4 @@ function inferMimeType(value: string) {
   if (extension === 'webp') return 'image/webp';
   if (extension === 'heic' || extension === 'heif') return 'image/heic';
   return 'image/jpeg';
-}
-
-function fileExtension(value: string, mimeType: string) {
-  const extension = value.split('?')[0].split('.').pop()?.toLowerCase();
-  if (extension && /^[a-z0-9]{2,5}$/.test(extension)) return extension;
-  if (mimeType === 'image/png') return 'png';
-  if (mimeType === 'image/webp') return 'webp';
-  if (mimeType === 'image/heic') return 'heic';
-  return 'jpg';
 }

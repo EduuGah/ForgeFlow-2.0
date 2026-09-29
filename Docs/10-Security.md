@@ -9,8 +9,9 @@ Use platform secure storage for credentials/session secrets.
 FF-008 introduces authentication behind application ports:
 - `AuthRemoteGateway` owns register, login, refresh and logout calls.
 - `SecureSessionStorage` is the only application contract allowed to persist session secrets.
-- The preview implementation is in-memory only and does not use AsyncStorage.
-- A production adapter must back `SecureSessionStorage` with platform secure storage before release builds.
+- The web preview implementation is in-memory only and does not use AsyncStorage.
+- Native builds back `SecureSessionStorage` with Expo SecureStore and discard
+  malformed persisted sessions.
 
 ## Authorization
 
@@ -39,6 +40,10 @@ app-owned storage on native clients, and database rows contain references and
 minimal metadata rather than image contents. Production uploads must use an
 authenticated, access-controlled object-storage adapter.
 
+FF-032 additionally permits only JPEG, PNG, WebP, HEIC and HEIF selections up to
+10 MB before creating an app-owned copy. The server must still verify uploaded
+content independently.
+
 ## Privacy
 
 Provide:
@@ -60,6 +65,9 @@ Never log:
 - refresh tokens
 - private photo URLs when avoidable
 - sensitive user payloads
+
+Sync and upload diagnostics are redacted and length-bounded before persistence.
+See `24-Security-Audit.md` for the audit result and residual release risks.
 
 ## Mobile security
 

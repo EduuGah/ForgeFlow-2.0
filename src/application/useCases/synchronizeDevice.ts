@@ -12,6 +12,7 @@ import type {
   SyncRequestOperation,
   SyncTransactionRunner,
 } from '../ports/sync';
+import { sanitizeDiagnosticMessage } from '../../domain/security/redaction';
 
 export const defaultSyncScope = 'default';
 export const defaultSyncStateKey = 'main';
@@ -171,5 +172,7 @@ async function handleConflict(
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Unknown sync error';
+  return error instanceof Error
+    ? sanitizeDiagnosticMessage(error)
+    : 'Unknown sync error';
 }

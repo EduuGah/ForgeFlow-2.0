@@ -46,7 +46,7 @@ export class InMemoryAuthRemoteGateway implements AuthRemoteGateway {
     const user: AuthUser = {
       displayName: request.displayName,
       email: request.email,
-      id: `preview-${request.email}`,
+      id: `preview-${createOpaqueValue()}`,
     };
 
     this.accountsByEmail.set(request.email, {
@@ -60,9 +60,15 @@ export class InMemoryAuthRemoteGateway implements AuthRemoteGateway {
 
 function buildSession(user: AuthUser): AuthSession {
   return {
-    accessToken: `preview-access-${user.id}`,
+    accessToken: `preview-access-${createOpaqueValue()}`,
     expiresAt: '2999-01-01T00:00:00.000Z',
-    refreshToken: `preview-refresh-${user.id}`,
+    refreshToken: `preview-refresh-${createOpaqueValue()}`,
     user,
   };
+}
+
+function createOpaqueValue() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }

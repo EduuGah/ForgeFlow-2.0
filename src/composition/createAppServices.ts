@@ -98,10 +98,18 @@ import { createInMemoryRepositories } from '../data/repositories/inMemoryReposit
 import { systemExercises } from '../data/seeds/systemExercises';
 import { LOCAL_PREVIEW_USER_ID } from '../config/localPreview';
 import type { RepositoryProvider } from '../application/ports/repositories';
+import type { SecureSessionStorage } from '../application/ports/auth';
 
-export function createAppServices(repositoryProvider?: RepositoryProvider) {
+type AppServiceOptions = {
+  authStorage?: SecureSessionStorage;
+};
+
+export function createAppServices(
+  repositoryProvider?: RepositoryProvider,
+  options: AppServiceOptions = {},
+) {
   const authRemote = new InMemoryAuthRemoteGateway();
-  const authStorage = new MemorySecureSessionStorage();
+  const authStorage = options.authStorage ?? new MemorySecureSessionStorage();
   const repositories =
     repositoryProvider ??
     createInMemoryRepositories({

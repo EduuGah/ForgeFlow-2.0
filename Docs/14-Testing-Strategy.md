@@ -80,3 +80,11 @@ text palette against the WCAG AA 4.5:1 contrast threshold. Code review also
 requires explicit roles for pressable controls and accessible names for text
 inputs. TalkBack traversal, large-font layout and Android switch-access behavior
 remain release-device checks because they depend on platform services.
+
+## Security regression coverage
+
+FF-032 tests persisted session shape validation, authentication field bounds,
+production HTTPS configuration, image MIME/size allowlists and diagnostic secret
+redaction. Ownership policy tests continue to cover cross-user and global-record
+mutation rejection. Signed-bundle inspection, device secure-storage behavior and
+deployed API abuse tests remain FF-033 release checks.
