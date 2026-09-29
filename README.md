@@ -113,6 +113,15 @@ transitive Expo/React Navigation findings and production-backend, SQLite
 encryption and signed-device checks are documented in
 `Docs/24-Security-Audit.md` as FF-033 release gates.
 
+### Android release (FF-033)
+
+EAS Build profiles now produce an internally distributed APK for device testing
+and an auto-versioned AAB for Google Play. Android backups and release cleartext
+traffic are disabled, the icon and splash screen are explicitly configured and
+release validation requires an HTTPS API URL supplied by the EAS production
+environment. Account linking, managed signing and the device checklist are
+documented in `Docs/25-Android-Release.md`.
+
 ### Rest timer (FF-014)
 
 Saving a set with a positive rest duration starts a shared deadline-based timer.
