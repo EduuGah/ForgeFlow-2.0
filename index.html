@@ -1,16 +1,56 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
+<!doctype html>
+<html lang="pt-BR" style="background: #000">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/assets/favicon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ForgeFlow 2.0</title>
-    <meta name="description" content="Comprehensive fitness tracking, workout execution, hydration, nutrition, and personal record tracking application." />
-    <meta property="og:title" content="ForgeFlow 2.0" />
-    <meta property="og:description" content="Comprehensive fitness tracking, workout execution, hydration, nutrition, and personal record tracking application." />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <title>ForgeFlow</title>
+    <meta
+      name="description"
+      content="Registre treinos de força, acompanhe recordes pessoais, metas, hidratação e nutrição."
+    />
+    <meta property="og:title" content="ForgeFlow" />
+    <meta
+      property="og:description"
+      content="Registre treinos de força, acompanhe recordes pessoais, metas, hidratação e nutrição."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&display=swap"
+    />
+    <style>
+      /* Static splash painted before the bundle loads; React replaces it. */
+      .ff-boot {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: #000;
+      }
+      .ff-boot svg {
+        width: 56px;
+        height: 56px;
+      }
+    </style>
   </head>
-  <body class="bg-[#F7F7F2] text-[#161917] antialiased">
-    <div id="root"></div>
+  <body>
+    <div id="root">
+      <div class="ff-boot" aria-hidden="true">
+        <svg viewBox="0 0 64 64" fill="none">
+          <rect width="64" height="64" rx="16" fill="#0A6CF0" />
+          <path d="M20 16h26v8H29v7h14v8H29v11h-9V16Z" fill="#fff" />
+        </svg>
+      </div>
+    </div>
     <script type="module" src="/web/main.tsx"></script>
   </body>
 </html>

@@ -1,229 +1,265 @@
-import React, { useState } from 'react';
-import { Droplets, Trash2, Clock, CheckCircle2, Settings } from 'lucide-react';
-import { useAppStore } from '../store';
+import { useMemo, useState } from 'react';
+import { CheckCircle2, Droplet, Plus, Settings2, Trash2 } from 'lucide-react';
+import { actions, useAppStore } from '../store';
+import { addDays, startOfDay } from '../lib/dates';
+import { formatNumber, formatTime } from '../lib/format';
+import { goalPercent, hydrationDate, itemsOnDay } from '../lib/training';
+import type { HydrationLog } from '../lib/types';
+import { haptic } from '../lib/haptics';
+import { useNavigation } from '../navigation/Navigator';
+import { Button, IconButton } from '../ui/Button';
+import { BarChart } from '../ui/Charts';
+import { EmptyState, ProgressRing } from '../ui/Feedback';
+import { NumericInput } from '../ui/Form';
+import { Card, SectionHeader, StackHeader } from '../ui/Layout';
+import { useToast } from '../ui/Overlay';
+import { HydrationTargetSheet } from './SettingsScreen';
+
+const QUICK = [
+  { label: 'Copo', amount: 250, size: 18 },
+  { label: 'Caneca', amount: 350, size: 20 },
+  { label: 'Garrafa', amount: 500, size: 22 },
+  { label: 'Garrafa G', amount: 750, size: 26 },
+];
+
+function liters(ml: number) {
+  return `${formatNumber(ml / 1000, 2)} L`;
+}
 
 export function HydrationScreen() {
-  const store = useAppStore();
-  const { hydrationTargetMl, hydrationLogs } = store;
+  const { hydrationLogs, hydrationTargetMl } = useAppStore();
+  const { pop } = useNavigation();
+  const toast = useToast();
+  const [targetOpen, setTargetOpen] = useState(false);
+  const [custom, setCustom] = useState(300);
 
-  const [customMl, setCustomMl] = useState(300);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [newTarget, setNewTarget] = useState(hydrationTargetMl);
+  const today = useMemo(
+    () => itemsOnDay(hydrationLogs, hydrationDate, new Date()),
+    [hydrationLogs],
+  );
+  const total = today.reduce((sum, log) => sum + log.amountMl, 0);
+  const percent = goalPercent(total, hydrationTargetMl);
+  const remaining = Math.max(0, hydrationTargetMl - total);
+  const week = useMemo(() => {
+    const first = addDays(startOfDay(new Date()), -6);
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = addDays(first, i);
+      return {
+        key: day.toISOString(),
+        label: day
+          .toLocaleDateString('pt-BR', { weekday: 'short' })
+          .replace('.', ''),
+        value: itemsOnDay(hydrationLogs, hydrationDate, day).reduce(
+          (sum, log) => sum + log.amountMl,
+          0,
+        ),
+      };
+    });
+  }, [hydrationLogs]);
 
-  const totalMl = hydrationLogs.reduce((acc, l) => acc + l.amountMl, 0);
-  const progressPercent = Math.min(100, Math.round((totalMl / hydrationTargetMl) * 100));
-  const remainingMl = Math.max(0, hydrationTargetMl - totalMl);
+  const add = (amount: number) => {
+    if (!(amount > 0)) return;
+    const log = actions.addHydration(amount);
+    haptic('tap');
+    const reached =
+      total < hydrationTargetMl && total + amount >= hydrationTargetMl;
+    toast({
+      tone: reached ? 'record' : 'success',
+      title: reached
+        ? 'Meta de água concluída!'
+        : `+${formatNumber(amount, 0)} ml`,
+      action: {
+        label: 'Desfazer',
+        onPress: () => actions.removeHydration(log.id),
+      },
+    });
+  };
 
-  const handleUpdateTarget = (e: React.FormEvent) => {
-    e.preventDefault();
-    store.setHydrationTarget(newTarget);
-    setIsSettingsOpen(false);
+  const remove = (log: HydrationLog) => {
+    const removed = actions.removeHydration(log.id);
+    if (!removed) return;
+    toast({
+      title: `${formatNumber(log.amountMl, 0)} ml removidos`,
+      action: {
+        label: 'Desfazer',
+        onPress: () => actions.restoreHydration(removed),
+      },
+    });
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-[#161917] tracking-tight">
-            Controle de Hidratação
-          </h1>
-          <p className="text-sm text-[#56615C]">
-            Mantenha seu rendimento muscular e saúde geral bebendo água regularmente.
+    <>
+      <StackHeader
+        title="Hidratação"
+        onBack={pop}
+        right={
+          <IconButton
+            icon={Settings2}
+            label="Ajustar meta diária"
+            onClick={() => setTargetOpen(true)}
+          />
+        }
+      />
+      <div className="app-column space-y-6 px-4 pt-6">
+        <div className="flex flex-col items-center text-center">
+          <ProgressRing
+            value={percent}
+            size={196}
+            stroke={14}
+            tone="water"
+            label={`${percent}% da meta de água de hoje`}
+          >
+            <div>
+              <Droplet
+                size={22}
+                className="mx-auto text-water"
+                aria-hidden="true"
+              />
+              <p className="font-metric text-metric-lg mt-1">{liters(total)}</p>
+              <p className="text-footnote text-ink-2">
+                de {liters(hydrationTargetMl)}
+              </p>
+            </div>
+          </ProgressRing>
+          <p className="text-callout mt-4 text-ink-2" aria-live="polite">
+            {remaining > 0 ? (
+              <>
+                Faltam{' '}
+                <span className="font-semibold text-ink">
+                  {formatNumber(remaining, 0)} ml
+                </span>{' '}
+                para a meta de hoje
+              </>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 font-semibold text-success-ink">
+                <CheckCircle2 size={18} aria-hidden="true" /> Meta de hoje
+                concluída
+              </span>
+            )}
           </p>
         </div>
 
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className="bg-white border border-[#D9DED6] hover:bg-gray-50 text-[#161917] px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition self-start sm:self-auto"
-        >
-          <Settings className="w-3.5 h-3.5 text-[#146C5F]" />
-          Ajustar Meta Diária
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Status & Quick Action Card (2 cols) */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-2xl p-6 sm:p-8 border border-[#D9DED6] shadow-xs flex flex-col sm:flex-row items-center justify-between gap-8">
-            <div className="space-y-2 text-center sm:text-left">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-sky-600 bg-sky-50 px-2.5 py-1 rounded-md inline-block">
-                Consumo de Hoje
-              </span>
-              <div className="text-4xl sm:text-5xl font-black text-[#161917]">
-                {totalMl} <span className="text-lg font-bold text-[#56615C]">/ {hydrationTargetMl} ml</span>
-              </div>
-              <p className="text-xs text-[#56615C]">
-                {remainingMl > 0 ? (
-                  <span>
-                    Faltam <span className="font-bold text-sky-700">{remainingMl} ml</span> para bater sua meta diária!
-                  </span>
-                ) : (
-                  <span className="text-[#146C45] font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-4 h-4" /> Parabéns! Meta de hidratação batida hoje!
-                  </span>
-                )}
-              </p>
-            </div>
-
-            {/* Circular or Pill Progress Graphic */}
-            <div className="relative w-36 h-36 flex items-center justify-center shrink-0">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                <path
-                  className="text-gray-100"
-                  strokeWidth="3.5"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
-                <path
-                  className="text-sky-500 transition-all duration-500 ease-out"
-                  strokeDasharray={`${progressPercent}, 100`}
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
-              </svg>
-              <div className="absolute flex flex-col items-center justify-center">
-                <Droplets className="w-6 h-6 text-sky-500 mb-0.5" />
-                <span className="text-xl font-black text-[#161917]">{progressPercent}%</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Add Buttons */}
-          <div className="bg-white rounded-2xl p-6 border border-[#D9DED6] shadow-xs space-y-4">
-            <h3 className="text-sm font-extrabold text-[#161917] uppercase tracking-wider">
-              Registrar Consumo Rápido
-            </h3>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { label: 'Copo', amount: 250, desc: '250 ml' },
-                { label: 'Caneca', amount: 350, desc: '350 ml' },
-                { label: 'Garrafa Peq.', amount: 500, desc: '500 ml' },
-                { label: 'Garrafa Gde.', amount: 750, desc: '750 ml' },
-              ].map((btn) => (
-                <button
-                  key={btn.amount}
-                  onClick={() => store.addHydration(btn.amount)}
-                  className="p-4 rounded-xl border border-[#D9DED6] hover:border-sky-300 hover:bg-sky-50/50 text-center transition group shadow-xs"
-                >
-                  <Droplets className="w-5 h-5 text-sky-500 mx-auto mb-1 group-hover:scale-110 transition" />
-                  <div className="font-bold text-xs text-[#161917]">{btn.label}</div>
-                  <div className="text-[11px] font-extrabold text-sky-600 mt-0.5">+{btn.desc}</div>
-                </button>
-              ))}
-            </div>
-
-            {/* Custom Amount */}
-            <div className="pt-2 border-t border-[#D9DED6]/50 flex items-center gap-3">
-              <span className="text-xs font-bold text-[#56615C] shrink-0">Quantidade Personalizada:</span>
-              <input
-                type="number"
-                step="50"
-                value={customMl}
-                onChange={(e) => setCustomMl(parseInt(e.target.value, 10) || 0)}
-                className="w-24 px-3 py-1.5 rounded-lg border border-[#D9DED6] text-xs font-bold focus:outline-none focus:border-sky-500"
-              />
-              <span className="text-xs text-[#56615C]">ml</span>
+        <section aria-labelledby="water-quick">
+          <SectionHeader title="Registrar" />
+          <h2 id="water-quick" className="sr-only">
+            Registrar consumo
+          </h2>
+          <div className="grid grid-cols-4 gap-2">
+            {QUICK.map((item) => (
               <button
-                onClick={() => {
-                  if (customMl > 0) store.addHydration(customMl);
-                }}
-                className="bg-sky-600 hover:bg-sky-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs"
+                key={item.amount}
+                type="button"
+                onClick={() => add(item.amount)}
+                className="pressable flex flex-col items-center gap-1.5 rounded-lg bg-surface py-3.5 active:bg-raised"
+                aria-label={`Registrar ${item.label}, ${item.amount} ml`}
               >
-                + Adicionar
+                <span className="grid size-10 place-items-center rounded-full bg-water-soft text-water">
+                  <Droplet size={item.size} aria-hidden="true" />
+                </span>
+                <span className="text-callout font-semibold tabular">
+                  {item.amount} ml
+                </span>
+                <span className="text-caption text-ink-2">{item.label}</span>
               </button>
-            </div>
+            ))}
           </div>
-        </div>
+          <form
+            className="mt-3 flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              add(custom);
+            }}
+          >
+            <label className="relative flex-1">
+              <span className="sr-only">Quantidade personalizada em ml</span>
+              <NumericInput
+                value={custom}
+                max={3000}
+                onValueChange={setCustom}
+                className="text-body h-11 w-full rounded-md bg-raised pr-12 pl-3.5 font-semibold tabular outline-none focus:ring-2 focus:ring-brand-ink"
+              />
+              <span className="text-callout pointer-events-none absolute top-1/2 right-3.5 -translate-y-1/2 text-ink-3">
+                ml
+              </span>
+            </label>
+            <Button
+              type="submit"
+              variant="secondary"
+              icon={Plus}
+              disabled={!(custom > 0)}
+            >
+              Adicionar
+            </Button>
+          </form>
+        </section>
 
-        {/* Right Column: Today's Logs History (1 col) */}
-        <div className="bg-white rounded-2xl p-6 border border-[#D9DED6] shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-[#D9DED6]/60 pb-3">
-            <h3 className="font-black text-sm text-[#161917]">Registros de Hoje</h3>
-            <span className="text-xs text-[#56615C] font-semibold">{hydrationLogs.length} registros</span>
-          </div>
-
-          {hydrationLogs.length === 0 ? (
-            <div className="text-center py-8 text-[#56615C] text-xs">
-              Nenhum consumo registrado hoje ainda.
-            </div>
+        <section aria-labelledby="water-today">
+          <SectionHeader title={`Hoje (${today.length})`} />
+          <h2 id="water-today" className="sr-only">
+            Registros de hoje
+          </h2>
+          {today.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon={Droplet}
+                title="Nenhum registro hoje"
+                message="Toque em um dos atalhos acima a cada copo ou garrafa."
+              />
+            </Card>
           ) : (
-            <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
-              {hydrationLogs.map((log) => (
-                <div
-                  key={log.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-[#F7F7F2] border border-[#D9DED6] text-xs"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center font-bold">
-                      💧
-                    </div>
-                    <div>
-                      <div className="font-extrabold text-[#161917]">+{log.amountMl} ml</div>
-                      <div className="text-[10px] text-[#56615C] flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {log.timestamp}
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => store.removeHydration(log.id)}
-                    className="p-1 text-gray-400 hover:text-rose-600 transition"
-                    title="Remover registro"
+            <Card as="div" className="divide-y divide-line">
+              {today.map((log) => {
+                const date = hydrationDate(log);
+                return (
+                  <div
+                    key={log.id}
+                    className="flex animate-fade-in items-center gap-3 py-2 pr-2 pl-4"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
+                    <Droplet
+                      size={18}
+                      className="text-water"
+                      aria-hidden="true"
+                    />
+                    <span className="text-body flex-1 font-medium tabular">
+                      +{formatNumber(log.amountMl, 0)} ml
+                    </span>
+                    <span className="text-footnote text-ink-2 tabular">
+                      {date ? formatTime(date.toISOString()) : log.timestamp}
+                    </span>
+                    <IconButton
+                      icon={Trash2}
+                      label={`Remover ${log.amountMl} ml`}
+                      size="sm"
+                      variant="danger"
+                      onClick={() => remove(log)}
+                    />
+                  </div>
+                );
+              })}
+            </Card>
           )}
-        </div>
+        </section>
+
+        <section aria-labelledby="water-week">
+          <SectionHeader title="Últimos 7 dias" />
+          <h2 id="water-week" className="sr-only">
+            Consumo nos últimos 7 dias
+          </h2>
+          <Card className="p-4">
+            <BarChart
+              data={week}
+              label="Água consumida por dia nos últimos 7 dias"
+              formatValue={liters}
+              formatTick={(value) => `${formatNumber(value / 1000)} L`}
+              emptyMessage="Sem registros na semana"
+            />
+          </Card>
+        </section>
       </div>
-
-      {/* Settings Modal */}
-      {isSettingsOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-[#D9DED6] space-y-4">
-            <h3 className="font-black text-base text-[#161917]">Ajustar Meta Diária de Água</h3>
-            <form onSubmit={handleUpdateTarget} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-[#56615C] uppercase mb-1">
-                  Meta em Mililitros (ml)
-                </label>
-                <input
-                  type="number"
-                  step="100"
-                  min="500"
-                  max="10000"
-                  value={newTarget}
-                  onChange={(e) => setNewTarget(parseInt(e.target.value, 10) || 2000)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#D9DED6] text-sm font-bold focus:outline-none focus:border-sky-500"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsSettingsOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold border border-[#D9DED6] hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-xl text-xs font-bold"
-                >
-                  Salvar
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+      <HydrationTargetSheet
+        open={targetOpen}
+        onClose={() => setTargetOpen(false)}
+      />
+    </>
   );
 }

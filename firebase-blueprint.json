@@ -59,7 +59,10 @@
         "userId": { "type": "string", "maxLength": 128 },
         "exerciseId": { "type": "string", "maxLength": 128 },
         "exerciseName": { "type": "string", "maxLength": 150 },
-        "type": { "type": "string", "enum": ["weight", "volume", "repetitions", "estimated_1rm"] },
+        "type": {
+          "type": "string",
+          "enum": ["weight", "volume", "repetitions", "estimated_1rm"]
+        },
         "value": { "type": "number" },
         "unit": { "type": "string", "maxLength": 20 },
         "date": { "type": "string", "maxLength": 50 },
@@ -74,7 +77,10 @@
       "properties": {
         "userId": { "type": "string", "maxLength": 128 },
         "title": { "type": "string", "maxLength": 120 },
-        "type": { "type": "string", "enum": ["frequency", "weight", "exercise_weight", "custom"] },
+        "type": {
+          "type": "string",
+          "enum": ["frequency", "weight", "exercise_weight", "custom"]
+        },
         "currentValue": { "type": "number" },
         "targetValue": { "type": "number" },
         "unit": { "type": "string", "maxLength": 30 },
@@ -104,7 +110,10 @@
       "properties": {
         "userId": { "type": "string", "maxLength": 128 },
         "name": { "type": "string", "maxLength": 120 },
-        "mealType": { "type": "string", "enum": ["breakfast", "lunch", "dinner", "snack"] },
+        "mealType": {
+          "type": "string",
+          "enum": ["breakfast", "lunch", "dinner", "snack"]
+        },
         "kcal": { "type": "number" },
         "proteinG": { "type": "number" },
         "carbsG": { "type": "number" },

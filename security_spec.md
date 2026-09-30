@@ -1,6 +1,7 @@
 # Security Specification: ForgeFlow 2.0
 
 ## 1. Data Invariants
+
 - Each user owns their private root `/users/{userId}` and all subcollections (`templates`, `history`, `prs`, `goals`, `hydration`, `meals`).
 - Users cannot read, write, update, or delete other users' documents.
 - Unauthenticated requests are rejected.
@@ -8,6 +9,7 @@
 - System-level catchall denies all unintended collection paths.
 
 ## 2. The "Dirty Dozen" Threat Payloads
+
 1. **Unauthenticated User Profile Read**: Anonymous/unauthenticated `GET /users/victim-123` -> PERMISSION_DENIED.
 2. **Cross-User Profile Hijack**: User `attacker-456` attempting `SET /users/victim-123` -> PERMISSION_DENIED.
 3. **Spoofed User ID in Templates**: User `attacker-456` inserting `{ userId: 'victim-123' }` into `/users/victim-123/templates/tmpl-1` -> PERMISSION_DENIED.

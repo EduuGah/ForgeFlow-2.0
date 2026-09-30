@@ -1,323 +1,399 @@
-import React, { useState } from 'react';
-import { Utensils, Plus, Trash2, Clock } from 'lucide-react';
-import { useAppStore, MealItem } from '../store';
+import { useMemo, useState } from 'react';
+import { Plus, Settings2, Trash2, Utensils } from 'lucide-react';
+import { actions, useAppStore } from '../store';
+import { formatNumber, formatTime } from '../lib/format';
+import { goalPercent, itemsOnDay, mealDate } from '../lib/training';
+import type { MealItem, MealType } from '../lib/types';
+import { useNavigation } from '../navigation/Navigator';
+import { Button, IconButton } from '../ui/Button';
+import {
+  EmptyState,
+  ProgressBar,
+  ProgressRing,
+  type ProgressTone,
+} from '../ui/Feedback';
+import { NumberField, SegmentedControl, TextField } from '../ui/Form';
+import { Card, StackHeader } from '../ui/Layout';
+import { Sheet, useToast } from '../ui/Overlay';
+import { NutritionTargetSheet } from './SettingsScreen';
+
+const MEAL_LABELS: Record<MealType, string> = {
+  breakfast: 'Café da manhã',
+  lunch: 'Almoço',
+  snack: 'Lanche',
+  dinner: 'Jantar',
+};
+
+const MEAL_ORDER: MealType[] = ['breakfast', 'lunch', 'snack', 'dinner'];
+
+function mealTypeForNow(): MealType {
+  const hour = new Date().getHours();
+  if (hour < 10) return 'breakfast';
+  if (hour < 15) return 'lunch';
+  if (hour < 18) return 'snack';
+  return 'dinner';
+}
 
 export function NutritionScreen() {
   const store = useAppStore();
   const {
+    meals,
     nutritionTargetKcal,
     nutritionTargetProtein,
     nutritionTargetCarbs,
     nutritionTargetFat,
-    meals,
   } = store;
+  const { pop } = useNavigation();
+  const toast = useToast();
+  const [adding, setAdding] = useState(false);
+  const [targetsOpen, setTargetsOpen] = useState(false);
 
-  const [isAddMealModalOpen, setIsAddMealModalOpen] = useState(false);
-  const [mealName, setMealName] = useState('');
-  const [mealType, setMealType] = useState<MealItem['mealType']>('breakfast');
-  const [mealKcal, setMealKcal] = useState(450);
-  const [mealProtein, setMealProtein] = useState(30);
-  const [mealCarbs, setMealCarbs] = useState(45);
-  const [mealFat, setMealFat] = useState(12);
+  const today = useMemo(() => itemsOnDay(meals, mealDate, new Date()), [meals]);
+  const totals = today.reduce(
+    (sum, meal) => ({
+      kcal: sum.kcal + meal.kcal,
+      protein: sum.protein + meal.proteinG,
+      carbs: sum.carbs + meal.carbsG,
+      fat: sum.fat + meal.fatG,
+    }),
+    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+  const kcalPercent = goalPercent(totals.kcal, nutritionTargetKcal);
+  const remaining = nutritionTargetKcal - totals.kcal;
 
-  // Compute daily totals
-  const totalKcal = meals.reduce((acc, m) => acc + m.kcal, 0);
-  const totalProtein = meals.reduce((acc, m) => acc + m.proteinG, 0);
-  const totalCarbs = meals.reduce((acc, m) => acc + m.carbsG, 0);
-  const totalFat = meals.reduce((acc, m) => acc + m.fatG, 0);
+  const macros: {
+    label: string;
+    value: number;
+    target: number;
+    tone: ProgressTone;
+  }[] = [
+    {
+      label: 'Proteína',
+      value: totals.protein,
+      target: nutritionTargetProtein,
+      tone: 'protein',
+    },
+    {
+      label: 'Carboidratos',
+      value: totals.carbs,
+      target: nutritionTargetCarbs,
+      tone: 'carbs',
+    },
+    {
+      label: 'Gordura',
+      value: totals.fat,
+      target: nutritionTargetFat,
+      tone: 'fat',
+    },
+  ];
 
-  const kcalProgress = Math.min(100, Math.round((totalKcal / nutritionTargetKcal) * 100));
-
-  const handleAddMeal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!mealName.trim()) return;
-
-    store.addMeal({
-      name: mealName.trim(),
-      mealType,
-      kcal: mealKcal,
-      proteinG: mealProtein,
-      carbsG: mealCarbs,
-      fatG: mealFat,
+  const remove = (meal: MealItem) => {
+    const removed = actions.removeMeal(meal.id);
+    if (!removed) return;
+    toast({
+      title: `${meal.name} removido`,
+      action: {
+        label: 'Desfazer',
+        onPress: () => actions.restoreMeal(removed),
+      },
     });
-
-    setIsAddMealModalOpen(false);
-    setMealName('');
-  };
-
-  const mealTypeLabels: Record<MealItem['mealType'], string> = {
-    breakfast: 'Café da Manhã',
-    lunch: 'Almoço',
-    dinner: 'Jantar',
-    snack: 'Lanche / Snack',
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-[#161917] tracking-tight">
-            Diário Nutricional
-          </h1>
-          <p className="text-sm text-[#56615C]">
-            Acompanhe o balanço energético diário e distribuição de macronutrientes.
-          </p>
-        </div>
-
-        <button
-          onClick={() => setIsAddMealModalOpen(true)}
-          className="bg-[#146C5F] hover:bg-[#0f5449] text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          Registrar Refeição
-        </button>
-      </div>
-
-      {/* Main KPI Summary Card */}
-      <div className="bg-white rounded-2xl p-6 border border-[#D9DED6] shadow-xs space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <span className="text-xs font-bold text-[#56615C] uppercase tracking-wider">
-              Calorias Totais Hoje
-            </span>
-            <div className="text-3xl sm:text-4xl font-black text-[#161917] mt-1 flex items-baseline gap-2">
-              {totalKcal}{' '}
-              <span className="text-base font-bold text-[#56615C]">
-                / {nutritionTargetKcal} kcal
-              </span>
-            </div>
-          </div>
-
-          <div className="text-xs font-bold text-[#56615C] flex items-center gap-2">
-            <span>{kcalProgress}% da meta calórica</span>
-          </div>
-        </div>
-
-        {/* Calorie bar */}
-        <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-          <div
-            className="bg-amber-500 h-3 rounded-full transition-all duration-300"
-            style={{ width: `${kcalProgress}%` }}
-          ></div>
-        </div>
-
-        {/* 3 Macro Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          {/* Protein */}
-          <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200">
-            <div className="flex justify-between items-center text-xs font-bold text-emerald-900 mb-1">
-              <span>Proteínas</span>
-              <span>{Math.round((totalProtein / nutritionTargetProtein) * 100)}%</span>
-            </div>
-            <div className="text-2xl font-black text-emerald-800">
-              {totalProtein} <span className="text-xs font-bold">/ {nutritionTargetProtein} g</span>
-            </div>
-          </div>
-
-          {/* Carbs */}
-          <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-200">
-            <div className="flex justify-between items-center text-xs font-bold text-amber-900 mb-1">
-              <span>Carboidratos</span>
-              <span>{Math.round((totalCarbs / nutritionTargetCarbs) * 100)}%</span>
-            </div>
-            <div className="text-2xl font-black text-amber-800">
-              {totalCarbs} <span className="text-xs font-bold">/ {nutritionTargetCarbs} g</span>
-            </div>
-          </div>
-
-          {/* Fat */}
-          <div className="p-4 rounded-xl bg-rose-50/60 border border-rose-200">
-            <div className="flex justify-between items-center text-xs font-bold text-rose-900 mb-1">
-              <span>Gorduras</span>
-              <span>{Math.round((totalFat / nutritionTargetFat) * 100)}%</span>
-            </div>
-            <div className="text-2xl font-black text-rose-800">
-              {totalFat} <span className="text-xs font-bold">/ {nutritionTargetFat} g</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Meals List */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-black text-[#161917]">Refeições Registradas</h2>
-
-        {meals.length === 0 ? (
-          <div className="bg-white rounded-2xl p-10 border border-[#D9DED6] text-center">
-            <Utensils className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-            <h3 className="font-bold text-[#161917]">Nenhuma refeição registrada hoje</h3>
-            <p className="text-xs text-[#56615C] mt-1">
-              Clique em &quot;Registrar Refeição&quot; para começar o diário de hoje.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {meals.map((meal) => (
-              <div
-                key={meal.id}
-                className="bg-white rounded-2xl p-4 sm:p-5 border border-[#D9DED6] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-amber-50 text-amber-800">
-                      {mealTypeLabels[meal.mealType]}
-                    </span>
-                    <h3 className="font-bold text-sm text-[#161917]">{meal.name}</h3>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-xs text-[#56615C] mt-1.5 font-medium">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> {meal.consumedAt}
-                    </span>
-                    <span>•</span>
-                    <span className="text-emerald-700 font-bold">P: {meal.proteinG}g</span>
-                    <span>•</span>
-                    <span className="text-amber-700 font-bold">C: {meal.carbsG}g</span>
-                    <span>•</span>
-                    <span className="text-rose-700 font-bold">G: {meal.fatG}g</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0">
-                  <div className="text-right">
-                    <span className="text-base font-black text-[#146C5F]">{meal.kcal}</span>
-                    <span className="text-xs text-[#56615C] font-semibold"> kcal</span>
-                  </div>
-
-                  <button
-                    onClick={() => store.removeMeal(meal.id)}
-                    className="p-1.5 text-gray-400 hover:text-rose-600 transition"
-                    title="Excluir refeição"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+    <>
+      <StackHeader
+        title="Nutrição"
+        onBack={pop}
+        right={
+          <>
+            <IconButton
+              icon={Settings2}
+              label="Metas de nutrição"
+              onClick={() => setTargetsOpen(true)}
+            />
+            <IconButton
+              icon={Plus}
+              label="Registrar refeição"
+              onClick={() => setAdding(true)}
+            />
+          </>
+        }
+      />
+      <div className="app-column space-y-6 px-4 pt-5">
+        <Card className="p-4">
+          <div className="flex items-center gap-5">
+            <ProgressRing
+              value={kcalPercent}
+              size={112}
+              stroke={10}
+              tone="brand"
+              label={`${kcalPercent}% da meta de calorias`}
+            >
+              <div>
+                <p className="font-metric text-metric-sm">
+                  {formatNumber(totals.kcal, 0)}
+                </p>
+                <p className="text-caption text-ink-2">kcal</p>
               </div>
-            ))}
+            </ProgressRing>
+            <div className="min-w-0 space-y-1">
+              <p className="text-caption text-ink-2">Meta diária</p>
+              <p className="text-headline font-semibold tabular">
+                {formatNumber(nutritionTargetKcal, 0)} kcal
+              </p>
+              <p
+                className={
+                  remaining >= 0
+                    ? 'text-callout text-ink-2'
+                    : 'text-callout text-warmup'
+                }
+              >
+                {remaining >= 0
+                  ? `Restam ${formatNumber(remaining, 0)} kcal`
+                  : `${formatNumber(-remaining, 0)} kcal acima da meta`}
+              </p>
+            </div>
           </div>
+          <ul className="mt-5 space-y-3 border-t border-line pt-4" role="list">
+            {macros.map((macro) => (
+              <li key={macro.label}>
+                <div className="text-callout mb-1.5 flex items-baseline justify-between">
+                  <span>{macro.label}</span>
+                  <span className="text-ink-2 tabular">
+                    <span className="font-semibold text-ink">
+                      {formatNumber(macro.value, 0)}
+                    </span>{' '}
+                    / {formatNumber(macro.target, 0)} g
+                  </span>
+                </div>
+                <ProgressBar
+                  value={goalPercent(macro.value, macro.target)}
+                  tone={macro.tone}
+                  label={`${macro.label}: ${goalPercent(macro.value, macro.target)}% da meta`}
+                />
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        {today.length === 0 ? (
+          <Card>
+            <EmptyState
+              icon={Utensils}
+              title="Nenhuma refeição hoje"
+              message="Registre calorias e macros para acompanhar sua alimentação."
+              action={
+                <Button icon={Plus} onClick={() => setAdding(true)}>
+                  Registrar refeição
+                </Button>
+              }
+            />
+          </Card>
+        ) : (
+          <>
+            {MEAL_ORDER.map((type) => {
+              const items = today.filter((meal) => meal.mealType === type);
+              if (items.length === 0) return null;
+              const kcal = items.reduce((sum, meal) => sum + meal.kcal, 0);
+              return (
+                <section key={type} aria-label={MEAL_LABELS[type]}>
+                  <div className="flex min-h-11 items-center justify-between">
+                    <h2 className="text-headline font-semibold">
+                      {MEAL_LABELS[type]}
+                    </h2>
+                    <span className="text-callout text-ink-2 tabular">
+                      {formatNumber(kcal, 0)} kcal
+                    </span>
+                  </div>
+                  <Card as="div" className="divide-y divide-line">
+                    {items.map((meal) => {
+                      const date = mealDate(meal);
+                      return (
+                        <div
+                          key={meal.id}
+                          className="flex animate-fade-in items-center gap-3 py-3 pr-2 pl-4"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-body truncate font-medium">
+                              {meal.name}
+                            </p>
+                            <p className="text-footnote text-ink-2 tabular">
+                              {date
+                                ? formatTime(date.toISOString())
+                                : meal.consumedAt}{' '}
+                              · P {meal.proteinG}g · C {meal.carbsG}g · G{' '}
+                              {meal.fatG}g
+                            </p>
+                          </div>
+                          <span className="text-callout font-semibold tabular">
+                            {formatNumber(meal.kcal, 0)} kcal
+                          </span>
+                          <IconButton
+                            icon={Trash2}
+                            label={`Remover ${meal.name}`}
+                            size="sm"
+                            variant="danger"
+                            onClick={() => remove(meal)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </Card>
+                </section>
+              );
+            })}
+            <Button
+              variant="secondary"
+              size="lg"
+              block
+              icon={Plus}
+              onClick={() => setAdding(true)}
+            >
+              Registrar refeição
+            </Button>
+          </>
         )}
       </div>
+      <AddMealSheet open={adding} onClose={() => setAdding(false)} />
+      <NutritionTargetSheet
+        open={targetsOpen}
+        onClose={() => setTargetsOpen(false)}
+      />
+    </>
+  );
+}
 
-      {/* Modal: Add Meal */}
-      {isAddMealModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-[#D9DED6] space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-black text-lg text-[#161917]">Registrar Refeição</h3>
-              <button
-                onClick={() => setIsAddMealModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
-            </div>
+function AddMealSheet({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const [mealType, setMealType] = useState<MealType>(mealTypeForNow);
+  const [kcal, setKcal] = useState(0);
+  const [protein, setProtein] = useState(0);
+  const [carbs, setCarbs] = useState(0);
+  const [fat, setFat] = useState(0);
+  const [submitted, setSubmitted] = useState(false);
 
-            <form onSubmit={handleAddMeal} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-[#56615C] uppercase mb-1">
-                  Nome ou Descrição da Refeição *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Arroz, feijão e filé de frango"
-                  value={mealName}
-                  onChange={(e) => setMealName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#D9DED6] text-sm focus:outline-none focus:border-[#146C5F]"
-                />
-              </div>
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) {
+      setName('');
+      setMealType(mealTypeForNow());
+      setKcal(0);
+      setProtein(0);
+      setCarbs(0);
+      setFat(0);
+      setSubmitted(false);
+    }
+  }
 
-              <div>
-                <label className="block text-xs font-bold text-[#56615C] uppercase mb-1">
-                  Tipo de Refeição
-                </label>
-                <select
-                  value={mealType}
-                  onChange={(e) => setMealType(e.target.value as MealItem['mealType'])}
-                  className="w-full px-3 py-2 rounded-xl border border-[#D9DED6] text-sm focus:outline-none focus:border-[#146C5F]"
-                >
-                  <option value="breakfast">Café da Manhã</option>
-                  <option value="lunch">Almoço</option>
-                  <option value="dinner">Jantar</option>
-                  <option value="snack">Lanche / Snack</option>
-                </select>
-              </div>
+  const fromMacros = Math.round(protein * 4 + carbs * 4 + fat * 9);
+  const nameError =
+    submitted && !name.trim() ? 'Descreva a refeição.' : undefined;
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#56615C] uppercase mb-1">
-                    Calorias (kcal)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={mealKcal}
-                    onChange={(e) => setMealKcal(parseInt(e.target.value, 10) || 0)}
-                    className="w-full px-3 py-2 rounded-xl border border-[#D9DED6] text-sm font-bold focus:outline-none focus:border-[#146C5F]"
-                  />
-                </div>
+  const save = () => {
+    setSubmitted(true);
+    if (!name.trim()) return;
+    actions.addMeal({
+      name: name.trim(),
+      mealType,
+      kcal: kcal > 0 ? kcal : fromMacros,
+      proteinG: protein,
+      carbsG: carbs,
+      fatG: fat,
+    });
+    toast({
+      tone: 'success',
+      title: 'Refeição registrada',
+      description: name.trim(),
+    });
+    onClose();
+  };
 
-                <div>
-                  <label className="block text-xs font-bold text-[#56615C] uppercase mb-1">
-                    Proteínas (g)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={mealProtein}
-                    onChange={(e) => setMealProtein(parseInt(e.target.value, 10) || 0)}
-                    className="w-full px-3 py-2 rounded-xl border border-[#D9DED6] text-sm font-bold focus:outline-none focus:border-[#146C5F]"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-[#56615C] uppercase mb-1">
-                    Carboidratos (g)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={mealCarbs}
-                    onChange={(e) => setMealCarbs(parseInt(e.target.value, 10) || 0)}
-                    className="w-full px-3 py-2 rounded-xl border border-[#D9DED6] text-sm font-bold focus:outline-none focus:border-[#146C5F]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-[#56615C] uppercase mb-1">
-                    Gorduras (g)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={mealFat}
-                    onChange={(e) => setMealFat(parseInt(e.target.value, 10) || 0)}
-                    className="w-full px-3 py-2 rounded-xl border border-[#D9DED6] text-sm font-bold focus:outline-none focus:border-[#146C5F]"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-[#D9DED6]">
-                <button
-                  type="button"
-                  onClick={() => setIsAddMealModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold border border-[#D9DED6] hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="bg-[#146C5F] hover:bg-[#0f5449] text-white px-5 py-2 rounded-xl text-xs font-bold transition shadow-xs"
-                >
-                  Salvar Refeição
-                </button>
-              </div>
-            </form>
-          </div>
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Registrar refeição"
+      footer={
+        <Button size="lg" block onClick={save}>
+          Salvar refeição
+        </Button>
+      }
+    >
+      <form
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          save();
+        }}
+      >
+        <TextField
+          label="O que você comeu?"
+          value={name}
+          maxLength={120}
+          placeholder="Ex.: Arroz, feijão e frango"
+          onChange={(event) => setName(event.target.value)}
+          error={nameError}
+        />
+        <div>
+          <p className="text-footnote mb-1.5 font-medium text-ink-2">
+            Refeição
+          </p>
+          <SegmentedControl
+            label="Tipo de refeição"
+            value={mealType}
+            onChange={setMealType}
+            options={MEAL_ORDER.map((value) => ({
+              value,
+              label: MEAL_LABELS[value],
+            }))}
+          />
         </div>
-      )}
-    </div>
+        <div className="grid grid-cols-3 gap-3">
+          <NumberField
+            label="Proteína"
+            suffix="g"
+            value={protein}
+            max={500}
+            onValueChange={setProtein}
+          />
+          <NumberField
+            label="Carbos"
+            suffix="g"
+            value={carbs}
+            max={800}
+            onValueChange={setCarbs}
+          />
+          <NumberField
+            label="Gordura"
+            suffix="g"
+            value={fat}
+            max={300}
+            onValueChange={setFat}
+          />
+        </div>
+        <NumberField
+          label="Calorias"
+          suffix="kcal"
+          value={kcal}
+          zeroAsEmpty
+          placeholder={fromMacros > 0 ? String(fromMacros) : '0'}
+          max={5000}
+          onValueChange={setKcal}
+          hint={
+            fromMacros > 0 && kcal === 0
+              ? `Em branco, usamos ${fromMacros} kcal calculadas pelos macros.`
+              : undefined
+          }
+        />
+      </form>
+    </Sheet>
   );
 }

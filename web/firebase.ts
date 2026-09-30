@@ -8,103 +8,80 @@ import {
   type User,
 } from 'firebase/auth';
 import {
-  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  memoryLocalCache,
   doc,
-  getDocFromServer,
   setDoc,
   getDoc,
   collection,
   getDocs,
   deleteDoc,
+  type Firestore,
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
-// Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
-// CRITICAL: The app will break without firestoreDatabaseId passed as second param
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+function createFirestore(): Firestore {
+  // Persistent cache keeps queued writes and last-known data across reloads,
+  // so the app keeps working offline. Falls back to memory where IndexedDB is
+  // unavailable (private windows, some embedded browsers).
+  try {
+    return initializeFirestore(
+      app,
+      {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+        }),
+      },
+      firebaseConfig.firestoreDatabaseId,
+    );
+  } catch {
+    return initializeFirestore(
+      app,
+      { localCache: memoryLocalCache() },
+      firebaseConfig.firestoreDatabaseId,
+    );
+  }
+}
+
+// The database id must be passed explicitly: this project does not use "(default)".
+export const db = createFirestore();
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-export enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
+export type { User };
+
+/** Errors that mean "the person closed the sign-in window", not a failure. */
+const DISMISSED_LOGIN_CODES = new Set([
+  'auth/popup-closed-by-user',
+  'auth/cancelled-popup-request',
+  'auth/user-cancelled',
+]);
+
+export function isLoginDismissed(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return typeof code === 'string' && DISMISSED_LOGIN_CODES.has(code);
 }
 
-export interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  };
-}
-
-export function handleFirestoreError(
-  error: unknown,
-  operationType: OperationType,
-  path: string | null
-) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo:
-        auth.currentUser?.providerData?.map((provider) => ({
-          providerId: provider.providerId,
-          email: provider.email,
-        })) || [],
-    },
-    operationType,
-    path,
-  };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
-
-// Test connection on boot
-export async function testFirestoreConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.includes('the client is offline')
-    ) {
-      console.warn('Firebase Firestore: Please check your Firebase configuration or internet connection.');
-    }
+export function describeLoginError(error: unknown): string {
+  const code = (error as { code?: string } | null)?.code;
+  if (code === 'auth/popup-blocked') {
+    return 'O navegador bloqueou a janela de login. Permita pop-ups para este site e tente de novo.';
   }
-}
-
-// Google Login
-export async function loginWithGoogle(): Promise<User | null> {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
-  } catch (error) {
-    console.error('Falha no login com Google:', error);
-    throw error;
+  if (code === 'auth/network-request-failed') {
+    return 'Sem conexão com a internet. Conecte-se para entrar com Google.';
   }
+  return 'Não foi possível entrar com Google. Tente novamente.';
 }
 
-// Logout
+export async function loginWithGoogle(): Promise<User> {
+  const result = await signInWithPopup(auth, googleProvider);
+  return result.user;
+}
+
 export async function logoutFirebase(): Promise<void> {
   await signOut(auth);
 }
