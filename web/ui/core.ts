@@ -55,42 +55,82 @@ export function useNow(intervalMs = 1000, enabled = true): number {
 /*
  * Every open layer (pushed screen, sheet, dialog, active workout) owns one
  * browser history entry, so the Android back button / browser back closes the
- * top layer instead of leaving the app. Layers closed from the UI rewind their
- * entry; those rewinds are batched into one `history.go(-n)` and ignored.
+ * top layer instead of leaving the app.
+ *
+ * History traversal (`history.go`) is asynchronous while `pushState` is not,
+ * so entries are never pushed or rewound directly: layers change, then one
+ * reconcile pass brings the history depth (tracked in `history.state`) to the
+ * number of open layers, waiting for any traversal in flight to land first.
+ * Without this, a layer closing while another opens (a sheet that starts the
+ * workout, finishing a workout into its summary) raced and could rewind past
+ * the app's own first entry.
  */
 interface Layer {
   onBack: () => void;
 }
 
 const layers: Layer[] = [];
-let ignoredPops = 0;
-let pendingRewind = 0;
-let rewindScheduled = false;
+let depth = 0;
+let traversing = false;
+let traversalTimer: ReturnType<typeof setTimeout> | null = null;
+let reconcileScheduled = false;
 let listening = false;
+
+function depthOf(state: unknown): number {
+  const value = (state as { forgeflowLayer?: unknown } | null)?.forgeflowLayer;
+  return typeof value === 'number' && value > 0 ? value : 0;
+}
+
+function finishTraversal() {
+  traversing = false;
+  if (traversalTimer) clearTimeout(traversalTimer);
+  traversalTimer = null;
+}
+
+function reconcile() {
+  reconcileScheduled = false;
+  if (traversing) return;
+  const target = layers.length;
+  while (depth < target) {
+    depth += 1;
+    window.history.pushState({ forgeflowLayer: depth }, '');
+  }
+  if (depth > target) {
+    traversing = true;
+    window.history.go(target - depth);
+    // Safety net: if the traversal is swallowed, trust the current entry.
+    traversalTimer = setTimeout(() => {
+      finishTraversal();
+      depth = depthOf(window.history.state);
+      scheduleReconcile();
+    }, 1000);
+  }
+}
+
+function scheduleReconcile() {
+  if (reconcileScheduled) return;
+  reconcileScheduled = true;
+  queueMicrotask(reconcile);
+}
 
 function listen() {
   if (listening || typeof window === 'undefined') return;
   listening = true;
-  window.addEventListener('popstate', () => {
-    if (ignoredPops > 0) {
-      ignoredPops -= 1;
+  depth = depthOf(window.history.state);
+  window.addEventListener('popstate', (event) => {
+    const landed = depthOf(event.state);
+    if (traversing) {
+      // Our own rewind arrived.
+      finishTraversal();
+      depth = landed;
+      scheduleReconcile();
       return;
     }
-    layers.pop()?.onBack();
-  });
-}
-
-function scheduleRewind() {
-  pendingRewind += 1;
-  if (rewindScheduled) return;
-  rewindScheduled = true;
-  queueMicrotask(() => {
-    rewindScheduled = false;
-    const steps = pendingRewind;
-    pendingRewind = 0;
-    if (steps === 0) return;
-    ignoredPops += 1;
-    window.history.go(-steps);
+    // The person pressed back (possibly several steps): close that many layers.
+    const steps = Math.max(0, depth - landed);
+    depth = landed;
+    for (let i = 0; i < steps; i += 1) layers.pop()?.onBack();
+    scheduleReconcile();
   });
 }
 
@@ -98,12 +138,12 @@ function pushLayer(onBack: () => void): () => void {
   listen();
   const layer: Layer = { onBack };
   layers.push(layer);
-  window.history.pushState({ forgeflowLayer: layers.length }, '');
+  scheduleReconcile();
   return () => {
     const index = layers.indexOf(layer);
     if (index === -1) return; // already closed by the back button
     layers.splice(index, 1);
-    scheduleRewind();
+    scheduleReconcile();
   };
 }
 

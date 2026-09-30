@@ -217,11 +217,13 @@ npm run dev        # http://localhost:3000
 npm run build
 ```
 
-A interface segue um design system centralizado em `web/index.css` (tokens) e
-`web/ui/` (componentes), com três abas no estilo Hevy, treino ativo em tela cheia,
-timer de descanso por prazo, confirmações, toasts com desfazer, estados de
-carregamento/vazio/erro/offline e suporte ao botão voltar do Android. Detalhes e
-lista de correções em [`Docs/30-Design-System.md`](Docs/30-Design-System.md).
+A interface segue o design system "Forja" (grafite + laranja-brasa, fonte Sora,
+tema claro e escuro), centralizado em `web/index.css` (tokens) e `web/ui/`
+(componentes): dock flutuante com botão central Treinar, aba Evolução, treino
+ativo com progresso por exercício e cápsula de descanso, boas-vindas com login
+Google claro, tutorial animado e importação do histórico em CSV do Hevy ou do
+Strong (`Perfil › Importar histórico`). Detalhes em
+[`Docs/30-Design-System.md`](Docs/30-Design-System.md).
 
 ### Amigos e privacidade
 

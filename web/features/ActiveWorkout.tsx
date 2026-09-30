@@ -5,12 +5,15 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
+  ChevronUp,
   Dumbbell,
+  Flag,
   Flame,
   Info,
-  MoreVertical,
+  MoreHorizontal,
   Pencil,
   Plus,
+  StickyNote,
   Timer,
   Trash2,
   Trophy,
@@ -41,7 +44,6 @@ import { useNavigation } from '../navigation/Navigator';
 import { Button, IconButton } from '../ui/Button';
 import { EmptyState, ExerciseThumb, Medal } from '../ui/Feedback';
 import { NumericInput, TextField } from '../ui/Form';
-import { Stat } from '../ui/Layout';
 import {
   ActionSheet,
   Sheet,
@@ -109,6 +111,7 @@ export function ActiveWorkoutScreen({
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [restPickerOpen, setRestPickerOpen] = useState(false);
   const [infoExerciseId, setInfoExerciseId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -136,6 +139,9 @@ export function ActiveWorkoutScreen({
   if (!mounted || !workout) return null;
 
   const summary = summarizeActiveWorkout(workout);
+  const currentIndex = workout.exercises.findIndex((exercise) =>
+    exercise.sets.some((set) => !set.completed),
+  );
 
   const finish = async () => {
     const completed = workout.exercises.reduce(
@@ -165,7 +171,7 @@ export function ActiveWorkoutScreen({
 
     const pending = countPendingSets(workout);
     const ok = await confirm({
-      title: 'Concluir treino?',
+      title: 'Finalizar treino?',
       icon: Trophy,
       message: (
         <>
@@ -182,7 +188,7 @@ export function ActiveWorkoutScreen({
           )}
         </>
       ),
-      confirmLabel: 'Concluir treino',
+      confirmLabel: 'Finalizar treino',
       cancelLabel: 'Voltar ao treino',
     });
     if (!ok) return;
@@ -221,7 +227,7 @@ export function ActiveWorkoutScreen({
         closing ? 'animate-sheet-out' : 'animate-sheet-in',
       )}
     >
-      {/* Top bar */}
+      {/* Top bar + session strip */}
       <header className="pt-safe shrink-0 border-b border-line bg-surface">
         <div className="app-column flex h-14 items-center gap-1 px-2">
           <IconButton
@@ -245,13 +251,40 @@ export function ActiveWorkoutScreen({
             />
           </button>
           <IconButton
-            icon={Timer}
-            label="Cronômetro de descanso"
-            onClick={() => setRestPickerOpen(true)}
+            icon={MoreHorizontal}
+            label="Opções do treino"
+            onClick={() => setMenuOpen(true)}
           />
-          <Button size="sm" onClick={finish} className="ml-1">
-            Concluir
+          <Button size="sm" icon={Flag} onClick={finish} className="ml-1">
+            Finalizar
           </Button>
+        </div>
+        <div className="app-column px-4 pt-1 pb-3">
+          <div className="flex items-end gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="text-caption text-ink-2">Tempo de treino</p>
+              <ElapsedClock startedAt={workout.startedAt} />
+            </div>
+            <div className="text-right">
+              <p className="text-caption text-ink-2">Volume</p>
+              <p className="font-metric text-metric-sm tabular">
+                {formatWeight(summary.volumeKg)}
+                <span className="text-caption ml-0.5 font-sans text-ink-2">
+                  kg
+                </span>
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-caption text-ink-2">Séries</p>
+              <p className="font-metric text-metric-sm tabular">
+                {summary.completedSets}
+                <span className="text-caption font-sans text-ink-2">
+                  /{summary.totalSets}
+                </span>
+              </p>
+            </div>
+          </div>
+          <SessionProgress exercises={workout.exercises} />
         </div>
       </header>
 
@@ -259,27 +292,7 @@ export function ActiveWorkoutScreen({
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
       >
-        <div className="app-column pb-40">
-          {/* Live summary */}
-          <div className="grid grid-cols-3 gap-3 border-b border-line px-4 py-3">
-            <div>
-              <p className="text-caption text-ink-2">Duração</p>
-              <ElapsedClock startedAt={workout.startedAt} />
-            </div>
-            <Stat
-              label="Volume"
-              value={formatWeight(summary.volumeKg)}
-              unit="kg"
-              size="sm"
-            />
-            <Stat
-              label="Séries"
-              value={`${summary.completedSets}`}
-              unit={`/ ${summary.totalSets}`}
-              size="sm"
-            />
-          </div>
-
+        <div className="app-column space-y-3 px-3 pt-3 pb-40">
           {workout.exercises.length === 0 ? (
             <EmptyState
               icon={Dumbbell}
@@ -293,6 +306,7 @@ export function ActiveWorkoutScreen({
                 exercise={exercise}
                 index={index}
                 total={workout.exercises.length}
+                current={index === currentIndex}
                 previous={previousSetsFor(
                   history,
                   exercise.exerciseId,
@@ -304,23 +318,15 @@ export function ActiveWorkoutScreen({
             ))
           )}
 
-          <div className="space-y-2 px-4 pt-4">
+          <div className="pt-2">
             <Button
               size="lg"
+              variant="tinted"
               block
               icon={Plus}
               onClick={() => setPickerOpen(true)}
             >
               Adicionar exercício
-            </Button>
-            <Button
-              size="lg"
-              variant="danger-ghost"
-              block
-              icon={Trash2}
-              onClick={discard}
-            >
-              Descartar treino
             </Button>
           </div>
         </div>
@@ -328,6 +334,29 @@ export function ActiveWorkoutScreen({
 
       <RestTimerBar />
 
+      <ActionSheet
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        title={workout.name}
+        actions={[
+          {
+            label: 'Renomear treino',
+            icon: Pencil,
+            onSelect: () => setRenaming(true),
+          },
+          {
+            label: 'Iniciar descanso',
+            icon: Timer,
+            onSelect: () => setRestPickerOpen(true),
+          },
+          {
+            label: 'Descartar treino',
+            icon: Trash2,
+            tone: 'danger',
+            onSelect: discard,
+          },
+        ]}
+      />
       <ExercisePicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
@@ -369,11 +398,40 @@ function ElapsedClock({ startedAt }: { startedAt: string }) {
   );
   return (
     <p
-      className="text-headline mt-0.5 font-semibold text-brand-ink tabular"
+      className="font-metric text-metric-lg text-brand-ink tabular"
       aria-live="off"
     >
       {formatClock(seconds)}
     </p>
+  );
+}
+
+/** One segment per exercise, sized by its sets and filled as they are done. */
+function SessionProgress({
+  exercises,
+}: {
+  exercises: ActiveExerciseSession[];
+}) {
+  if (exercises.length === 0) return null;
+  return (
+    <div className="mt-3 flex h-1.5 gap-1" aria-hidden="true">
+      {exercises.map((exercise, index) => {
+        const done = exercise.sets.filter((set) => set.completed).length;
+        const total = Math.max(1, exercise.sets.length);
+        return (
+          <span
+            key={`${exercise.exerciseId}-${index}`}
+            className="h-full overflow-hidden rounded-full bg-raised"
+            style={{ flexGrow: total, flexBasis: 0 }}
+          >
+            <span
+              className="block h-full rounded-full bg-brand transition-[width] duration-500 ease-standard"
+              style={{ width: `${(done / total) * 100}%` }}
+            />
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
@@ -385,6 +443,7 @@ function ExerciseBlock({
   exercise,
   index,
   total,
+  current,
   previous,
   bests,
   onShowInfo,
@@ -392,6 +451,7 @@ function ExerciseBlock({
   exercise: ActiveExerciseSession;
   index: number;
   total: number;
+  current: boolean;
   previous: CompletedSet[] | null;
   bests: Bests | undefined;
   onShowInfo: () => void;
@@ -399,12 +459,29 @@ function ExerciseBlock({
   const confirm = useConfirm();
   const [menuOpen, setMenuOpen] = useState(false);
   const [restOpen, setRestOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [collapsedChoice, setCollapsedChoice] = useState<boolean | null>(null);
   const labels = setLabels(exercise.sets);
   const previousBySet = alignPreviousSets(exercise.sets, previous);
   const rest = exercise.restSeconds ?? 90;
   const doneCount = exercise.sets.filter((set) => set.completed).length;
   const allDone =
     exercise.sets.length > 0 && doneCount === exercise.sets.length;
+  const collapsed = allDone && collapsedChoice === true;
+  const volume = exercise.sets
+    .filter((set) => set.completed && set.setType === 'working')
+    .reduce((sum, set) => sum + set.weightKg * set.repetitions, 0);
+
+  // A finished exercise folds away shortly after its last set, unless the
+  // person already chose to keep it open.
+  useEffect(() => {
+    if (!allDone) return;
+    const id = setTimeout(
+      () => setCollapsedChoice((choice) => choice ?? true),
+      1400,
+    );
+    return () => clearTimeout(id);
+  }, [allDone]);
 
   const remove = async () => {
     if (doneCount > 0) {
@@ -424,7 +501,10 @@ function ExerciseBlock({
     {
       label: 'Adicionar série de aquecimento',
       icon: Flame,
-      onSelect: () => actions.addSetToActiveExercise(index, 'warmup'),
+      onSelect: () => {
+        setCollapsedChoice(false);
+        actions.addSetToActiveExercise(index, 'warmup');
+      },
     },
     { label: 'Ver detalhes do exercício', icon: Info, onSelect: onShowInfo },
     ...(index > 0
@@ -455,101 +535,150 @@ function ExerciseBlock({
 
   return (
     <section
-      className="border-b border-line px-4 pt-5 pb-4"
+      className={cx(
+        'rounded-lg border bg-surface transition-shadow',
+        current ? 'ember-edge border-transparent' : 'border-line',
+      )}
       aria-label={exercise.exerciseName}
     >
-      <div className="flex items-center gap-3">
-        <ExerciseThumb muscle={exercise.primaryMuscleGroup} size={44} />
+      <div className="flex items-center gap-3 px-3 pt-3">
+        <ExerciseThumb muscle={exercise.primaryMuscleGroup} size={40} />
         <button
           type="button"
           onClick={onShowInfo}
           className="min-w-0 flex-1 text-left"
         >
-          <h3 className="text-headline truncate font-semibold text-brand-ink">
+          <h3 className="text-headline truncate font-semibold">
             {exercise.exerciseName}
           </h3>
-          {allDone && (
-            <p className="text-caption flex items-center gap-1 text-success-ink">
-              <Check size={12} strokeWidth={3} aria-hidden="true" /> Exercício
-              concluído
-            </p>
-          )}
+          <p className="text-caption flex items-center gap-1.5 text-ink-2 tabular">
+            {allDone ? (
+              <span className="inline-flex items-center gap-1 font-semibold text-brand-ink">
+                <Check size={12} strokeWidth={3} aria-hidden="true" />
+                Concluído · {formatWeight(volume)} kg
+              </span>
+            ) : (
+              <>
+                {doneCount}/{exercise.sets.length} séries
+                {bests && bests.weight > 0 && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Medal size={12} /> {formatWeight(bests.weight)} kg
+                    </span>
+                  </>
+                )}
+              </>
+            )}
+          </p>
         </button>
+        {allDone && (
+          <IconButton
+            icon={collapsed ? ChevronDown : ChevronUp}
+            label={collapsed ? 'Mostrar séries' : 'Recolher séries'}
+            size="sm"
+            onClick={() => setCollapsedChoice(!collapsed)}
+          />
+        )}
         <IconButton
-          icon={MoreVertical}
+          icon={MoreHorizontal}
           label={`Opções de ${exercise.exerciseName}`}
+          size="sm"
           onClick={() => setMenuOpen(true)}
         />
       </div>
 
-      <label className="mt-2 block">
-        <span className="sr-only">Notas de {exercise.exerciseName}</span>
-        <textarea
-          value={exercise.notes ?? ''}
-          onChange={(event) =>
-            actions.setExerciseNotes(index, event.target.value)
-          }
-          placeholder="Adicionar notas aqui…"
-          rows={1}
-          maxLength={500}
-          className="text-body w-full resize-none bg-transparent py-1 [field-sizing:content] outline-none placeholder:text-ink-3"
-        />
-      </label>
+      {!collapsed && (
+        <div className="px-3 pb-3">
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setRestOpen(true)}
+              className="text-footnote inline-flex h-8 items-center gap-1.5 rounded-full bg-raised px-3 font-semibold active:bg-overlay"
+              aria-label={`Descanso: ${formatRestLabel(rest)}`}
+            >
+              <Timer size={14} className="text-brand-ink" aria-hidden="true" />
+              {rest > 0 ? formatClock(rest) : 'Sem descanso'}
+            </button>
+            {!exercise.notes && !noteOpen && (
+              <button
+                type="button"
+                onClick={() => setNoteOpen(true)}
+                className="text-footnote inline-flex h-8 items-center gap-1.5 rounded-full bg-raised px-3 font-semibold text-ink-2 active:bg-overlay"
+              >
+                <StickyNote size={14} aria-hidden="true" />
+                Nota
+              </button>
+            )}
+          </div>
 
-      <button
-        type="button"
-        onClick={() => setRestOpen(true)}
-        className="text-callout -ml-1 flex items-center gap-1.5 rounded-sm px-1 py-1.5 font-medium text-brand-ink active:bg-raised"
-      >
-        <Timer size={16} aria-hidden="true" />
-        Descanso: {formatRestLabel(rest)}
-      </button>
+          {(exercise.notes || noteOpen) && (
+            <label className="mt-2 block">
+              <span className="sr-only">Notas de {exercise.exerciseName}</span>
+              <textarea
+                value={exercise.notes ?? ''}
+                onChange={(event) =>
+                  actions.setExerciseNotes(index, event.target.value)
+                }
+                autoFocus={noteOpen && !exercise.notes}
+                placeholder="Como foi? Ajuste de banco, pegada…"
+                rows={1}
+                maxLength={500}
+                className="text-callout w-full resize-none rounded-md bg-raised px-3 py-2 [field-sizing:content] outline-none placeholder:text-ink-3 focus:ring-2 focus:ring-brand-ink"
+              />
+            </label>
+          )}
 
-      <div
-        className={cx(
-          SET_GRID,
-          'text-micro mt-2 px-1 font-semibold text-ink-3 uppercase',
-        )}
-        aria-hidden="true"
-      >
-        <span className="text-center">Série</span>
-        <span>Anterior</span>
-        <span className="text-center">kg</span>
-        <span className="text-center">Reps</span>
-        <span className="grid place-items-center">
-          <Check size={14} strokeWidth={3} />
-        </span>
-      </div>
+          <div
+            className={cx(
+              SET_GRID,
+              'text-micro mt-3 px-1 font-semibold tracking-wider text-ink-3 uppercase',
+            )}
+            aria-hidden="true"
+          >
+            <span className="text-center">Série</span>
+            <span>Última vez</span>
+            <span className="text-center">kg</span>
+            <span className="text-center">Reps</span>
+            <span className="grid place-items-center">
+              <Check size={14} strokeWidth={3} />
+            </span>
+          </div>
 
-      <div
-        className="mt-1 space-y-1"
-        role="list"
-        aria-label={`Séries de ${exercise.exerciseName}`}
-      >
-        {exercise.sets.map((set, setIndex) => (
-          <SetRow
-            key={set.id}
-            set={set}
-            label={labels[setIndex]}
-            previous={previousBySet[setIndex]}
-            exerciseIndex={index}
-            setIndex={setIndex}
-            exerciseName={exercise.exerciseName}
-            bests={bests}
-            canRemove={exercise.sets.length > 1}
-          />
-        ))}
-      </div>
+          <div
+            className="mt-1 space-y-1"
+            role="list"
+            aria-label={`Séries de ${exercise.exerciseName}`}
+          >
+            {exercise.sets.map((set, setIndex) => (
+              <SetRow
+                key={set.id}
+                set={set}
+                label={labels[setIndex]}
+                previous={previousBySet[setIndex]}
+                exerciseIndex={index}
+                setIndex={setIndex}
+                exerciseName={exercise.exerciseName}
+                bests={bests}
+                canRemove={exercise.sets.length > 1}
+              />
+            ))}
+          </div>
 
-      <Button
-        variant="secondary"
-        block
-        icon={Plus}
-        className="mt-3"
-        onClick={() => actions.addSetToActiveExercise(index)}
-      >
-        Adicionar série
-      </Button>
+          <button
+            type="button"
+            onClick={() => {
+              setCollapsedChoice(false);
+              actions.addSetToActiveExercise(index);
+            }}
+            className="text-callout mt-2 flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-line-strong font-semibold text-ink-2 active:bg-raised"
+          >
+            <Plus size={16} strokeWidth={2.5} aria-hidden="true" />
+            Adicionar série
+          </button>
+        </div>
+      )}
+      {collapsed && <div className="h-3" aria-hidden="true" />}
 
       <ActionSheet
         open={menuOpen}
@@ -631,18 +760,18 @@ function SetRow({
   };
 
   const inputClass = cx(
-    'text-body h-10 w-full rounded-sm text-center font-semibold tabular outline-none transition-colors placeholder:font-normal placeholder:text-ink-3 focus:ring-2 focus:ring-brand-ink',
+    'text-body h-10 w-full rounded-md text-center font-semibold tabular outline-none transition-colors placeholder:font-normal placeholder:text-ink-3 focus:ring-2 focus:ring-brand-ink',
     set.completed ? 'bg-transparent' : 'bg-raised',
   );
 
   return (
     <div
       role="listitem"
-      aria-label={`Série ${label === 'W' ? 'de aquecimento' : label}${set.completed ? ', concluída' : ''}`}
+      aria-label={`Série ${label === 'A' ? 'de aquecimento' : label}${set.completed ? ', concluída' : ''}`}
       className={cx(
         SET_GRID,
         'rounded-md px-1 py-1 transition-colors',
-        set.completed && 'strike bg-success-soft',
+        set.completed && 'strike bg-brand-soft',
       )}
     >
       <button
@@ -650,8 +779,12 @@ function SetRow({
         onClick={() => setMenuOpen(true)}
         aria-label={`Opções da série ${label}`}
         className={cx(
-          'text-body grid h-10 place-items-center rounded-sm font-bold',
-          set.completed ? 'bg-transparent' : 'bg-raised',
+          'text-body grid h-10 place-items-center rounded-md font-bold',
+          set.completed
+            ? 'bg-transparent'
+            : warmup
+              ? 'bg-warmup-soft'
+              : 'bg-raised',
           warmup ? 'text-warmup' : 'text-ink',
         )}
       >
@@ -707,8 +840,8 @@ function SetRow({
           }
           onClick={toggle}
           className={cx(
-            'pressable grid size-10 place-items-center rounded-sm',
-            set.completed ? 'bg-success text-white' : 'bg-raised text-ink-3',
+            'pressable grid size-10 place-items-center rounded-md',
+            set.completed ? 'bg-brand text-on-brand' : 'bg-raised text-ink-3',
           )}
         >
           <Check

@@ -11,10 +11,9 @@ import {
 } from 'react';
 import { cx, useBackLayer } from '../ui/core';
 
-export type Tab = 'home' | 'train' | 'profile';
+export type Tab = 'home' | 'routines' | 'progress' | 'profile';
 
 export type Route =
-  | { name: 'stats' }
   | { name: 'goals' }
   | { name: 'hydration' }
   | { name: 'nutrition' }
@@ -25,7 +24,8 @@ export type Route =
   | { name: 'history' }
   | { name: 'exercise'; exerciseId: string }
   | { name: 'workout'; workoutId: string }
-  | { name: 'routine'; templateId?: string };
+  | { name: 'routine'; templateId?: string }
+  | { name: 'import' };
 
 export interface StackEntry {
   key: number;
@@ -63,7 +63,8 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   const [workoutOpen, setWorkoutOpen] = useState(false);
   const scrollPositions = useRef<Record<Tab, number>>({
     home: 0,
-    train: 0,
+    routines: 0,
+    progress: 0,
     profile: 0,
   });
 

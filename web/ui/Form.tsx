@@ -373,7 +373,7 @@ export function SegmentedControl<T extends string>({
             className={cx(
               'pressable text-callout h-9 shrink-0 rounded-full px-4 font-medium transition-colors',
               selected
-                ? 'bg-brand text-white'
+                ? 'bg-brand text-on-brand'
                 : 'bg-raised text-ink active:bg-overlay',
             )}
           >
@@ -405,8 +405,19 @@ export function Tabs<T extends string>({
     <div
       role="tablist"
       aria-label={label}
-      className="relative flex border-b border-line bg-surface"
+      className="relative grid rounded-lg bg-raised p-1"
+      style={{
+        gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
+      }}
     >
+      <span
+        aria-hidden="true"
+        className="absolute top-1 bottom-1 left-1 rounded-md bg-surface shadow-sm ring-1 ring-line transition-transform duration-300 ease-standard"
+        style={{
+          width: `calc((100% - 0.5rem) / ${options.length})`,
+          transform: `translateX(${index * 100}%)`,
+        }}
+      />
       {options.map((option) => {
         const selected = option.value === value;
         return (
@@ -419,22 +430,14 @@ export function Tabs<T extends string>({
             aria-controls={`panel-${option.value}`}
             onClick={() => onChange(option.value)}
             className={cx(
-              'text-body h-12 flex-1 font-medium transition-colors',
-              selected ? 'text-brand-ink' : 'text-ink-2',
+              'text-callout relative h-9 rounded-md font-semibold transition-colors',
+              selected ? 'text-ink' : 'text-ink-2',
             )}
           >
             {option.label}
           </button>
         );
       })}
-      <span
-        aria-hidden="true"
-        className="absolute bottom-0 left-0 h-0.5 bg-brand-ink transition-transform duration-300 ease-standard"
-        style={{
-          width: `${100 / options.length}%`,
-          transform: `translateX(${index * 100}%)`,
-        }}
-      />
     </div>
   );
 }

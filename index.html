@@ -1,16 +1,19 @@
 <!doctype html>
-<html lang="pt-BR" style="background: #000">
+<html lang="pt-BR" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/assets/favicon.png" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <meta name="theme-color" content="#000000" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0d0f12" />
+    <meta name="color-scheme" content="dark light" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="ForgeFlow" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
     <title>ForgeFlow</title>
     <meta
       name="description"
@@ -21,34 +24,64 @@
       property="og:description"
       content="Registre treinos de força, acompanhe recordes pessoais, metas, hidratação e nutrição."
     />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
     <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&display=swap"
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="/icons/favicon-32.png"
     />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link
+      rel="preload"
+      href="/fonts/sora-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <script>
+      // Applies the saved theme before the first paint (see web/lib/theme.ts).
+      (function () {
+        try {
+          var saved = localStorage.getItem('forgeflow_theme');
+          var theme =
+            saved === 'light' || saved === 'dark'
+              ? saved
+              : window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark';
+          document.documentElement.dataset.theme = theme;
+          document
+            .querySelector('meta[name="theme-color"]')
+            .setAttribute('content', theme === 'light' ? '#f3f4f6' : '#0d0f12');
+        } catch (error) {}
+      })();
+    </script>
     <style>
       /* Static splash painted before the bundle loads; React replaces it. */
+      html {
+        background: #0d0f12;
+      }
+      html[data-theme='light'] {
+        background: #f3f4f6;
+      }
       .ff-boot {
         position: fixed;
         inset: 0;
         display: grid;
         place-items: center;
-        background: #000;
       }
-      .ff-boot svg {
-        width: 56px;
-        height: 56px;
+      .ff-boot img {
+        width: 72px;
+        height: 72px;
       }
     </style>
   </head>
   <body>
     <div id="root">
       <div class="ff-boot" aria-hidden="true">
-        <svg viewBox="0 0 64 64" fill="none">
-          <rect width="64" height="64" rx="16" fill="#0A6CF0" />
-          <path d="M20 16h26v8H29v7h14v8H29v11h-9V16Z" fill="#fff" />
-        </svg>
+        <img src="/icons/icon.svg" alt="" />
       </div>
     </div>
     <script type="module" src="/web/main.tsx"></script>

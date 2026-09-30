@@ -8,7 +8,7 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    'bg-brand text-white active:bg-brand-press disabled:bg-overlay disabled:text-ink-3',
+    'bg-brand text-on-brand active:bg-brand-press disabled:bg-overlay disabled:text-ink-3',
   secondary: 'bg-raised text-ink active:bg-overlay disabled:text-ink-3',
   tinted: 'bg-brand-soft text-brand-ink active:bg-overlay disabled:text-ink-3',
   ghost: 'bg-transparent text-brand-ink active:bg-raised disabled:text-ink-3',

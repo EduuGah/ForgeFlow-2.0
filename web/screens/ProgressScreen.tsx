@@ -17,40 +17,69 @@ import {
   muscleDistribution,
   muscleLabel,
   percentChange,
+  type ChartMetric,
 } from '../lib/training';
 import type { PersonalRecordItem, PersonalRecordType } from '../lib/types';
 import { useNavigation } from '../navigation/Navigator';
 import { BarChart, RankedBars } from '../ui/Charts';
 import { EmptyState, Medal, ProgressBar } from '../ui/Feedback';
 import { NumberField, SegmentedControl } from '../ui/Form';
-import { Card, Delta, SectionHeader, StackHeader, Stat } from '../ui/Layout';
+import { Card, Delta, SectionHeader, Stat, TabHeader } from '../ui/Layout';
 import { cx } from '../ui/core';
 
-type PeriodDays = '7' | '30' | '90';
+type PeriodDays = '7' | '30' | '90' | '365';
 
 const PERIODS: { value: PeriodDays; label: string }[] = [
   { value: '7', label: '7 dias' },
   { value: '30', label: '30 dias' },
-  { value: '90', label: '90 dias' },
+  { value: '90', label: '3 meses' },
+  { value: '365', label: '1 ano' },
 ];
 
-export function StatsScreen() {
+const METRICS: { value: ChartMetric; label: string }[] = [
+  { value: 'volume', label: 'Volume' },
+  { value: 'duration', label: 'Duração' },
+  { value: 'reps', label: 'Repetições' },
+];
+
+function formatMetric(metric: ChartMetric, value: number): string {
+  if (metric === 'duration') return formatDurationMinutes(value);
+  if (metric === 'volume') return `${formatWeight(value)} kg`;
+  return `${formatNumber(value, 0)} reps`;
+}
+
+function formatMetricTick(metric: ChartMetric, value: number): string {
+  if (metric === 'duration')
+    return value >= 60
+      ? `${formatNumber(value / 60)} h`
+      : `${formatNumber(value, 0)} min`;
+  return formatCompact(value);
+}
+
+/** Evolution tab: one period filter above everything it scopes. */
+export function ProgressScreen() {
   const { history, prs, streakWeeks } = useAppStore();
-  const { pop, push } = useNavigation();
+  const { push } = useNavigation();
   const [period, setPeriod] = useState<PeriodDays>('30');
+  const [metric, setMetric] = useState<ChartMetric>('volume');
   const days = Number(period);
 
   const comparison = useMemo(
     () => comparePeriods(history, days),
     [history, days],
   );
-  const volumeBuckets = useMemo(
+  const buckets = useMemo(
     () =>
       days === 7
-        ? bucketDays(history, 7, 'volume')
-        : bucketHistory(history, days === 30 ? '1m' : '3m', 'volume'),
-    [history, days],
+        ? bucketDays(history, 7, metric)
+        : bucketHistory(
+            history,
+            days === 30 ? '1m' : days === 90 ? '3m' : '1y',
+            metric,
+          ),
+    [history, days, metric],
   );
+  const bucketUnit = days === 7 ? 'dia' : days === 365 ? 'mês' : 'semana';
   const muscles = useMemo(
     () =>
       muscleDistribution(
@@ -129,14 +158,16 @@ export function StatsScreen() {
 
   return (
     <>
-      <StackHeader title="Estatísticas" onBack={pop} />
-      <div className="app-column space-y-6 px-4 pt-4">
-        <SegmentedControl
-          label="Período"
-          options={PERIODS}
-          value={period}
-          onChange={setPeriod}
-        />
+      <TabHeader title="Evolução" />
+      <div className="app-column space-y-6 px-4 pt-2">
+        <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-10 -mx-4 bg-canvas/90 px-4 py-2 backdrop-blur-md">
+          <SegmentedControl
+            label="Período"
+            options={PERIODS}
+            value={period}
+            onChange={setPeriod}
+          />
+        </div>
 
         <Card className="grid grid-cols-2 gap-x-4 gap-y-5 p-4">
           <div>
@@ -178,31 +209,35 @@ export function StatsScreen() {
             />
           </div>
           <p className="text-caption col-span-2 -mt-2 text-ink-3">
-            Variação comparada aos {days} dias anteriores.
+            Variação comparada ao período anterior de mesma duração.
           </p>
         </Card>
 
-        <section aria-labelledby="stats-volume">
+        <section aria-labelledby="stats-chart">
           <SectionHeader
-            title={days === 7 ? 'Volume por dia' : 'Volume por semana'}
+            title={`${METRICS.find((item) => item.value === metric)?.label} por ${bucketUnit}`}
           />
-          <h2 id="stats-volume" className="sr-only">
-            Volume
+          <h2 id="stats-chart" className="sr-only">
+            Gráfico do período
           </h2>
           <Card className="p-4">
             <BarChart
-              data={volumeBuckets.map((bucket) => ({
+              data={buckets.map((bucket) => ({
                 key: bucket.key,
                 label: bucket.label,
                 value: bucket.value,
               }))}
-              label={
-                days === 7
-                  ? 'Volume de séries de trabalho por dia'
-                  : 'Volume de séries de trabalho por semana'
-              }
-              formatValue={(value) => `${formatWeight(value)} kg`}
-              formatTick={formatCompact}
+              label={`${METRICS.find((item) => item.value === metric)?.label} de séries de trabalho por ${bucketUnit}`}
+              formatValue={(value) => formatMetric(metric, value)}
+              formatTick={(value) => formatMetricTick(metric, value)}
+              emptyMessage="Sem treinos no período"
+            />
+            <SegmentedControl
+              label="Métrica do gráfico"
+              options={METRICS}
+              value={metric}
+              onChange={setMetric}
+              className="mt-3"
             />
           </Card>
         </section>

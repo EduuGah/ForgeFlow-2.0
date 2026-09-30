@@ -1,284 +1,229 @@
-import { useMemo, useState } from 'react';
 import {
-  BarChart3,
-  ChevronDown,
+  BookOpen,
+  CloudCog,
+  Download,
   Droplet,
   Dumbbell,
+  FileUp,
+  History,
   Pencil,
   Settings,
   Target,
   Users,
   Utensils,
-  type LucideIcon,
 } from 'lucide-react';
-import { actions, useAppStore } from '../store';
-import { describeLoginError, isLoginDismissed } from '../firebase';
-import { addDays, startOfWeek } from '../lib/dates';
-import {
-  formatCompact,
-  formatDurationMinutes,
-  formatNumber,
-} from '../lib/format';
-import {
-  bucketHistory,
-  metricValue,
-  totalsBetween,
-  type ChartMetric,
-  type ChartPeriod,
-} from '../lib/training';
-import { useNavigation, type Route } from '../navigation/Navigator';
-import { WorkoutCard } from '../features/WorkoutCard';
+import { useAppStore } from '../store';
+import { formatNumber } from '../lib/format';
+import { tutorial } from '../lib/tutorial';
+import { useNavigation } from '../navigation/Navigator';
+import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
+import { SyncBadge } from '../features/StatusBits';
 import { Button, IconButton } from '../ui/Button';
-import { BarChart } from '../ui/Charts';
-import { Avatar, Badge, EmptyState } from '../ui/Feedback';
-import { SegmentedControl } from '../ui/Form';
-import { Card, GroupLabel, TabHeader } from '../ui/Layout';
-import { ActionSheet, useToast } from '../ui/Overlay';
-
-const PERIODS: { value: ChartPeriod; label: string }[] = [
-  { value: '1m', label: 'Último mês' },
-  { value: '3m', label: 'Últimos 3 meses' },
-  { value: '1y', label: 'Último ano' },
-];
-
-const METRICS: { value: ChartMetric; label: string }[] = [
-  { value: 'duration', label: 'Duração' },
-  { value: 'volume', label: 'Volume' },
-  { value: 'reps', label: 'Repetições' },
-];
-
-const DASHBOARD: { label: string; icon: LucideIcon; route: Route }[] = [
-  { label: 'Estatísticas', icon: BarChart3, route: { name: 'stats' } },
-  { label: 'Exercícios', icon: Dumbbell, route: { name: 'library' } },
-  { label: 'Metas', icon: Target, route: { name: 'goals' } },
-  { label: 'Hidratação', icon: Droplet, route: { name: 'hydration' } },
-  { label: 'Nutrição', icon: Utensils, route: { name: 'nutrition' } },
-  { label: 'Comunidade', icon: Users, route: { name: 'social' } },
-];
-
-function formatMetric(metric: ChartMetric, value: number): string {
-  if (metric === 'duration') return formatDurationMinutes(value);
-  if (metric === 'volume') return `${formatCompact(value)} kg`;
-  return `${formatNumber(value, 0)} reps`;
-}
-
-function formatMetricTick(metric: ChartMetric, value: number): string {
-  if (metric === 'duration')
-    return value >= 60
-      ? `${formatNumber(value / 60)} h`
-      : `${formatNumber(value, 0)} min`;
-  if (metric === 'volume') return formatCompact(value);
-  return formatNumber(value, 0);
-}
+import { Avatar } from '../ui/Feedback';
+import { Card, GroupLabel, ListGroup, ListRow, TabHeader } from '../ui/Layout';
 
 export function ProfileScreen() {
-  const { userProfile, currentUser, history, prs, streakWeeks } = useAppStore();
+  const { userProfile, currentUser, history, prs, goals, streakWeeks } =
+    useAppStore();
   const { push } = useNavigation();
-  const toast = useToast();
-  const [period, setPeriod] = useState<ChartPeriod>('3m');
-  const [metric, setMetric] = useState<ChartMetric>('duration');
-  const [periodMenu, setPeriodMenu] = useState(false);
-  const [signingIn, setSigningIn] = useState(false);
-
-  const buckets = useMemo(
-    () => bucketHistory(history, period, metric),
-    [history, period, metric],
-  );
-  const thisWeek = useMemo(() => {
-    const start = startOfWeek(new Date());
-    return metricValue(
-      totalsBetween(history, start, addDays(start, 7)),
-      metric,
-    );
-  }, [history, metric]);
-
-  const signIn = async () => {
-    setSigningIn(true);
-    try {
-      await actions.login();
-    } catch (error) {
-      if (!isLoginDismissed(error))
-        toast({ tone: 'error', title: describeLoginError(error) });
-    } finally {
-      setSigningIn(false);
-    }
-  };
+  const { signIn, signingIn } = useGoogleSignIn();
+  const activeGoals = goals.filter((goal) => goal.status === 'active').length;
+  const since = history.at(-1)?.completedAt;
 
   return (
     <>
       <TabHeader
-        title={userProfile.username || 'Perfil'}
+        title="Perfil"
         actions={
-          <>
-            <IconButton
-              icon={Pencil}
-              label="Editar perfil"
-              onClick={() => push({ name: 'editProfile' })}
-            />
-            <IconButton
-              icon={Settings}
-              label="Configurações"
-              onClick={() => push({ name: 'settings' })}
-            />
-          </>
+          <IconButton
+            icon={Settings}
+            label="Configurações"
+            onClick={() => push({ name: 'settings' })}
+          />
         }
       />
 
-      <div className="app-column px-4 pt-2">
-        <div className="flex items-center gap-5">
-          <Avatar
-            name={userProfile.name}
-            photoUrl={currentUser?.photoURL}
-            size={80}
-          />
-          <div className="min-w-0 flex-1">
-            <h2 className="text-headline truncate font-semibold">
-              {userProfile.name}
-            </h2>
-            <dl className="mt-2 grid grid-cols-3 gap-2">
-              {[
-                { label: 'Treinos', value: history.length },
-                { label: 'Recordes', value: prs.length },
-                { label: 'Sequência', value: streakWeeks, unit: 'sem' },
-              ].map((item) => (
-                <div key={item.label} className="min-w-0">
-                  <dt className="text-caption text-ink-2">{item.label}</dt>
-                  <dd className="font-metric text-metric-sm">
-                    {formatNumber(item.value, 0)}
-                    {item.unit && (
-                      <span className="text-caption ml-0.5 font-sans font-medium text-ink-2">
-                        {item.unit}
-                      </span>
-                    )}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-        {userProfile.bio && (
-          <p className="text-body mt-4 whitespace-pre-line">
-            {userProfile.bio}
-          </p>
-        )}
-        {!currentUser && (
-          <Card className="mt-4 p-4">
-            <div className="flex items-center gap-2">
-              <Badge>Modo local</Badge>
+      <div className="app-column space-y-4 px-4 pt-2">
+        <Card className="overflow-hidden">
+          <div className="flex items-center gap-4 p-4">
+            <Avatar
+              name={userProfile.name}
+              photoUrl={currentUser?.photoURL}
+              size={64}
+            />
+            <div className="min-w-0 flex-1">
+              <h2 className="text-title truncate font-bold">
+                {userProfile.name}
+              </h2>
+              <p className="text-footnote truncate text-ink-2">
+                @{userProfile.username} · {userProfile.experience}
+              </p>
+              {currentUser && <SyncBadge className="mt-1.5" />}
             </div>
-            <p className="text-callout mt-2 text-ink-2">
-              Seus dados estão só neste aparelho. Entre com Google para
-              sincronizar e não perder seu histórico.
-            </p>
-            <Button block className="mt-3" loading={signingIn} onClick={signIn}>
-              Entrar com Google
-            </Button>
-          </Card>
-        )}
-
-        <section className="mt-6" aria-labelledby="profile-chart">
-          <div className="flex items-end justify-between gap-3">
-            <p id="profile-chart" className="min-w-0">
-              <span className="font-metric text-metric">
-                {formatMetric(metric, thisWeek)}
-              </span>{' '}
-              <span className="text-callout text-ink-2">esta semana</span>
-            </p>
-            <Button
-              variant="ghost"
+            <IconButton
+              icon={Pencil}
+              label="Editar perfil"
+              variant="raised"
               size="sm"
-              trailingIcon={ChevronDown}
-              onClick={() => setPeriodMenu(true)}
-              className="-mr-2"
-            >
-              {PERIODS.find((item) => item.value === period)?.label}
-            </Button>
-          </div>
-          <div className="mt-4">
-            <BarChart
-              data={buckets.map((bucket) => ({
-                key: bucket.key,
-                label: bucket.label,
-                value: bucket.value,
-              }))}
-              label={`${METRICS.find((item) => item.value === metric)?.label} por ${period === '1y' ? 'mês' : 'semana'}`}
-              formatValue={(value) => formatMetric(metric, value)}
-              formatTick={(value) => formatMetricTick(metric, value)}
-              emptyMessage="Sem treinos no período"
+              onClick={() => push({ name: 'editProfile' })}
             />
           </div>
-          <SegmentedControl
-            label="Métrica do gráfico"
-            options={METRICS}
-            value={metric}
-            onChange={setMetric}
-            className="mt-3"
-          />
-        </section>
+          {userProfile.bio && (
+            <p className="text-callout -mt-1 px-4 pb-4 whitespace-pre-line text-ink-2">
+              {userProfile.bio}
+            </p>
+          )}
+          <dl className="grid grid-cols-3 divide-x divide-line border-t border-line">
+            {[
+              { label: 'Treinos', value: history.length },
+              { label: 'Recordes', value: prs.length },
+              {
+                label:
+                  streakWeeks === 1 ? 'Semana seguida' : 'Semanas seguidas',
+                value: streakWeeks,
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="flex flex-col-reverse items-center px-2 py-3 text-center"
+              >
+                <dt className="text-caption text-ink-2">{item.label}</dt>
+                <dd className="font-metric text-metric-sm">
+                  {formatNumber(item.value, 0)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </Card>
+
+        {since && (
+          <p className="text-footnote px-1 text-ink-3">
+            Primeiro treino registrado em{' '}
+            {new Date(since).toLocaleDateString('pt-BR', {
+              month: 'long',
+              year: 'numeric',
+            })}
+            .
+          </p>
+        )}
+
+        {!currentUser && (
+          <Card className="p-4">
+            <div className="flex items-start gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-md bg-brand-soft text-brand-ink">
+                <CloudCog size={20} aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-headline font-semibold">
+                  Guarde seu progresso na nuvem
+                </h2>
+                <p className="text-callout mt-1 text-ink-2">
+                  Hoje seus treinos estão só neste aparelho. Entre para
+                  sincronizar e não perder nada se trocar de celular.
+                </p>
+              </div>
+            </div>
+            <GoogleButton
+              className="mt-4"
+              onClick={signIn}
+              loading={signingIn}
+              label="Entrar com o Google"
+            />
+          </Card>
+        )}
       </div>
 
       <div className="app-column">
-        <GroupLabel>Painel</GroupLabel>
-        <div className="grid grid-cols-2 gap-3 px-4">
-          {DASHBOARD.map(({ label, icon: Icon, route }) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => push(route)}
-              className="pressable text-body flex h-14 items-center gap-3 rounded-lg bg-surface px-4 font-medium active:bg-raised"
-            >
-              <Icon size={22} strokeWidth={1.9} aria-hidden="true" />
-              {label}
-            </button>
-          ))}
-        </div>
+        <GroupLabel>Treino</GroupLabel>
+        <ListGroup>
+          <ListRow
+            icon={History}
+            title="Diário de treinos"
+            value={
+              history.length > 0 ? formatNumber(history.length, 0) : undefined
+            }
+            onClick={() => push({ name: 'history' })}
+          />
+          <ListRow
+            icon={Dumbbell}
+            title="Exercícios"
+            onClick={() => push({ name: 'library' })}
+          />
+          <ListRow
+            icon={Target}
+            title="Metas"
+            value={activeGoals > 0 ? `${activeGoals} ativas` : undefined}
+            onClick={() => push({ name: 'goals' })}
+          />
+        </ListGroup>
 
-        <GroupLabel>Treinos</GroupLabel>
-        {history.length === 0 ? (
-          <Card className="mx-4">
-            <EmptyState
-              icon={Dumbbell}
-              title="Nenhum treino concluído"
-              message="Seus treinos concluídos aparecem aqui."
-            />
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {history.slice(0, 5).map((workout, index) => (
-              <WorkoutCard
-                key={workout.id}
-                workout={workout}
-                ordinal={history.length - index}
-                athleteName={userProfile.name}
-                photoUrl={currentUser?.photoURL}
-                onOpen={() => push({ name: 'workout', workoutId: workout.id })}
-              />
-            ))}
-            {history.length > 5 && (
-              <div className="px-4 pt-2">
-                <Button
-                  variant="secondary"
-                  block
-                  onClick={() => push({ name: 'history' })}
-                >
-                  Ver todos os {history.length} treinos
-                </Button>
-              </div>
-            )}
+        <GroupLabel>Saúde</GroupLabel>
+        <ListGroup>
+          <ListRow
+            icon={Droplet}
+            title="Hidratação"
+            onClick={() => push({ name: 'hydration' })}
+          />
+          <ListRow
+            icon={Utensils}
+            title="Nutrição"
+            onClick={() => push({ name: 'nutrition' })}
+          />
+        </ListGroup>
+
+        <GroupLabel>Comunidade</GroupLabel>
+        <ListGroup>
+          <ListRow
+            icon={Users}
+            title="Desafios e amigos"
+            subtitle="Ranking semanal e desafios em grupo"
+            onClick={() => push({ name: 'social' })}
+          />
+        </ListGroup>
+
+        <GroupLabel>Dados</GroupLabel>
+        <ListGroup>
+          <ListRow
+            icon={FileUp}
+            title="Importar histórico"
+            subtitle="CSV exportado de outro app de treino"
+            onClick={() => push({ name: 'import' })}
+          />
+          <ListRow
+            icon={Download}
+            title="Backup e relatório"
+            onClick={() => push({ name: 'settings' })}
+          />
+        </ListGroup>
+
+        <GroupLabel>App</GroupLabel>
+        <ListGroup>
+          <ListRow
+            icon={Settings}
+            title="Configurações"
+            subtitle="Tema, notificações e conta"
+            onClick={() => push({ name: 'settings' })}
+          />
+          <ListRow
+            icon={BookOpen}
+            title="Ver tutorial"
+            onClick={tutorial.show}
+          />
+        </ListGroup>
+
+        {history.length === 0 && (
+          <div className="px-4 pt-6">
+            <Button
+              variant="secondary"
+              block
+              icon={FileUp}
+              onClick={() => push({ name: 'import' })}
+            >
+              Trazer treinos de outro app
+            </Button>
           </div>
         )}
       </div>
-
-      <ActionSheet
-        open={periodMenu}
-        onClose={() => setPeriodMenu(false)}
-        title="Período do gráfico"
-        actions={PERIODS.map((item) => ({
-          label: item.label,
-          tone: item.value === period ? 'brand' : 'default',
-          onSelect: () => setPeriod(item.value),
-        }))}
-      />
     </>
   );
 }

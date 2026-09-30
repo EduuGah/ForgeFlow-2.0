@@ -1,25 +1,25 @@
 import { useMemo } from 'react';
-import { History } from 'lucide-react';
+import { FileUp, History } from 'lucide-react';
 import { useAppStore } from '../store';
 import type { CompletedWorkout } from '../lib/types';
 import { formatDurationMinutes, formatWeight, pluralize } from '../lib/format';
 import { useNavigation } from '../navigation/Navigator';
 import { WorkoutCard } from '../features/WorkoutCard';
-import { Button } from '../ui/Button';
+import { Button, IconButton } from '../ui/Button';
 import { EmptyState } from '../ui/Feedback';
 import { StackHeader } from '../ui/Layout';
 
 export function HistoryScreen() {
-  const { history, userProfile, currentUser } = useAppStore();
+  const { history } = useAppStore();
   const { pop, push, selectTab } = useNavigation();
 
   const months = useMemo(() => {
     const groups: {
       key: string;
       label: string;
-      workouts: CompletedWorkout[];
+      workouts: { workout: CompletedWorkout; ordinal: number }[];
     }[] = [];
-    for (const workout of history) {
+    history.forEach((workout, index) => {
       const date = new Date(workout.completedAt);
       const key = `${date.getFullYear()}-${date.getMonth()}`;
       let group = groups.at(-1);
@@ -34,33 +34,54 @@ export function HistoryScreen() {
         };
         groups.push(group);
       }
-      group.workouts.push(workout);
-    }
+      group.workouts.push({ workout, ordinal: history.length - index });
+    });
     return groups;
   }, [history]);
 
   return (
     <>
-      <StackHeader title="Histórico" onBack={pop} />
+      <StackHeader
+        title="Diário de treinos"
+        onBack={pop}
+        right={
+          <IconButton
+            icon={FileUp}
+            label="Importar histórico"
+            onClick={() => push({ name: 'import' })}
+          />
+        }
+      />
       <div className="app-column">
         {history.length === 0 ? (
           <EmptyState
             icon={History}
             title="Nenhum treino concluído"
-            message="Seus treinos aparecem aqui assim que você concluir o primeiro."
+            message="Seus treinos aparecem aqui assim que você concluir o primeiro — ou importe o histórico de outro app."
             action={
-              <Button onClick={() => selectTab('train')}>Ir para Treino</Button>
+              <div className="flex flex-col gap-2">
+                <Button onClick={() => selectTab('routines')}>
+                  Ver rotinas
+                </Button>
+                <Button
+                  variant="ghost"
+                  icon={FileUp}
+                  onClick={() => push({ name: 'import' })}
+                >
+                  Importar histórico
+                </Button>
+              </div>
             }
             className="pt-20"
           />
         ) : (
           months.map((month) => {
             const minutes = month.workouts.reduce(
-              (total, workout) => total + workout.durationMinutes,
+              (total, { workout }) => total + workout.durationMinutes,
               0,
             );
             const volume = month.workouts.reduce(
-              (total, workout) => total + workout.totalVolumeKg,
+              (total, { workout }) => total + workout.totalVolumeKg,
               0,
             );
             return (
@@ -69,25 +90,24 @@ export function HistoryScreen() {
                   <h2 className="text-headline font-semibold first-letter:uppercase">
                     {month.label}
                   </h2>
-                  <p className="text-footnote text-ink-2">
+                  <p className="text-footnote text-ink-2 tabular">
                     {pluralize(month.workouts.length, 'treino', 'treinos')} ·{' '}
                     {formatDurationMinutes(minutes)} · {formatWeight(volume)} kg
                   </p>
                 </div>
-                <div className="space-y-2">
-                  {month.workouts.map((workout) => (
-                    <WorkoutCard
-                      key={workout.id}
-                      workout={workout}
-                      ordinal={history.length - history.indexOf(workout)}
-                      athleteName={userProfile.name}
-                      photoUrl={currentUser?.photoURL}
-                      onOpen={() =>
-                        push({ name: 'workout', workoutId: workout.id })
-                      }
-                    />
+                <ul className="space-y-2 px-4" role="list">
+                  {month.workouts.map(({ workout, ordinal }) => (
+                    <li key={workout.id}>
+                      <WorkoutCard
+                        workout={workout}
+                        ordinal={ordinal}
+                        onOpen={() =>
+                          push({ name: 'workout', workoutId: workout.id })
+                        }
+                      />
+                    </li>
                   ))}
-                </div>
+                </ul>
               </section>
             );
           })

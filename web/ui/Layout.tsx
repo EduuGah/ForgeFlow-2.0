@@ -95,7 +95,11 @@ export function SectionHeader({
 
 /** Muted group label used above list groups (Hevy settings style). */
 export function GroupLabel({ children }: { children: ReactNode }) {
-  return <h2 className="text-callout px-4 pt-6 pb-2 text-ink-2">{children}</h2>;
+  return (
+    <h2 className="text-micro px-5 pt-6 pb-2 font-semibold tracking-wider text-ink-3 uppercase">
+      {children}
+    </h2>
+  );
 }
 
 export function Card({
@@ -108,7 +112,9 @@ export function Card({
   as?: 'section' | 'div' | 'article' | 'li';
 }) {
   return (
-    <Tag className={cx('rounded-lg bg-surface', className)}>{children}</Tag>
+    <Tag className={cx('rounded-lg border border-line bg-surface', className)}>
+      {children}
+    </Tag>
   );
 }
 
@@ -126,7 +132,7 @@ export function ListGroup({
   return (
     <ul
       className={cx(
-        'divide-y divide-line overflow-hidden bg-surface',
+        'mx-4 divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface',
         className,
       )}
       role="list"

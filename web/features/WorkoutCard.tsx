@@ -1,112 +1,131 @@
-import { Dumbbell } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import type { CompletedWorkout } from '../lib/types';
 import {
   formatDurationMinutes,
-  formatRelativeDay,
+  formatNumber,
   formatWeight,
+  pluralize,
 } from '../lib/format';
+import { muscleCode } from '../lib/training';
 import { findExercise } from '../store';
-import { Avatar, ExerciseThumb, Medal } from '../ui/Feedback';
-import { Stat } from '../ui/Layout';
+import { Medal } from '../ui/Feedback';
+import { cx } from '../ui/core';
 
-const PREVIEW_COUNT = 3;
+const MONTHS = [
+  'JAN',
+  'FEV',
+  'MAR',
+  'ABR',
+  'MAI',
+  'JUN',
+  'JUL',
+  'AGO',
+  'SET',
+  'OUT',
+  'NOV',
+  'DEZ',
+];
 
-/** Feed card of a completed workout (Hevy home/profile style). */
+function musclesOf(workout: CompletedWorkout): string[] {
+  const groups = workout.exercises
+    .map(
+      (exercise) =>
+        exercise.primaryMuscleGroup ??
+        findExercise(exercise.exerciseId ?? '')?.primaryMuscleGroup,
+    )
+    .filter((group): group is string => Boolean(group));
+  return [...new Set(groups)];
+}
+
+/**
+ * A logbook entry: date block, name, the three numbers that matter and the
+ * muscle groups trained. Personal records light the date block in ember.
+ */
 export function WorkoutCard({
   workout,
   ordinal,
-  athleteName,
-  photoUrl,
   onOpen,
 }: {
   workout: CompletedWorkout;
   ordinal?: number;
-  athleteName: string;
-  photoUrl?: string | null;
   onOpen: () => void;
 }) {
+  const date = new Date(workout.completedAt);
   const records = workout.prsAchieved.length;
-  const hidden = Math.max(0, workout.exercises.length - PREVIEW_COUNT);
+  const muscles = musclesOf(workout);
+  const names = workout.exercises.map((exercise) => exercise.exerciseName);
+  const isToday = date.toDateString() === new Date().toDateString();
 
   return (
-    <article className="bg-surface">
-      <button
-        type="button"
-        onClick={onOpen}
-        className="block w-full px-4 pt-4 pb-3 text-left transition-colors active:bg-raised"
-        aria-label={`Abrir treino ${workout.name}`}
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Abrir treino ${workout.name} de ${date.toLocaleDateString('pt-BR')}`}
+      className="flex w-full items-stretch gap-3.5 rounded-lg border border-line bg-surface p-3.5 text-left transition-colors active:bg-raised"
+    >
+      <span
+        className={cx(
+          'flex w-13 shrink-0 flex-col items-center justify-center rounded-md py-2',
+          records > 0 ? 'bg-brand-soft text-brand-ink' : 'bg-raised text-ink',
+        )}
+        aria-hidden="true"
       >
-        <div className="flex items-center gap-3">
-          <Avatar name={athleteName} photoUrl={photoUrl} size={44} />
-          <div className="min-w-0">
-            <p className="text-body truncate font-medium">{athleteName}</p>
-            <p className="text-footnote flex items-center gap-2 text-ink-2">
-              {ordinal !== undefined && (
-                <span className="inline-flex items-center gap-1 rounded-sm bg-raised px-1.5 py-0.5 text-ink">
-                  <Dumbbell size={12} aria-hidden="true" />
-                  {ordinal}º treino
+        <span className="font-metric text-metric-sm leading-none">
+          {date.getDate()}
+        </span>
+        <span className="text-micro mt-1 font-semibold tracking-wider">
+          {isToday ? 'HOJE' : MONTHS[date.getMonth()]}
+        </span>
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="text-headline truncate font-semibold">
+            {workout.name}
+          </span>
+          {ordinal !== undefined && (
+            <span className="text-caption shrink-0 text-ink-3 tabular">
+              #{ordinal}
+            </span>
+          )}
+        </span>
+        <span className="text-footnote mt-0.5 flex flex-wrap items-center gap-x-2 text-ink-2 tabular">
+          <span>{formatDurationMinutes(workout.durationMinutes)}</span>
+          <span aria-hidden="true">·</span>
+          <span>{formatWeight(workout.totalVolumeKg)} kg</span>
+          <span aria-hidden="true">·</span>
+          <span>{pluralize(workout.totalSets, 'série', 'séries')}</span>
+          {records > 0 && (
+            <span className="inline-flex items-center gap-1 font-semibold text-brand-ink">
+              <Medal size={14} /> {formatNumber(records, 0)}{' '}
+              {records === 1 ? 'recorde' : 'recordes'}
+            </span>
+          )}
+        </span>
+        {names.length > 0 && (
+          <span className="text-footnote mt-2 flex items-center gap-2">
+            <span className="flex shrink-0 gap-1" aria-hidden="true">
+              {muscles.slice(0, 3).map((group) => (
+                <span
+                  key={group}
+                  className="text-micro rounded-sm bg-raised px-1.5 py-0.5 font-semibold text-ink-2"
+                >
+                  {muscleCode(group)}
                 </span>
-              )}
-              <span>{formatRelativeDay(workout.completedAt)}</span>
-            </p>
-          </div>
-        </div>
-
-        <h3 className="text-headline mt-3 font-semibold">{workout.name}</h3>
-        <div className="mt-2 grid grid-cols-3 gap-3">
-          <Stat
-            label="Tempo"
-            value={formatDurationMinutes(workout.durationMinutes)}
-            size="sm"
-          />
-          <Stat
-            label="Volume"
-            value={formatWeight(workout.totalVolumeKg)}
-            unit="kg"
-            size="sm"
-          />
-          <Stat
-            label="Recordes"
-            value={records}
-            size="sm"
-            icon={
-              records > 0 ? (
-                <Medal size={18} className="self-center" />
-              ) : undefined
-            }
-          />
-        </div>
-
-        {workout.exercises.length > 0 && (
-          <ul className="mt-3 space-y-2 border-t border-line pt-3" role="list">
-            {workout.exercises
-              .slice(0, PREVIEW_COUNT)
-              .map((exercise, index) => {
-                const sets = exercise.sets?.length ?? exercise.setsCount;
-                const muscle =
-                  exercise.primaryMuscleGroup ??
-                  findExercise(exercise.exerciseId ?? '')?.primaryMuscleGroup;
-                return (
-                  <li
-                    key={`${exercise.exerciseName}-${index}`}
-                    className="flex items-center gap-3"
-                  >
-                    <ExerciseThumb muscle={muscle} size={40} />
-                    <span className="text-callout min-w-0 flex-1 truncate">
-                      <span className="text-ink-2">{sets} séries</span>{' '}
-                      {exercise.exerciseName}
-                    </span>
-                  </li>
-                );
-              })}
-          </ul>
+              ))}
+            </span>
+            <span className="truncate text-ink-3">
+              {names.slice(0, 2).join(', ')}
+              {names.length > 2 ? ` +${names.length - 2}` : ''}
+            </span>
+          </span>
         )}
-        {hidden > 0 && (
-          <p className="text-footnote mt-2.5 text-center text-ink-2">
-            Ver mais {hidden} {hidden === 1 ? 'exercício' : 'exercícios'}
-          </p>
-        )}
-      </button>
-    </article>
+      </span>
+      <ChevronRight
+        size={18}
+        className="shrink-0 self-center text-ink-3"
+        aria-hidden="true"
+      />
+    </button>
   );
 }
