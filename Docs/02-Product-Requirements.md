@@ -248,3 +248,9 @@ A area de Perfil oferece pesquisa por nome ou nome de usuario, pedidos de amizad
 remocao e bloqueio. Perfis privados permanecem encontraveis com dados basicos, enquanto
 estatisticas de treino dependem da preferencia de compartilhamento e, para perfis privados,
 de amizade aceita. Todas as mutacoes funcionam offline e entram na fila de sincronizacao.
+
+## FF-035 - Rankings
+
+Rankings sociais de volume, frequencia e consistencia sao opcionais, possuem periodos
+definidos e mostram apenas perfil basico e pontuacao agregada. O usuario precisa aderir
+explicitamente, pode sair a qualquer momento e nunca expoe detalhes dos treinos privados.

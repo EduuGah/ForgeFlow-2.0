@@ -9,6 +9,7 @@ import { NutritionScreen } from '../screens/NutritionScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { ProgressScreen } from '../screens/ProgressScreen';
 import { ReportsScreen } from '../screens/ReportsScreen';
+import { RankingsScreen } from '../screens/RankingsScreen';
 import { WorkoutsScreen } from '../screens/WorkoutsScreen';
 import { colors } from '../theme/tokens';
 import type { RootTabParamList } from './types';
@@ -101,6 +102,11 @@ export function AppNavigator() {
           tabBarButton: () => null,
           title: 'Amigos',
         }}
+      />
+      <Tab.Screen
+        component={RankingsScreen}
+        name="Rankings"
+        options={{ tabBarButton: () => null, title: 'Rankings' }}
       />
       <Tab.Screen
         component={HydrationScreen}

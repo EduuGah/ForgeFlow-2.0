@@ -5,6 +5,7 @@ import {
   Ban,
   Check,
   Search,
+  Trophy,
   UserMinus,
   UserPlus,
   X,
@@ -20,7 +21,6 @@ import {
 } from 'react-native';
 
 import type {
-  FriendProfileView,
   FriendsOverview,
   UserSearchResult,
 } from '../../application/useCases/friends';
@@ -55,20 +55,21 @@ export function FriendsScreen() {
     }
   }, [services]);
 
-  useEffect(() => void load(), [load]);
+  useEffect(() => {
+    const timeout = setTimeout(() => void load(), 0);
+    return () => clearTimeout(timeout);
+  }, [load]);
 
   useEffect(() => {
     let active = true;
     const normalized = query.trim();
     if (normalized.length < 2) {
-      setResults([]);
-      setSearching(false);
       return () => {
         active = false;
       };
     }
-    setSearching(true);
     const timeout = setTimeout(() => {
+      setSearching(true);
       services.friends
         .search(normalized)
         .then((items) => {
@@ -141,6 +142,20 @@ export function FriendsScreen() {
           {message}
         </Text>
       ) : null}
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => navigation.navigate('Rankings')}
+        style={styles.rankingLink}
+      >
+        <Trophy color={colors.accent} size={22} />
+        <View style={styles.profileCopy}>
+          <Text style={styles.profileName}>Rankings sociais</Text>
+          <Text style={styles.profileDetail}>
+            Volume, frequencia e consistencia por periodo.
+          </Text>
+        </View>
+      </Pressable>
 
       {query.trim().length >= 2 ? (
         <Section title="Resultados">
@@ -559,6 +574,17 @@ const styles = StyleSheet.create({
   },
   profileUsername: { ...typography.caption, color: colors.accent },
   rowActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  rankingLink: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    minHeight: 68,
+    padding: spacing.md,
+  },
   searchBox: {
     alignItems: 'center',
     backgroundColor: colors.surface,

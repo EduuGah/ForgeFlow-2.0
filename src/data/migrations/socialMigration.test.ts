@@ -4,8 +4,8 @@ import { localSocialMigration, serverSocialMigration } from './socialMigration';
 
 describe('social relationships migration', () => {
   it('registers after the performance indexes in both stores', () => {
-    expect(localMigrations.at(-1)).toBe(localSocialMigration);
-    expect(serverMigrations.at(-1)).toBe(serverSocialMigration);
+    expect(localMigrations).toContain(localSocialMigration);
+    expect(serverMigrations).toContain(serverSocialMigration);
   });
 
   it('persists profiles, friendships and blocks with privacy constraints', () => {

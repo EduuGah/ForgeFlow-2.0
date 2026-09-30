@@ -5,6 +5,7 @@ export type RootTabParamList = {
   Home: undefined;
   Nutrition: undefined;
   Profile: undefined;
+  Rankings: undefined;
   Progress: undefined;
   Reports: undefined;
   Workouts: undefined;

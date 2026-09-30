@@ -148,6 +148,7 @@ function createProfile(
     bio: null,
     displayName,
     isPrivate,
+    rankingOptIn: false,
     sharesWorkoutStats,
     updatedAt: now,
     userId,

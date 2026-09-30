@@ -7,6 +7,7 @@ export type SocialProfile = {
   bio: string | null;
   displayName: string;
   isPrivate: boolean;
+  rankingOptIn: boolean;
   sharesWorkoutStats: boolean;
   updatedAt: ISODateTimeString;
   userId: EntityId;

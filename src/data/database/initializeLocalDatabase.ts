@@ -13,7 +13,7 @@ import { createSQLiteRepositories } from '../repositories/sqliteRepositories';
 import { createExpoSQLiteConnection } from './expoSQLiteConnection';
 
 export const systemExerciseCatalogVersion = '2026-09-28-v1';
-export const socialProfileCatalogVersion = '2026-09-29-v1';
+export const socialProfileCatalogVersion = '2026-09-30-v2';
 
 export async function initializeLocalDatabase(database: SQLiteDatabase) {
   const connection = createExpoSQLiteConnection(database);
@@ -55,7 +55,13 @@ export async function initializeLocalStorage(
   if (socialSeedState?.serverCursor !== socialProfileCatalogVersion) {
     await connection.withTransactionAsync(async () => {
       for (const profile of previewSocialProfiles) {
-        await repositories.socialProfiles.saveSocialProfile(profile);
+        const existing =
+          await repositories.socialProfiles.findSocialProfileByUserId(
+            profile.userId,
+          );
+        await repositories.socialProfiles.saveSocialProfile(
+          existing ? { ...profile, ...existing } : profile,
+        );
       }
       await repositories.syncState.saveSyncState({
         key: 'social_profiles',

@@ -26,7 +26,9 @@ import {
   sendFriendRequest,
   unblockUser,
   updateSocialPrivacy,
+  updateRankingParticipation,
 } from '../application/useCases/friends';
+import { getSocialRanking } from '../application/useCases/socialRankings';
 import {
   cancelGoal,
   createGoal,
@@ -108,6 +110,7 @@ import { PlatformStructuredExportGateway } from '../data/export/platformStructur
 import { createInMemoryRepositories } from '../data/repositories/inMemoryRepositories';
 import { systemExercises } from '../data/seeds/systemExercises';
 import { previewSocialProfiles } from '../data/seeds/socialProfiles';
+import { previewRankingActivities } from '../data/seeds/rankingActivities';
 import { LOCAL_PREVIEW_USER_ID } from '../config/localPreview';
 import type { RepositoryProvider } from '../application/ports/repositories';
 import type { SecureSessionStorage } from '../application/ports/auth';
@@ -398,6 +401,29 @@ export function createAppServices(
             sharesWorkoutStats,
             userId: LOCAL_PREVIEW_USER_ID,
           },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            repositories,
+          },
+        ),
+    },
+    rankings: {
+      get: (
+        metric: import('../domain/social/rankings').RankingMetric,
+        period: import('../domain/social/rankings').RankingPeriod,
+      ) =>
+        getSocialRanking(
+          { metric, period, userId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            previewActivities: previewRankingActivities,
+            repositories,
+          },
+        ),
+      setParticipation: (optedIn: boolean) =>
+        updateRankingParticipation(
+          { optedIn, userId: LOCAL_PREVIEW_USER_ID },
           {
             clock: () => new Date().toISOString(),
             generateId: createLocalUuid,

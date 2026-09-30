@@ -14,6 +14,10 @@ export {
 export { serverMigrations } from './serverMigrations';
 export { localSocialMigration, serverSocialMigration } from './socialMigration';
 export {
+  localRankingsMigration,
+  serverRankingsMigration,
+} from './rankingsMigration';
+export {
   createSQLiteMigrationExecutor,
   type SQLiteMigrationConnection,
 } from './sqliteMigrationExecutor';
