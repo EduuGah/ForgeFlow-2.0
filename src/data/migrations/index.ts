@@ -18,6 +18,10 @@ export {
   serverRankingsMigration,
 } from './rankingsMigration';
 export {
+  localChallengesMigration,
+  serverChallengesMigration,
+} from './challengesMigration';
+export {
   createSQLiteMigrationExecutor,
   type SQLiteMigrationConnection,
 } from './sqliteMigrationExecutor';

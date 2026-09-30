@@ -21,6 +21,8 @@ import type { Media, MediaUpload } from '../../domain/media/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
+  Challenge,
+  ChallengeParticipant,
   Friendship,
   FriendshipStatus,
   SocialProfile,
@@ -131,6 +133,10 @@ export type ListMediaParams = {
 export type ListFriendshipsParams = {
   statuses?: FriendshipStatus[];
   userId: EntityId;
+};
+
+export type ListChallengesParams = {
+  statuses?: Challenge['status'][];
 };
 
 export interface AchievementRepository {
@@ -289,6 +295,23 @@ export interface UserBlockRepository {
   saveUserBlock(block: UserBlock): Promise<void>;
 }
 
+export interface ChallengeRepository {
+  findChallengeById(id: EntityId): Promise<Challenge | null>;
+  listChallenges(params?: ListChallengesParams): Promise<Challenge[]>;
+  saveChallenge(challenge: Challenge): Promise<void>;
+}
+
+export interface ChallengeParticipantRepository {
+  findChallengeParticipant(
+    challengeId: EntityId,
+    userId: EntityId,
+  ): Promise<ChallengeParticipant | null>;
+  listChallengeParticipants(
+    challengeId: EntityId,
+  ): Promise<ChallengeParticipant[]>;
+  saveChallengeParticipant(participant: ChallengeParticipant): Promise<void>;
+}
+
 export interface SyncOperationRepository {
   countPendingSyncOperations(): Promise<number>;
   enqueueSyncOperation(operation: SyncOperation): Promise<void>;
@@ -316,6 +339,8 @@ export interface RepositoryTransactionRunner {
 
 export type RepositoryProvider = {
   achievements: AchievementRepository;
+  challengeParticipants: ChallengeParticipantRepository;
+  challenges: ChallengeRepository;
   exerciseFavorites: ExerciseFavoriteRepository;
   exercises: ExerciseRepository;
   goals: GoalRepository;

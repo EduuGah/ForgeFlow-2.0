@@ -5,6 +5,7 @@ import {
   Ban,
   Check,
   Search,
+  Swords,
   Trophy,
   UserMinus,
   UserPlus,
@@ -153,6 +154,20 @@ export function FriendsScreen() {
           <Text style={styles.profileName}>Rankings sociais</Text>
           <Text style={styles.profileDetail}>
             Volume, frequencia e consistencia por periodo.
+          </Text>
+        </View>
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => navigation.navigate('Challenges')}
+        style={styles.rankingLink}
+      >
+        <Swords color={colors.accent} size={22} />
+        <View style={styles.profileCopy}>
+          <Text style={styles.profileName}>Desafios</Text>
+          <Text style={styles.profileDetail}>
+            Crie disputas, acompanhe o progresso e compare resultados.
           </Text>
         </View>
       </Pressable>

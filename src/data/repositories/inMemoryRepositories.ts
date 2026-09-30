@@ -14,6 +14,8 @@ import type { Media, MediaUpload } from '../../domain/media/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
+  Challenge,
+  ChallengeParticipant,
   Friendship,
   SocialProfile,
   UserBlock,
@@ -29,6 +31,8 @@ import type {
 } from '../../domain/training/entities';
 import type {
   AchievementRepository,
+  ChallengeParticipantRepository,
+  ChallengeRepository,
   ExerciseFavoriteRepository,
   ExerciseRepository,
   ListExerciseFavoritesParams,
@@ -71,6 +75,8 @@ import type {
 
 export type InMemoryRepositorySeed = Partial<{
   achievements: Achievement[];
+  challengeParticipants: ChallengeParticipant[];
+  challenges: Challenge[];
   exerciseFavorites: ExerciseFavorite[];
   exercises: Exercise[];
   friendships: Friendship[];
@@ -98,6 +104,8 @@ export type InMemoryRepositorySeed = Partial<{
 class InMemoryForgeFlowRepository
   implements
     AchievementRepository,
+    ChallengeParticipantRepository,
+    ChallengeRepository,
     ExerciseRepository,
     ExerciseFavoriteRepository,
     FriendshipRepository,
@@ -123,6 +131,8 @@ class InMemoryForgeFlowRepository
     UserBlockRepository
 {
   private achievements: Achievement[];
+  private challengeParticipants: ChallengeParticipant[];
+  private challenges: Challenge[];
   private exerciseFavorites: ExerciseFavorite[];
   private exercises: Exercise[];
   private friendships: Friendship[];
@@ -148,6 +158,8 @@ class InMemoryForgeFlowRepository
 
   constructor(seed: InMemoryRepositorySeed = {}) {
     this.achievements = seed.achievements ?? [];
+    this.challengeParticipants = seed.challengeParticipants ?? [];
+    this.challenges = seed.challenges ?? [];
     this.exerciseFavorites = seed.exerciseFavorites ?? [];
     this.exercises = seed.exercises ?? [];
     this.friendships = seed.friendships ?? [];
@@ -200,6 +212,38 @@ class InMemoryForgeFlowRepository
       ) ?? null;
 
     return clone(session);
+  }
+
+  async findChallengeById(id: EntityId) {
+    return clone(this.challenges.find((item) => item.id === id) ?? null);
+  }
+
+  async listChallenges(
+    params: import('../../application/ports/repositories').ListChallengesParams = {},
+  ) {
+    return clone(
+      this.challenges
+        .filter(
+          (item) => !params.statuses || params.statuses.includes(item.status),
+        )
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
+    );
+  }
+
+  async findChallengeParticipant(challengeId: EntityId, userId: EntityId) {
+    return clone(
+      this.challengeParticipants.find(
+        (item) => item.challengeId === challengeId && item.userId === userId,
+      ) ?? null,
+    );
+  }
+
+  async listChallengeParticipants(challengeId: EntityId) {
+    return clone(
+      this.challengeParticipants
+        .filter((item) => item.challengeId === challengeId)
+        .sort((left, right) => left.joinedAt.localeCompare(right.joinedAt)),
+    );
   }
 
   async findExerciseById(id: EntityId) {
@@ -731,6 +775,18 @@ class InMemoryForgeFlowRepository
     this.socialProfiles = upsertById(this.socialProfiles, profile, 'userId');
   }
 
+  async saveChallenge(challenge: Challenge) {
+    this.challenges = upsertById(this.challenges, challenge, 'id');
+  }
+
+  async saveChallengeParticipant(participant: ChallengeParticipant) {
+    this.challengeParticipants = upsertByCompositeKey(
+      this.challengeParticipants,
+      participant,
+      ['challengeId', 'userId'],
+    );
+  }
+
   async saveFriendship(friendship: Friendship) {
     this.friendships = upsertById(this.friendships, friendship, 'id');
   }
@@ -848,6 +904,8 @@ export function createInMemoryRepositories(
 
   return {
     achievements: repository,
+    challengeParticipants: repository,
+    challenges: repository,
     exerciseFavorites: repository,
     exercises: repository,
     friendships: repository,
