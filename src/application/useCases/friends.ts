@@ -31,9 +31,9 @@ export type FriendProfileView = {
 
 export type FriendsOverview = {
   blocked: FriendProfileView[];
-  friends: Array<FriendProfileView & { friendshipId: EntityId }>;
-  incomingRequests: Array<FriendProfileView & { friendshipId: EntityId }>;
-  outgoingRequests: Array<FriendProfileView & { friendshipId: EntityId }>;
+  friends: (FriendProfileView & { friendshipId: EntityId })[];
+  incomingRequests: (FriendProfileView & { friendshipId: EntityId })[];
+  outgoingRequests: (FriendProfileView & { friendshipId: EntityId })[];
   profile: SocialProfile;
 };
 
@@ -298,6 +298,25 @@ export async function updateSocialPrivacy(
     ...profile,
     isPrivate: input.isPrivate,
     sharesWorkoutStats: input.sharesWorkoutStats,
+    updatedAt: dependencies.clock(),
+  };
+  await dependencies.repositories.transaction.runInTransaction(async () => {
+    await dependencies.repositories.socialProfiles.saveSocialProfile(next);
+    await dependencies.repositories.syncOperations.enqueueSyncOperation(
+      createSyncOperation('social_profile', next.userId, next, dependencies),
+    );
+  });
+  return next;
+}
+
+export async function updateRankingParticipation(
+  input: { optedIn: boolean; userId: EntityId },
+  dependencies: FriendsDependencies,
+) {
+  const profile = await requireProfile(input.userId, dependencies.repositories);
+  const next = {
+    ...profile,
+    rankingOptIn: input.optedIn,
     updatedAt: dependencies.clock(),
   };
   await dependencies.repositories.transaction.runInTransaction(async () => {

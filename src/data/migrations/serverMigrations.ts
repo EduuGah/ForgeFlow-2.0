@@ -13,6 +13,7 @@ import { serverMediaMigration } from './mediaMigration';
 import { serverHydrationMigration } from './hydrationMigration';
 import { serverPerformanceIndexesMigration } from './performanceIndexesMigration';
 import { serverSocialMigration } from './socialMigration';
+import { serverRankingsMigration } from './rankingsMigration';
 
 export const serverMigrations = [
   initialServerSchemaMigration,
@@ -29,4 +30,5 @@ export const serverMigrations = [
   serverHydrationMigration,
   serverPerformanceIndexesMigration,
   serverSocialMigration,
+  serverRankingsMigration,
 ] satisfies readonly MigrationDefinition[];

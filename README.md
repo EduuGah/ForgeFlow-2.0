@@ -213,3 +213,9 @@ A tela `Perfil > Amigos` permite pesquisar pessoas por nome ou `@usuario`, geren
 pedidos, remover amizades, bloquear usuarios e controlar a visibilidade das estatisticas.
 O fluxo e offline-first e nunca usa email para descoberta de perfis. Consulte
 [`Docs/26-Friends.md`](Docs/26-Friends.md) para as regras completas.
+
+### Rankings sociais
+
+Em `Perfil > Amigos > Rankings sociais`, o usuario pode aderir a classificacoes de volume,
+frequencia e consistencia em janelas de 30, 90 ou 365 dias. Apenas a pontuacao agregada e
+o perfil basico sao exibidos. Consulte [`Docs/27-Social-Rankings.md`](Docs/27-Social-Rankings.md).
