@@ -1,0 +1,148 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information and preferences",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "username": { "type": "string", "maxLength": 50 },
+        "email": { "type": "string", "maxLength": 150 },
+        "bio": { "type": "string", "maxLength": 300 },
+        "experience": { "type": "string", "maxLength": 100 },
+        "weightKg": { "type": "number" },
+        "heightCm": { "type": "number" },
+        "mainGoal": { "type": "string", "maxLength": 100 },
+        "streakWeeks": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email"]
+    },
+    "WorkoutTemplate": {
+      "title": "WorkoutTemplate",
+      "description": "Saved workout routine template",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 500 },
+        "exercises": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "exercises"]
+    },
+    "CompletedWorkout": {
+      "title": "CompletedWorkout",
+      "description": "Historical completed workout record",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 120 },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "durationMinutes": { "type": "number" },
+        "totalVolumeKg": { "type": "number" },
+        "totalSets": { "type": "number" },
+        "exercises": { "type": "array" },
+        "prsAchieved": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "totalVolumeKg", "totalSets"]
+    },
+    "PersonalRecord": {
+      "title": "PersonalRecord",
+      "description": "User personal record in an exercise",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "exerciseId": { "type": "string", "maxLength": 128 },
+        "exerciseName": { "type": "string", "maxLength": 150 },
+        "type": { "type": "string", "enum": ["weight", "volume", "repetitions", "estimated_1rm"] },
+        "value": { "type": "number" },
+        "unit": { "type": "string", "maxLength": 20 },
+        "date": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "exerciseName", "type", "value"]
+    },
+    "Goal": {
+      "title": "Goal",
+      "description": "User fitness target or goal",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 120 },
+        "type": { "type": "string", "enum": ["frequency", "weight", "exercise_weight", "custom"] },
+        "currentValue": { "type": "number" },
+        "targetValue": { "type": "number" },
+        "unit": { "type": "string", "maxLength": 30 },
+        "deadline": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["active", "completed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "targetValue", "status"]
+    },
+    "HydrationLog": {
+      "title": "HydrationLog",
+      "description": "Daily water intake entry",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "amountMl": { "type": "number" },
+        "timestamp": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amountMl"]
+    },
+    "Meal": {
+      "title": "Meal",
+      "description": "Nutritional meal log",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 120 },
+        "mealType": { "type": "string", "enum": ["breakfast", "lunch", "dinner", "snack"] },
+        "kcal": { "type": "number" },
+        "proteinG": { "type": "number" },
+        "carbsG": { "type": "number" },
+        "fatG": { "type": "number" },
+        "consumedAt": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "mealType", "kcal"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile document"
+    },
+    "/users/{userId}/templates/{templateId}": {
+      "schema": { "$ref": "#/entities/WorkoutTemplate" },
+      "description": "User workout templates"
+    },
+    "/users/{userId}/history/{historyId}": {
+      "schema": { "$ref": "#/entities/CompletedWorkout" },
+      "description": "Completed workout logs"
+    },
+    "/users/{userId}/prs/{prId}": {
+      "schema": { "$ref": "#/entities/PersonalRecord" },
+      "description": "Personal records"
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": { "$ref": "#/entities/Goal" },
+      "description": "Fitness goals"
+    },
+    "/users/{userId}/hydration/{logId}": {
+      "schema": { "$ref": "#/entities/HydrationLog" },
+      "description": "Hydration logs"
+    },
+    "/users/{userId}/meals/{mealId}": {
+      "schema": { "$ref": "#/entities/Meal" },
+      "description": "Meal entries"
+    }
+  }
+}

@@ -1,9 +1,20 @@
 {
-  "extends": "expo/tsconfig.base",
   "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
     "noEmit": true,
+    "jsx": "react-jsx",
     "strict": true,
-    "types": ["jest"]
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true
   },
-  "include": ["App.tsx", "index.ts", "src", "*.config.js", "*.d.ts"]
+  "include": ["src", "web", "*.config.ts", "*.d.ts"]
 }

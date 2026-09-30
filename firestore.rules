@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Health check test doc
+    match /test/{docId} {
+      allow read: if true;
+    }
+
+    // User profile document and subcollections
+    match /users/{userId} {
+      allow get, create, update, delete: if isOwner(userId);
+
+      // Workout Templates subcollection
+      match /templates/{templateId} {
+        allow get, list, create, update, delete: if isOwner(userId);
+      }
+
+      // Workout History subcollection
+      match /history/{historyId} {
+        allow get, list, create, update, delete: if isOwner(userId);
+      }
+
+      // Personal Records subcollection
+      match /prs/{prId} {
+        allow get, list, create, update, delete: if isOwner(userId);
+      }
+
+      // Goals subcollection
+      match /goals/{goalId} {
+        allow get, list, create, update, delete: if isOwner(userId);
+      }
+
+      // Hydration logs subcollection
+      match /hydration/{logId} {
+        allow get, list, create, update, delete: if isOwner(userId);
+      }
+
+      // Meals subcollection
+      match /meals/{mealId} {
+        allow get, list, create, update, delete: if isOwner(userId);
+      }
+
+      // Custom Exercises subcollection
+      match /custom_exercises/{exerciseId} {
+        allow get, list, create, update, delete: if isOwner(userId);
+      }
+    }
+
+    // Default-deny catch-all for any other collection
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

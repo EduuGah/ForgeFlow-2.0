@@ -1,0 +1,6 @@
+{
+  "name": "ForgeFlow 2.0",
+  "description": "Comprehensive fitness tracking, workout execution, hydration, nutrition, and personal record tracking application.",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
