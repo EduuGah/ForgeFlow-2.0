@@ -207,6 +207,22 @@ interpretations explicitly ungenerated. Sharing is a separate user action:
 native platforms open the system share sheet, while web downloads the JSON for
 the user to choose its destination. No provider is contacted automatically.
 
+### Aplicativo web e design system (FF-038)
+
+O app web (`web/`) roda com Vite e Tailwind CSS 4:
+
+```bash
+bun install        # ou npm install
+npm run dev        # http://localhost:3000
+npm run build
+```
+
+A interface segue um design system centralizado em `web/index.css` (tokens) e
+`web/ui/` (componentes), com três abas no estilo Hevy, treino ativo em tela cheia,
+timer de descanso por prazo, confirmações, toasts com desfazer, estados de
+carregamento/vazio/erro/offline e suporte ao botão voltar do Android. Detalhes e
+lista de correções em [`Docs/30-Design-System.md`](Docs/30-Design-System.md).
+
 ### Amigos e privacidade
 
 A tela `Perfil > Amigos` permite pesquisar pessoas por nome ou `@usuario`, gerenciar

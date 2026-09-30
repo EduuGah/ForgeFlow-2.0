@@ -14,7 +14,8 @@
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "types": ["jest", "vite/client"]
   },
-  "include": ["src", "web", "*.config.ts", "*.d.ts"]
+  "include": ["src", "web", "*.config.ts", "*.config.mts", "*.d.ts"]
 }

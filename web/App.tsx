@@ -1,65 +1,119 @@
-import React, { useState, useEffect } from 'react';
-import { Navbar } from './components/Navbar';
-import { ActiveWorkoutModal } from './components/ActiveWorkoutModal';
+import { useState } from 'react';
+import { useAppStore, type FinishResult } from './store';
+import {
+  NavigationProvider,
+  StackHost,
+  useNavigation,
+  type Route,
+} from './navigation/Navigator';
+import { BottomNav, NAV_HEIGHT } from './navigation/BottomNav';
+import { ConfirmProvider, ToastProvider } from './ui/Overlay';
+import { ActiveWorkoutScreen } from './features/ActiveWorkout';
+import { RestTimerWatcher } from './features/RestTimer';
+import {
+  MINI_PLAYER_HEIGHT,
+  MiniPlayer,
+  SyncWatcher,
+} from './features/StatusBits';
+import { WorkoutSummary } from './features/WorkoutSummary';
+import { SplashScreen } from './screens/SplashScreen';
+import { WelcomeScreen } from './screens/WelcomeScreen';
 import { HomeScreen } from './screens/HomeScreen';
-import { WorkoutsScreen } from './screens/WorkoutsScreen';
-import { ProgressScreen } from './screens/ProgressScreen';
+import { TrainScreen } from './screens/TrainScreen';
+import { ProfileScreen } from './screens/ProfileScreen';
+import { StatsScreen } from './screens/StatsScreen';
 import { GoalsScreen } from './screens/GoalsScreen';
 import { HydrationScreen } from './screens/HydrationScreen';
 import { NutritionScreen } from './screens/NutritionScreen';
 import { SocialScreen } from './screens/SocialScreen';
-import { ProfileScreen } from './screens/ProfileScreen';
-import { useAppStore } from './store';
+import { SettingsScreen } from './screens/SettingsScreen';
+import { EditProfileScreen } from './screens/EditProfileScreen';
+import { LibraryScreen } from './screens/LibraryScreen';
+import { HistoryScreen } from './screens/HistoryScreen';
+import { ExerciseDetailScreen } from './screens/ExerciseDetailScreen';
+import { WorkoutDetailScreen } from './screens/WorkoutDetailScreen';
+import { RoutineEditorScreen } from './screens/RoutineEditorScreen';
 
 export default function App() {
-  const store = useAppStore();
-  const [currentTab, setCurrentTab] = useState('home');
-  const [isActiveWorkoutOpen, setIsActiveWorkoutOpen] = useState(false);
+  return (
+    <ToastProvider>
+      <ConfirmProvider>
+        <NavigationProvider>
+          <AppGate />
+        </NavigationProvider>
+      </ConfirmProvider>
+    </ToastProvider>
+  );
+}
 
-  // Background rest timer ticker
-  useEffect(() => {
-    const interval = setInterval(() => {
-      store.tickRestTimer();
-    }, 1000);
+function AppGate() {
+  const { isAuthLoading, currentUser, hasOnboarded } = useAppStore();
+  if (isAuthLoading) return <SplashScreen />;
+  if (!currentUser && !hasOnboarded) return <WelcomeScreen />;
+  return <MainShell />;
+}
 
-    return () => clearInterval(interval);
-  }, [store]);
+function renderRoute(route: Route) {
+  switch (route.name) {
+    case 'stats':
+      return <StatsScreen />;
+    case 'goals':
+      return <GoalsScreen />;
+    case 'hydration':
+      return <HydrationScreen />;
+    case 'nutrition':
+      return <NutritionScreen />;
+    case 'social':
+      return <SocialScreen />;
+    case 'settings':
+      return <SettingsScreen />;
+    case 'editProfile':
+      return <EditProfileScreen />;
+    case 'library':
+      return <LibraryScreen />;
+    case 'history':
+      return <HistoryScreen />;
+    case 'exercise':
+      return <ExerciseDetailScreen exerciseId={route.exerciseId} />;
+    case 'workout':
+      return <WorkoutDetailScreen workoutId={route.workoutId} />;
+    case 'routine':
+      return <RoutineEditorScreen templateId={route.templateId} />;
+  }
+}
+
+function MainShell() {
+  const { tab, push, workoutOpen } = useNavigation();
+  const { activeWorkout } = useAppStore();
+  const [summary, setSummary] = useState<FinishResult | null>(null);
+
+  const miniPlayer = activeWorkout && !workoutOpen ? MINI_PLAYER_HEIGHT : 0;
+  const bottomInset = `calc(${NAV_HEIGHT + miniPlayer + 24}px + env(safe-area-inset-bottom))`;
 
   return (
-    <div className="min-h-screen bg-[#F7F7F2] text-[#161917] flex flex-col font-sans selection:bg-[#146C5F] selection:text-white">
-      {/* Top Navigation Bar */}
-      <Navbar
-        currentTab={currentTab}
-        onSelectTab={setCurrentTab}
-        onOpenActiveWorkout={() => setIsActiveWorkoutOpen(true)}
-      />
-
-      {/* Main Content View */}
-      <main className="flex-1">
-        {currentTab === 'home' && (
-          <HomeScreen
-            onNavigate={setCurrentTab}
-            onOpenActiveWorkout={() => setIsActiveWorkoutOpen(true)}
-          />
-        )}
-        {currentTab === 'workouts' && (
-          <WorkoutsScreen
-            onOpenActiveWorkout={() => setIsActiveWorkoutOpen(true)}
-          />
-        )}
-        {currentTab === 'progress' && <ProgressScreen />}
-        {currentTab === 'goals' && <GoalsScreen />}
-        {currentTab === 'hydration' && <HydrationScreen />}
-        {currentTab === 'nutrition' && <NutritionScreen />}
-        {currentTab === 'social' && <SocialScreen />}
-        {currentTab === 'profile' && <ProfileScreen />}
+    <div
+      className="min-h-dvh animate-fade-in"
+      style={{ paddingBottom: bottomInset }}
+    >
+      <main>
+        {tab === 'home' && <HomeScreen />}
+        {tab === 'train' && <TrainScreen />}
+        {tab === 'profile' && <ProfileScreen />}
       </main>
-
-      {/* Active Workout Drawer/Modal */}
-      <ActiveWorkoutModal
-        isOpen={isActiveWorkoutOpen}
-        onClose={() => setIsActiveWorkoutOpen(false)}
+      <StackHost render={renderRoute} bottomInset={bottomInset} />
+      <MiniPlayer />
+      <BottomNav />
+      <ActiveWorkoutScreen onFinished={setSummary} />
+      <WorkoutSummary
+        result={summary}
+        onClose={() => setSummary(null)}
+        onOpenWorkout={(workoutId) => {
+          setSummary(null);
+          push({ name: 'workout', workoutId });
+        }}
       />
+      <RestTimerWatcher />
+      <SyncWatcher />
     </div>
   );
 }
