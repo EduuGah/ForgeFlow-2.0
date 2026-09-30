@@ -1,5 +1,7 @@
 import type {
   AchievementRepository,
+  ChallengeParticipantRepository,
+  ChallengeRepository,
   ExerciseFavoriteRepository,
   ExerciseRepository,
   FriendshipRepository,
@@ -56,6 +58,8 @@ import type { Meal } from '../../domain/nutrition/entities';
 import type { EntityId } from '../../domain/shared/types';
 import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
+  Challenge,
+  ChallengeParticipant,
   Friendship,
   FriendshipStatus,
   SocialProfile,
@@ -78,6 +82,8 @@ type Row = Record<string, unknown>;
 class SQLiteForgeFlowRepository
   implements
     AchievementRepository,
+    ChallengeParticipantRepository,
+    ChallengeRepository,
     ExerciseFavoriteRepository,
     ExerciseRepository,
     FriendshipRepository,
@@ -141,6 +147,47 @@ class SQLiteForgeFlowRepository
       userId,
     });
     return sessions[0] ?? null;
+  }
+
+  async findChallengeById(id: EntityId) {
+    return first(
+      (await this.rows('SELECT * FROM challenges WHERE id = ?', [id])).map(
+        toChallenge,
+      ),
+    );
+  }
+
+  async listChallenges(
+    params: import('../../application/ports/repositories').ListChallengesParams = {},
+  ) {
+    const values: unknown[] = [];
+    let sql = 'SELECT * FROM challenges';
+    if (params.statuses?.length) {
+      sql += ` WHERE status IN (${params.statuses.map(() => '?').join(', ')})`;
+      values.push(...params.statuses);
+    }
+    sql += ' ORDER BY created_at DESC';
+    return (await this.rows(sql, values)).map(toChallenge);
+  }
+
+  async findChallengeParticipant(challengeId: EntityId, userId: EntityId) {
+    return first(
+      (
+        await this.rows(
+          'SELECT * FROM challenge_participants WHERE challenge_id = ? AND user_id = ?',
+          [challengeId, userId],
+        )
+      ).map(toChallengeParticipant),
+    );
+  }
+
+  async listChallengeParticipants(challengeId: EntityId) {
+    return (
+      await this.rows(
+        'SELECT * FROM challenge_participants WHERE challenge_id = ? ORDER BY joined_at ASC',
+        [challengeId],
+      )
+    ).map(toChallengeParticipant);
   }
 
   async findExerciseById(id: EntityId) {
@@ -951,6 +998,36 @@ class SQLiteForgeFlowRepository
     );
   }
 
+  async saveChallenge(challenge: Challenge) {
+    await this.save('challenges', {
+      created_at: challenge.createdAt,
+      creator_user_id: challenge.creatorUserId,
+      ends_at: challenge.endsAt,
+      id: challenge.id,
+      metric: challenge.metric,
+      starts_at: challenge.startsAt,
+      status: challenge.status,
+      title: challenge.title,
+      updated_at: challenge.updatedAt,
+    });
+  }
+
+  async saveChallengeParticipant(participant: ChallengeParticipant) {
+    await this.save(
+      'challenge_participants',
+      {
+        challenge_id: participant.challengeId,
+        id: participant.id,
+        joined_at: participant.joinedAt,
+        left_at: participant.leftAt,
+        status: participant.status,
+        updated_at: participant.updatedAt,
+        user_id: participant.userId,
+      },
+      ['challenge_id', 'user_id'],
+    );
+  }
+
   async saveFriendship(friendship: Friendship) {
     await this.save(
       'friendships',
@@ -1048,6 +1125,8 @@ export function createSQLiteRepositories(
   const repository = new SQLiteForgeFlowRepository(database);
   return {
     achievements: repository,
+    challengeParticipants: repository,
+    challenges: repository,
     exerciseFavorites: repository,
     exercises: repository,
     friendships: repository,
@@ -1087,6 +1166,32 @@ function toExercise(row: Row): Exercise {
     primaryMuscleGroup: stringValue(row.primary_muscle_group),
     secondaryMuscleGroups: jsonValue<string[]>(row.secondary_muscle_groups, []),
     updatedAt: stringValue(row.updated_at),
+  };
+}
+
+function toChallenge(row: Row): Challenge {
+  return {
+    createdAt: stringValue(row.created_at),
+    creatorUserId: stringValue(row.creator_user_id),
+    endsAt: stringValue(row.ends_at),
+    id: stringValue(row.id),
+    metric: stringValue(row.metric) as Challenge['metric'],
+    startsAt: stringValue(row.starts_at),
+    status: stringValue(row.status) as Challenge['status'],
+    title: stringValue(row.title),
+    updatedAt: stringValue(row.updated_at),
+  };
+}
+
+function toChallengeParticipant(row: Row): ChallengeParticipant {
+  return {
+    challengeId: stringValue(row.challenge_id),
+    id: stringValue(row.id),
+    joinedAt: stringValue(row.joined_at),
+    leftAt: nullableString(row.left_at),
+    status: stringValue(row.status) as ChallengeParticipant['status'],
+    updatedAt: stringValue(row.updated_at),
+    userId: stringValue(row.user_id),
   };
 }
 

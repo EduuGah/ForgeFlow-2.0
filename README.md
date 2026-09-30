@@ -219,3 +219,10 @@ O fluxo e offline-first e nunca usa email para descoberta de perfis. Consulte
 Em `Perfil > Amigos > Rankings sociais`, o usuario pode aderir a classificacoes de volume,
 frequencia e consistencia em janelas de 30, 90 ou 365 dias. Apenas a pontuacao agregada e
 o perfil basico sao exibidos. Consulte [`Docs/27-Social-Rankings.md`](Docs/27-Social-Rankings.md).
+
+### Desafios sociais
+
+Em `Perfil > Amigos > Desafios`, o usuario cria ou participa de disputas de 7, 30 ou
+90 dias. O progresso e a classificacao usam as mesmas metricas dos rankings e sao
+recalculados com os treinos concluidos no periodo. Consulte
+[`Docs/28-Social-Challenges.md`](Docs/28-Social-Challenges.md).

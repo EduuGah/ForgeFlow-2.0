@@ -254,3 +254,10 @@ de amizade aceita. Todas as mutacoes funcionam offline e entram na fila de sincr
 Rankings sociais de volume, frequencia e consistencia sao opcionais, possuem periodos
 definidos e mostram apenas perfil basico e pontuacao agregada. O usuario precisa aderir
 explicitamente, pode sair a qualquer momento e nunca expoe detalhes dos treinos privados.
+
+## FF-036 - Desafios
+
+Usuarios podem criar desafios sociais de volume, frequencia ou consistencia com duracao
+de 7, 30 ou 90 dias. A pontuacao usa os treinos concluidos no periodo, e cada desafio
+possui regras, classificacao e ciclo de participacao visiveis. Criacao, entrada, saida e
+encerramento sao persistidos localmente e enviados pela fila de sincronizacao.

@@ -30,6 +30,13 @@ import {
 } from '../application/useCases/friends';
 import { getSocialRanking } from '../application/useCases/socialRankings';
 import {
+  createChallenge,
+  finishChallenge,
+  getChallengesOverview,
+  joinChallenge,
+  leaveChallenge,
+} from '../application/useCases/challenges';
+import {
   cancelGoal,
   createGoal,
   pauseGoal,
@@ -111,6 +118,10 @@ import { createInMemoryRepositories } from '../data/repositories/inMemoryReposit
 import { systemExercises } from '../data/seeds/systemExercises';
 import { previewSocialProfiles } from '../data/seeds/socialProfiles';
 import { previewRankingActivities } from '../data/seeds/rankingActivities';
+import {
+  previewChallengeParticipants,
+  previewChallenges,
+} from '../data/seeds/challenges';
 import { LOCAL_PREVIEW_USER_ID } from '../config/localPreview';
 import type { RepositoryProvider } from '../application/ports/repositories';
 import type { SecureSessionStorage } from '../application/ports/auth';
@@ -128,6 +139,8 @@ export function createAppServices(
   const repositories =
     repositoryProvider ??
     createInMemoryRepositories({
+      challengeParticipants: previewChallengeParticipants,
+      challenges: previewChallenges,
       exercises: systemExercises,
       socialProfiles: previewSocialProfiles,
     });
@@ -292,6 +305,58 @@ export function createAppServices(
       register: (displayName: string, email: string, password: string) =>
         registerAccount({ displayName, email, password }, authDependencies),
       restoreSession: () => restoreSession(authDependencies),
+    },
+    challenges: {
+      create: (input: {
+        durationDays: number;
+        metric: import('../domain/social/rankings').RankingMetric;
+        title: string;
+      }) =>
+        createChallenge(
+          { ...input, creatorUserId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            previewActivities: previewRankingActivities,
+            repositories,
+          },
+        ),
+      finish: (challengeId: string) =>
+        finishChallenge(
+          { challengeId, userId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            previewActivities: previewRankingActivities,
+            repositories,
+          },
+        ),
+      getOverview: () =>
+        getChallengesOverview(LOCAL_PREVIEW_USER_ID, {
+          clock: () => new Date().toISOString(),
+          previewActivities: previewRankingActivities,
+          repositories,
+        }),
+      join: (challengeId: string) =>
+        joinChallenge(
+          { challengeId, userId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            previewActivities: previewRankingActivities,
+            repositories,
+          },
+        ),
+      leave: (challengeId: string) =>
+        leaveChallenge(
+          { challengeId, userId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            previewActivities: previewRankingActivities,
+            repositories,
+          },
+        ),
     },
     currentUserId: LOCAL_PREVIEW_USER_ID,
     analytics: {

@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { ChartLine, Dumbbell, Home, Target, User } from 'lucide-react-native';
 
 import { GoalsScreen } from '../screens/GoalsScreen';
+import { ChallengesScreen } from '../screens/ChallengesScreen';
 import { FriendsScreen } from '../screens/FriendsScreen';
 import { HydrationScreen } from '../screens/HydrationScreen';
 import { HomeScreen } from '../screens/HomeScreen';
@@ -102,6 +103,11 @@ export function AppNavigator() {
           tabBarButton: () => null,
           title: 'Amigos',
         }}
+      />
+      <Tab.Screen
+        component={ChallengesScreen}
+        name="Challenges"
+        options={{ tabBarButton: () => null, title: 'Desafios' }}
       />
       <Tab.Screen
         component={RankingsScreen}

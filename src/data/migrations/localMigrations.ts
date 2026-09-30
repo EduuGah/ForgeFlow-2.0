@@ -15,6 +15,7 @@ import { localHydrationMigration } from './hydrationMigration';
 import { localPerformanceIndexesMigration } from './performanceIndexesMigration';
 import { localSocialMigration } from './socialMigration';
 import { localRankingsMigration } from './rankingsMigration';
+import { localChallengesMigration } from './challengesMigration';
 
 export const localMigrations = [
   initialLocalSchemaMigration,
@@ -33,4 +34,5 @@ export const localMigrations = [
   localPerformanceIndexesMigration,
   localSocialMigration,
   localRankingsMigration,
+  localChallengesMigration,
 ] satisfies readonly MigrationDefinition[];

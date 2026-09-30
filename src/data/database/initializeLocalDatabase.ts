@@ -4,6 +4,10 @@ import { LOCAL_PREVIEW_USER_ID } from '../../config/localPreview';
 import { systemExercises } from '../seeds/systemExercises';
 import { previewSocialProfiles } from '../seeds/socialProfiles';
 import {
+  previewChallengeParticipants,
+  previewChallenges,
+} from '../seeds/challenges';
+import {
   createSQLiteMigrationExecutor,
   type SQLiteMigrationConnection,
 } from '../migrations/sqliteMigrationExecutor';
@@ -14,6 +18,7 @@ import { createExpoSQLiteConnection } from './expoSQLiteConnection';
 
 export const systemExerciseCatalogVersion = '2026-09-28-v1';
 export const socialProfileCatalogVersion = '2026-09-30-v2';
+export const challengeCatalogVersion = '2026-09-30-v1';
 
 export async function initializeLocalDatabase(database: SQLiteDatabase) {
   const connection = createExpoSQLiteConnection(database);
@@ -69,6 +74,39 @@ export async function initializeLocalStorage(
         lastSuccessAt: now,
         scope: 'bootstrap',
         serverCursor: socialProfileCatalogVersion,
+      });
+    });
+  }
+  const challengeSeedState = await repositories.syncState.getSyncState(
+    'bootstrap',
+    'social_challenges',
+  );
+  if (challengeSeedState?.serverCursor !== challengeCatalogVersion) {
+    await connection.withTransactionAsync(async () => {
+      for (const challenge of previewChallenges) {
+        const existing = await repositories.challenges.findChallengeById(
+          challenge.id,
+        );
+        if (!existing) await repositories.challenges.saveChallenge(challenge);
+      }
+      for (const participant of previewChallengeParticipants) {
+        const existing =
+          await repositories.challengeParticipants.findChallengeParticipant(
+            participant.challengeId,
+            participant.userId,
+          );
+        if (!existing) {
+          await repositories.challengeParticipants.saveChallengeParticipant(
+            participant,
+          );
+        }
+      }
+      await repositories.syncState.saveSyncState({
+        key: 'social_challenges',
+        lastError: null,
+        lastSuccessAt: now,
+        scope: 'bootstrap',
+        serverCursor: challengeCatalogVersion,
       });
     });
   }
