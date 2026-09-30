@@ -6,7 +6,7 @@ import {
   formatNumber,
   formatWeight,
 } from '../lib/format';
-import { setLabels } from '../lib/training';
+import { estimateOneRepMax, setLabels } from '../lib/training';
 import { useNavigation } from '../navigation/Navigator';
 import { EmptyState, ExerciseThumb, Medal } from '../ui/Feedback';
 import { Stat, StackHeader } from '../ui/Layout';
@@ -86,7 +86,7 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
           </section>
         )}
 
-        <ul className="mt-4" role="list">
+        <ul className="mt-5 space-y-3 px-4" role="list">
           {workout.exercises.map((exercise, index) => {
             const catalog = exercise.exerciseId
               ? findExercise(exercise.exerciseId)
@@ -99,7 +99,7 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
             return (
               <li
                 key={`${exercise.exerciseName}-${index}`}
-                className="border-t border-line pt-4"
+                className="overflow-hidden rounded-lg border border-line bg-surface"
               >
                 <button
                   type="button"
@@ -108,11 +108,20 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
                     catalog &&
                     push({ name: 'exercise', exerciseId: catalog.id })
                   }
-                  className="flex w-full items-center gap-3 px-4 text-left disabled:cursor-default"
+                  className="flex w-full items-center gap-3 p-3 text-left active:bg-raised disabled:cursor-default disabled:active:bg-transparent"
                 >
-                  <ExerciseThumb muscle={muscle} size={44} />
-                  <span className="text-headline min-w-0 flex-1 truncate font-semibold text-brand-ink">
-                    {exercise.exerciseName}
+                  <ExerciseThumb muscle={muscle} size={40} />
+                  <span className="min-w-0 flex-1">
+                    <span className="text-headline block truncate font-semibold">
+                      {exercise.exerciseName}
+                    </span>
+                    {exercise.setsCount > 0 && (
+                      <span className="text-caption text-ink-2 tabular">
+                        {exercise.setsCount}{' '}
+                        {exercise.setsCount === 1 ? 'série' : 'séries'} ·{' '}
+                        {formatWeight(exercise.totalVolumeKg)} kg
+                      </span>
+                    )}
                   </span>
                   {catalog && (
                     <ChevronRight
@@ -123,52 +132,57 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
                   )}
                 </button>
                 {exercise.notes && (
-                  <p className="text-callout mt-2 px-4 text-ink-2">
+                  <p className="text-callout mx-3 mb-3 rounded-md bg-raised px-3 py-2 whitespace-pre-line text-ink-2">
                     {exercise.notes}
                   </p>
                 )}
-                {exercise.sets ? (
-                  <table className="mt-3 w-full">
-                    <thead>
-                      <tr className="text-micro text-left font-semibold text-ink-3 uppercase">
-                        <th scope="col" className="w-16 px-4 py-2 text-center">
-                          Série
-                        </th>
-                        <th scope="col" className="py-2">
-                          Peso e repetições
-                        </th>
+                {exercise.sets && exercise.sets.length > 0 ? (
+                  <table className="w-full border-t border-line">
+                    <thead className="sr-only">
+                      <tr>
+                        <th scope="col">Série</th>
+                        <th scope="col">Peso e repetições</th>
+                        <th scope="col">1RM estimado</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {exercise.sets.map((set, setIndex) => (
-                        <tr
-                          key={setIndex}
-                          className={
-                            setIndex % 2 === 1 ? 'bg-surface' : undefined
-                          }
-                        >
-                          <td
-                            className={cx(
-                              'text-body px-4 py-3 text-center font-bold',
-                              set.type === 'warmup'
-                                ? 'text-warmup'
-                                : 'text-ink',
-                            )}
-                          >
-                            {labels[setIndex]}
-                          </td>
-                          <td className="text-body py-3 tabular">
-                            {formatWeight(set.weightKg)} kg × {set.repetitions}
-                          </td>
-                        </tr>
-                      ))}
+                    <tbody className="divide-y divide-line">
+                      {exercise.sets.map((set, setIndex) => {
+                        const warmup = set.type === 'warmup';
+                        return (
+                          <tr key={setIndex}>
+                            <td className="w-14 py-2 pl-3">
+                              <span
+                                className={cx(
+                                  'text-callout grid h-7 w-8 place-items-center rounded-md font-bold',
+                                  warmup
+                                    ? 'bg-warmup-soft text-warmup'
+                                    : 'bg-raised text-ink',
+                                )}
+                              >
+                                {labels[setIndex]}
+                              </span>
+                            </td>
+                            <td className="text-body py-2 font-medium tabular">
+                              {formatWeight(set.weightKg)} kg ×{' '}
+                              {set.repetitions}
+                            </td>
+                            <td className="text-footnote py-2 pr-4 text-right text-ink-3 tabular">
+                              {!warmup && set.weightKg > 0
+                                ? `1RM ${formatWeight(Math.round(estimateOneRepMax(set.weightKg, set.repetitions)))} kg`
+                                : ''}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 ) : (
-                  <p className="text-callout px-4 py-3 text-ink-2">
-                    {exercise.setsCount} séries · melhor carga{' '}
-                    {formatWeight(exercise.bestWeightKg)} kg
-                  </p>
+                  !exercise.sets && (
+                    <p className="text-callout border-t border-line px-3 py-3 text-ink-2">
+                      {exercise.setsCount} séries · melhor carga{' '}
+                      {formatWeight(exercise.bestWeightKg)} kg
+                    </p>
+                  )
                 )}
               </li>
             );

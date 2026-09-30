@@ -80,10 +80,11 @@ const CHALLENGES = [
   },
 ];
 
+/* Medal metals: the same in both themes, always with dark text. */
 const PODIUM = [
-  'bg-record text-black',
-  'bg-ink-2 text-black',
-  'bg-warmup text-black',
+  'bg-[#ffd166] text-[#1b1400]',
+  'bg-[#cfd6df] text-[#12151a]',
+  'bg-[#e3a172] text-[#1b0e04]',
 ];
 
 export function SocialScreen() {
@@ -124,7 +125,7 @@ export function SocialScreen() {
     <>
       <StackHeader title="Comunidade" onBack={pop} />
       <div className="app-column">
-        <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10">
+        <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 bg-canvas/95 px-4 py-2 backdrop-blur-md">
           <Tabs
             label="Seções da comunidade"
             value={tab}

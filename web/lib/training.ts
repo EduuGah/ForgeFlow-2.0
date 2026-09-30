@@ -49,6 +49,7 @@ const MUSCLE_CODES: Record<string, string> = {
   Biceps: 'BÍC',
   Triceps: 'TRÍ',
   Core: 'CORE',
+  Cardio: 'CAR',
 };
 
 export function muscleLabel(group: string | null | undefined): string {
@@ -86,11 +87,11 @@ export function estimateOneRepMax(
   return calculateEstimatedOneRepMax({ weightKg, repetitions });
 }
 
-/** Hevy-style set labels: warm-ups show "W", working sets are numbered 1..n. */
+/** Set labels: warm-ups show "A" (aquecimento), working sets are numbered 1..n. */
 export function setLabels(sets: Pick<SetEntry, 'setType'>[]): string[] {
   let working = 0;
   return sets.map((set) => {
-    if (set.setType === 'warmup') return 'W';
+    if (set.setType === 'warmup') return 'A';
     working += 1;
     return String(working);
   });
@@ -315,6 +316,30 @@ export function dedupeRecords(
   return [...best.values()].sort(
     (a, b) => (recordDate(b)?.getTime() ?? 0) - (recordDate(a)?.getTime() ?? 0),
   );
+}
+
+/**
+ * Replays the whole history in order, so records reflect every workout even
+ * when older sessions arrive later (history import). Workouts without per-set
+ * data cannot be replayed and keep what they had.
+ */
+export function replayRecords(history: CompletedWorkout[]): {
+  records: PersonalRecordItem[];
+  achievedByWorkout: Map<string, PersonalRecordItem[]>;
+} {
+  const ordered = [...history].sort(
+    (a, b) =>
+      new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime(),
+  );
+  let records: PersonalRecordItem[] = [];
+  const achievedByWorkout = new Map<string, PersonalRecordItem[]>();
+  for (const workout of ordered) {
+    if (!workout.exercises.some((exercise) => exercise.sets)) continue;
+    const detection = detectPersonalRecords(workout, records);
+    records = detection.records;
+    achievedByWorkout.set(workout.id, detection.achieved);
+  }
+  return { records, achievedByWorkout };
 }
 
 export function describeRecord(record: PersonalRecordItem): string {

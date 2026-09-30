@@ -1,97 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Cloud, CloudOff, HardDrive, RefreshCw, Trash2 } from 'lucide-react';
+import { Cloud, CloudOff, HardDrive, RefreshCw } from 'lucide-react';
 import { actions, useAppStore } from '../store';
-import { formatClock, formatRelativeDay, formatTime } from '../lib/format';
-import { summarizeActiveWorkout } from '../lib/training';
-import { NAV_HEIGHT } from '../navigation/BottomNav';
-import { useNavigation } from '../navigation/Navigator';
+import { formatRelativeDay, formatTime } from '../lib/format';
 import { Button, IconButton, Spinner } from '../ui/Button';
 import { InlineNotice } from '../ui/Feedback';
-import { Sheet, useConfirm, useToast } from '../ui/Overlay';
-import { cx, useNow } from '../ui/core';
-import { useRestCountdown } from './RestTimer';
-
-export const MINI_PLAYER_HEIGHT = 64;
-
-/** Pinned above the tab bar while a workout is minimized. */
-export function MiniPlayer() {
-  const { activeWorkout } = useAppStore();
-  const { workoutOpen, openWorkout } = useNavigation();
-  const confirm = useConfirm();
-  const toast = useToast();
-  const rest = useRestCountdown();
-  const now = useNow(1000, Boolean(activeWorkout) && !workoutOpen);
-
-  if (!activeWorkout || workoutOpen) return null;
-  const summary = summarizeActiveWorkout(activeWorkout);
-  const elapsed = Math.floor(
-    (now - new Date(activeWorkout.startedAt).getTime()) / 1000,
-  );
-
-  const discard = async () => {
-    const ok = await confirm({
-      title: 'Descartar treino?',
-      message: 'As séries registradas neste treino serão perdidas.',
-      confirmLabel: 'Descartar treino',
-      cancelLabel: 'Continuar treinando',
-      tone: 'danger',
-      icon: Trash2,
-    });
-    if (!ok) return;
-    actions.discardActiveWorkout();
-    toast({ title: 'Treino descartado' });
-  };
-
-  return (
-    <div
-      className="fixed inset-x-0 z-40 animate-rise px-2"
-      style={{
-        bottom: `calc(${NAV_HEIGHT + 6}px + env(safe-area-inset-bottom))`,
-      }}
-    >
-      <div
-        className="app-column flex items-center gap-2 rounded-lg border border-line-strong bg-raised/95 py-2 pr-2 pl-3 shadow-pop backdrop-blur-md"
-        style={{ minHeight: MINI_PLAYER_HEIGHT - 8 }}
-      >
-        <button
-          type="button"
-          onClick={openWorkout}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
-          aria-label={`Retomar treino ${activeWorkout.name}`}
-        >
-          <span className="relative flex size-2.5 shrink-0" aria-hidden="true">
-            <span className="absolute inset-0 animate-pulse-dot rounded-full bg-success-ink" />
-          </span>
-          <span className="min-w-0">
-            <span className="text-callout block truncate font-semibold">
-              {activeWorkout.name}
-            </span>
-            <span className="text-caption block truncate text-ink-2 tabular">
-              {formatClock(Math.max(0, elapsed))} · {summary.completedSets}/
-              {summary.totalSets} séries
-              {rest.active && (
-                <span className="text-brand-ink">
-                  {' '}
-                  · descanso {formatClock(rest.remainingSeconds)}
-                </span>
-              )}
-            </span>
-          </span>
-        </button>
-        <Button size="sm" onClick={openWorkout}>
-          Retomar
-        </Button>
-        <IconButton
-          icon={Trash2}
-          label="Descartar treino"
-          variant="danger"
-          size="sm"
-          onClick={discard}
-        />
-      </div>
-    </div>
-  );
-}
+import { Sheet, useToast } from '../ui/Overlay';
+import { cx } from '../ui/core';
 
 /* ------------------------------------------------------------------ */
 /* Sync status                                                         */
@@ -146,6 +60,43 @@ export function SyncButton() {
   );
 }
 
+/** Inline status pill (profile card); opens the same sync details sheet. */
+export function SyncBadge({ className }: { className?: string }) {
+  const { syncStatus, isOnline } = useAppStore();
+  const [open, setOpen] = useState(false);
+  const problem = !isOnline || syncStatus === 'error';
+  const label = !isOnline
+    ? 'Offline'
+    : syncStatus === 'syncing'
+      ? 'Sincronizando…'
+      : syncStatus === 'error'
+        ? 'Falha ao sincronizar'
+        : 'Sincronizado';
+  const Icon = problem ? CloudOff : Cloud;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={cx(
+          'text-caption inline-flex h-6 items-center gap-1.5 rounded-sm px-2 font-semibold',
+          problem ? 'bg-raised text-warmup' : 'bg-raised text-ink-2',
+          className,
+        )}
+      >
+        {syncStatus === 'syncing' ? (
+          <Spinner size={12} />
+        ) : (
+          <Icon size={13} aria-hidden="true" />
+        )}
+        {label}
+      </button>
+      <SyncSheet open={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
 function SyncSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { currentUser, syncStatus, isOnline, lastSyncedAt } = useAppStore();
   const last = lastSyncedAt
@@ -161,9 +112,9 @@ function SyncSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
       <div className="space-y-4">
         {!currentUser ? (
           <p className="text-body text-ink-2">
-            Seus treinos estão salvos apenas neste aparelho. Entre com Google em
-            Perfil › Configurações para guardar tudo na nuvem e acessar de
-            outros dispositivos.
+            Seus treinos estão salvos apenas neste aparelho. Entre com o Google
+            na aba Perfil para guardar tudo na nuvem e acessar de outros
+            dispositivos.
           </p>
         ) : (
           <>

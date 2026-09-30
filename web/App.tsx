@@ -6,22 +6,20 @@ import {
   useNavigation,
   type Route,
 } from './navigation/Navigator';
-import { BottomNav, NAV_HEIGHT } from './navigation/BottomNav';
+import { BottomNav, DOCK_GAP, NAV_HEIGHT } from './navigation/BottomNav';
 import { ConfirmProvider, ToastProvider } from './ui/Overlay';
 import { ActiveWorkoutScreen } from './features/ActiveWorkout';
 import { RestTimerWatcher } from './features/RestTimer';
-import {
-  MINI_PLAYER_HEIGHT,
-  MiniPlayer,
-  SyncWatcher,
-} from './features/StatusBits';
+import { SyncWatcher } from './features/StatusBits';
 import { WorkoutSummary } from './features/WorkoutSummary';
+import { tutorial, useTutorialOpen } from './lib/tutorial';
 import { SplashScreen } from './screens/SplashScreen';
 import { WelcomeScreen } from './screens/WelcomeScreen';
+import { TutorialScreen } from './screens/TutorialScreen';
 import { HomeScreen } from './screens/HomeScreen';
-import { TrainScreen } from './screens/TrainScreen';
+import { RoutinesScreen } from './screens/RoutinesScreen';
+import { ProgressScreen } from './screens/ProgressScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
-import { StatsScreen } from './screens/StatsScreen';
 import { GoalsScreen } from './screens/GoalsScreen';
 import { HydrationScreen } from './screens/HydrationScreen';
 import { NutritionScreen } from './screens/NutritionScreen';
@@ -33,6 +31,7 @@ import { HistoryScreen } from './screens/HistoryScreen';
 import { ExerciseDetailScreen } from './screens/ExerciseDetailScreen';
 import { WorkoutDetailScreen } from './screens/WorkoutDetailScreen';
 import { RoutineEditorScreen } from './screens/RoutineEditorScreen';
+import { ImportScreen } from './screens/ImportScreen';
 
 export default function App() {
   return (
@@ -48,15 +47,19 @@ export default function App() {
 
 function AppGate() {
   const { isAuthLoading, currentUser, hasOnboarded } = useAppStore();
+  const tutorialOpen = useTutorialOpen();
   if (isAuthLoading) return <SplashScreen />;
   if (!currentUser && !hasOnboarded) return <WelcomeScreen />;
-  return <MainShell />;
+  return (
+    <>
+      <MainShell />
+      {tutorialOpen && <TutorialScreen onDone={tutorial.finish} />}
+    </>
+  );
 }
 
 function renderRoute(route: Route) {
   switch (route.name) {
-    case 'stats':
-      return <StatsScreen />;
     case 'goals':
       return <GoalsScreen />;
     case 'hydration':
@@ -73,6 +76,8 @@ function renderRoute(route: Route) {
       return <LibraryScreen />;
     case 'history':
       return <HistoryScreen />;
+    case 'import':
+      return <ImportScreen />;
     case 'exercise':
       return <ExerciseDetailScreen exerciseId={route.exerciseId} />;
     case 'workout':
@@ -82,26 +87,25 @@ function renderRoute(route: Route) {
   }
 }
 
-function MainShell() {
-  const { tab, push, workoutOpen } = useNavigation();
-  const { activeWorkout } = useAppStore();
-  const [summary, setSummary] = useState<FinishResult | null>(null);
+/** Room for the floating dock, so the last row of every screen stays reachable. */
+const BOTTOM_INSET = `calc(${NAV_HEIGHT + DOCK_GAP + 24}px + env(safe-area-inset-bottom))`;
 
-  const miniPlayer = activeWorkout && !workoutOpen ? MINI_PLAYER_HEIGHT : 0;
-  const bottomInset = `calc(${NAV_HEIGHT + miniPlayer + 24}px + env(safe-area-inset-bottom))`;
+function MainShell() {
+  const { tab, push } = useNavigation();
+  const [summary, setSummary] = useState<FinishResult | null>(null);
 
   return (
     <div
       className="min-h-dvh animate-fade-in"
-      style={{ paddingBottom: bottomInset }}
+      style={{ paddingBottom: BOTTOM_INSET }}
     >
       <main>
         {tab === 'home' && <HomeScreen />}
-        {tab === 'train' && <TrainScreen />}
+        {tab === 'routines' && <RoutinesScreen />}
+        {tab === 'progress' && <ProgressScreen />}
         {tab === 'profile' && <ProfileScreen />}
       </main>
-      <StackHost render={renderRoute} bottomInset={bottomInset} />
-      <MiniPlayer />
+      <StackHost render={renderRoute} bottomInset={BOTTOM_INSET} />
       <BottomNav />
       <ActiveWorkoutScreen onFinished={setSummary} />
       <WorkoutSummary
