@@ -22,6 +22,10 @@ export {
   serverChallengesMigration,
 } from './challengesMigration';
 export {
+  localCompetitionsMigration,
+  serverCompetitionsMigration,
+} from './competitionsMigration';
+export {
   createSQLiteMigrationExecutor,
   type SQLiteMigrationConnection,
 } from './sqliteMigrationExecutor';

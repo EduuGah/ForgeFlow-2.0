@@ -1,5 +1,6 @@
 export type RootTabParamList = {
   Challenges: undefined;
+  Competitions: undefined;
   Friends: undefined;
   Goals: undefined;
   Hydration: undefined;

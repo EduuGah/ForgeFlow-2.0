@@ -11,6 +11,7 @@ import { serverPerformanceIndexesMigration } from './performanceIndexesMigration
 import { serverSocialMigration } from './socialMigration';
 import { serverRankingsMigration } from './rankingsMigration';
 import { serverChallengesMigration } from './challengesMigration';
+import { serverCompetitionsMigration } from './competitionsMigration';
 import { serverExerciseFavoritesMigration } from './exerciseFavoritesMigration';
 import { serverPersonalRecordsMigration } from './personalRecordsMigration';
 import { serverGoalsMigration } from './goalsMigration';
@@ -49,6 +50,7 @@ describe('initial schema migrations', () => {
       serverSocialMigration,
       serverRankingsMigration,
       serverChallengesMigration,
+      serverCompetitionsMigration,
     ]);
 
     expect(initialLocalSchemaMigration).toMatchObject({

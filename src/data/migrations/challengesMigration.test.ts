@@ -6,9 +6,9 @@ import { localMigrations } from './localMigrations';
 import { serverMigrations } from './serverMigrations';
 
 describe('social challenges migration', () => {
-  it('registers the challenge migration last in both stores', () => {
-    expect(localMigrations.at(-1)).toBe(localChallengesMigration);
-    expect(serverMigrations.at(-1)).toBe(serverChallengesMigration);
+  it('registers the challenge migration before competitions', () => {
+    expect(localMigrations.at(-2)).toBe(localChallengesMigration);
+    expect(serverMigrations.at(-2)).toBe(serverChallengesMigration);
   });
 
   it('creates challenges and unique participation records', () => {

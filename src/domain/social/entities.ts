@@ -26,6 +26,49 @@ export type ChallengeParticipant = {
   userId: EntityId;
 };
 
+export type CompetitionStatus =
+  'registration' | 'active' | 'finished' | 'cancelled';
+export type CompetitionParticipantStatus = 'active' | 'disqualified' | 'left';
+
+export type Competition = {
+  createdAt: ISODateTimeString;
+  creatorUserId: EntityId;
+  endsAt: ISODateTimeString;
+  id: EntityId;
+  metric: RankingMetric;
+  registrationEndsAt: ISODateTimeString;
+  rulesVersion: number;
+  startsAt: ISODateTimeString;
+  status: CompetitionStatus;
+  title: string;
+  updatedAt: ISODateTimeString;
+};
+
+export type CompetitionParticipant = {
+  competitionId: EntityId;
+  id: EntityId;
+  joinedAt: ISODateTimeString;
+  leftAt: ISODateTimeString | null;
+  status: CompetitionParticipantStatus;
+  updatedAt: ISODateTimeString;
+  userId: EntityId;
+};
+
+export type CompetitionStanding = {
+  position: number;
+  score: number;
+  userId: EntityId;
+};
+
+export type CompetitionResult = {
+  competitionId: EntityId;
+  finalizedAt: ISODateTimeString;
+  id: EntityId;
+  rulesVersion: number;
+  standings: CompetitionStanding[];
+  updatedAt: ISODateTimeString;
+};
+
 export type FriendshipStatus = 'accepted' | 'declined' | 'pending' | 'removed';
 
 export type SocialProfile = {

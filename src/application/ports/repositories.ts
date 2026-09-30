@@ -23,6 +23,9 @@ import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
   Challenge,
   ChallengeParticipant,
+  Competition,
+  CompetitionParticipant,
+  CompetitionResult,
   Friendship,
   FriendshipStatus,
   SocialProfile,
@@ -312,6 +315,32 @@ export interface ChallengeParticipantRepository {
   saveChallengeParticipant(participant: ChallengeParticipant): Promise<void>;
 }
 
+export interface CompetitionRepository {
+  findCompetitionById(id: EntityId): Promise<Competition | null>;
+  listCompetitions(): Promise<Competition[]>;
+  saveCompetition(competition: Competition): Promise<void>;
+}
+
+export interface CompetitionParticipantRepository {
+  findCompetitionParticipant(
+    competitionId: EntityId,
+    userId: EntityId,
+  ): Promise<CompetitionParticipant | null>;
+  listCompetitionParticipants(
+    competitionId: EntityId,
+  ): Promise<CompetitionParticipant[]>;
+  saveCompetitionParticipant(
+    participant: CompetitionParticipant,
+  ): Promise<void>;
+}
+
+export interface CompetitionResultRepository {
+  findCompetitionResult(
+    competitionId: EntityId,
+  ): Promise<CompetitionResult | null>;
+  saveCompetitionResult(result: CompetitionResult): Promise<void>;
+}
+
 export interface SyncOperationRepository {
   countPendingSyncOperations(): Promise<number>;
   enqueueSyncOperation(operation: SyncOperation): Promise<void>;
@@ -341,6 +370,9 @@ export type RepositoryProvider = {
   achievements: AchievementRepository;
   challengeParticipants: ChallengeParticipantRepository;
   challenges: ChallengeRepository;
+  competitionParticipants: CompetitionParticipantRepository;
+  competitionResults: CompetitionResultRepository;
+  competitions: CompetitionRepository;
   exerciseFavorites: ExerciseFavoriteRepository;
   exercises: ExerciseRepository;
   goals: GoalRepository;

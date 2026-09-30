@@ -15,6 +15,7 @@ import { serverPerformanceIndexesMigration } from './performanceIndexesMigration
 import { serverSocialMigration } from './socialMigration';
 import { serverRankingsMigration } from './rankingsMigration';
 import { serverChallengesMigration } from './challengesMigration';
+import { serverCompetitionsMigration } from './competitionsMigration';
 
 export const serverMigrations = [
   initialServerSchemaMigration,
@@ -33,4 +34,5 @@ export const serverMigrations = [
   serverSocialMigration,
   serverRankingsMigration,
   serverChallengesMigration,
+  serverCompetitionsMigration,
 ] satisfies readonly MigrationDefinition[];
