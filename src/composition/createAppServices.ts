@@ -37,6 +37,12 @@ import {
   leaveChallenge,
 } from '../application/useCases/challenges';
 import {
+  createCompetition,
+  getCompetitionsOverview,
+  joinCompetition,
+  leaveCompetition,
+} from '../application/useCases/competitions';
+import {
   cancelGoal,
   createGoal,
   pauseGoal,
@@ -122,6 +128,10 @@ import {
   previewChallengeParticipants,
   previewChallenges,
 } from '../data/seeds/challenges';
+import {
+  previewCompetitionParticipants,
+  previewCompetitions,
+} from '../data/seeds/competitions';
 import { LOCAL_PREVIEW_USER_ID } from '../config/localPreview';
 import type { RepositoryProvider } from '../application/ports/repositories';
 import type { SecureSessionStorage } from '../application/ports/auth';
@@ -141,6 +151,8 @@ export function createAppServices(
     createInMemoryRepositories({
       challengeParticipants: previewChallengeParticipants,
       challenges: previewChallenges,
+      competitionParticipants: previewCompetitionParticipants,
+      competitions: previewCompetitions,
       exercises: systemExercises,
       socialProfiles: previewSocialProfiles,
     });
@@ -350,6 +362,49 @@ export function createAppServices(
       leave: (challengeId: string) =>
         leaveChallenge(
           { challengeId, userId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            previewActivities: previewRankingActivities,
+            repositories,
+          },
+        ),
+    },
+    competitions: {
+      create: (input: {
+        durationDays: number;
+        metric: import('../domain/social/rankings').RankingMetric;
+        registrationDays: number;
+        title: string;
+      }) =>
+        createCompetition(
+          { ...input, creatorUserId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            previewActivities: previewRankingActivities,
+            repositories,
+          },
+        ),
+      getOverview: () =>
+        getCompetitionsOverview(LOCAL_PREVIEW_USER_ID, {
+          clock: () => new Date().toISOString(),
+          previewActivities: previewRankingActivities,
+          repositories,
+        }),
+      join: (competitionId: string) =>
+        joinCompetition(
+          { competitionId, userId: LOCAL_PREVIEW_USER_ID },
+          {
+            clock: () => new Date().toISOString(),
+            generateId: createLocalUuid,
+            previewActivities: previewRankingActivities,
+            repositories,
+          },
+        ),
+      leave: (competitionId: string) =>
+        leaveCompetition(
+          { competitionId, userId: LOCAL_PREVIEW_USER_ID },
           {
             clock: () => new Date().toISOString(),
             generateId: createLocalUuid,

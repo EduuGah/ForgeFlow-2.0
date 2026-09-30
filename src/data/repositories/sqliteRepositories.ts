@@ -2,6 +2,9 @@ import type {
   AchievementRepository,
   ChallengeParticipantRepository,
   ChallengeRepository,
+  CompetitionParticipantRepository,
+  CompetitionRepository,
+  CompetitionResultRepository,
   ExerciseFavoriteRepository,
   ExerciseRepository,
   FriendshipRepository,
@@ -60,6 +63,9 @@ import type { SyncOperation, SyncState } from '../../domain/sync/entities';
 import type {
   Challenge,
   ChallengeParticipant,
+  Competition,
+  CompetitionParticipant,
+  CompetitionResult,
   Friendship,
   FriendshipStatus,
   SocialProfile,
@@ -84,6 +90,9 @@ class SQLiteForgeFlowRepository
     AchievementRepository,
     ChallengeParticipantRepository,
     ChallengeRepository,
+    CompetitionParticipantRepository,
+    CompetitionRepository,
+    CompetitionResultRepository,
     ExerciseFavoriteRepository,
     ExerciseRepository,
     FriendshipRepository,
@@ -188,6 +197,51 @@ class SQLiteForgeFlowRepository
         [challengeId],
       )
     ).map(toChallengeParticipant);
+  }
+
+  async findCompetitionById(id: EntityId) {
+    return first(
+      (await this.rows('SELECT * FROM competitions WHERE id = ?', [id])).map(
+        toCompetition,
+      ),
+    );
+  }
+
+  async listCompetitions() {
+    return (
+      await this.rows('SELECT * FROM competitions ORDER BY created_at DESC')
+    ).map(toCompetition);
+  }
+
+  async findCompetitionParticipant(competitionId: EntityId, userId: EntityId) {
+    return first(
+      (
+        await this.rows(
+          'SELECT * FROM competition_participants WHERE competition_id = ? AND user_id = ?',
+          [competitionId, userId],
+        )
+      ).map(toCompetitionParticipant),
+    );
+  }
+
+  async listCompetitionParticipants(competitionId: EntityId) {
+    return (
+      await this.rows(
+        'SELECT * FROM competition_participants WHERE competition_id = ? ORDER BY joined_at ASC',
+        [competitionId],
+      )
+    ).map(toCompetitionParticipant);
+  }
+
+  async findCompetitionResult(competitionId: EntityId) {
+    return first(
+      (
+        await this.rows(
+          'SELECT * FROM competition_results WHERE competition_id = ?',
+          [competitionId],
+        )
+      ).map(toCompetitionResult),
+    );
   }
 
   async findExerciseById(id: EntityId) {
@@ -1028,6 +1082,53 @@ class SQLiteForgeFlowRepository
     );
   }
 
+  async saveCompetition(competition: Competition) {
+    await this.save('competitions', {
+      created_at: competition.createdAt,
+      creator_user_id: competition.creatorUserId,
+      ends_at: competition.endsAt,
+      id: competition.id,
+      metric: competition.metric,
+      registration_ends_at: competition.registrationEndsAt,
+      rules_version: competition.rulesVersion,
+      starts_at: competition.startsAt,
+      status: competition.status,
+      title: competition.title,
+      updated_at: competition.updatedAt,
+    });
+  }
+
+  async saveCompetitionParticipant(participant: CompetitionParticipant) {
+    await this.save(
+      'competition_participants',
+      {
+        competition_id: participant.competitionId,
+        id: participant.id,
+        joined_at: participant.joinedAt,
+        left_at: participant.leftAt,
+        status: participant.status,
+        updated_at: participant.updatedAt,
+        user_id: participant.userId,
+      },
+      ['competition_id', 'user_id'],
+    );
+  }
+
+  async saveCompetitionResult(result: CompetitionResult) {
+    await this.save(
+      'competition_results',
+      {
+        competition_id: result.competitionId,
+        finalized_at: result.finalizedAt,
+        id: result.id,
+        rules_version: result.rulesVersion,
+        standings_json: JSON.stringify(result.standings),
+        updated_at: result.updatedAt,
+      },
+      ['competition_id'],
+    );
+  }
+
   async saveFriendship(friendship: Friendship) {
     await this.save(
       'friendships',
@@ -1127,6 +1228,9 @@ export function createSQLiteRepositories(
     achievements: repository,
     challengeParticipants: repository,
     challenges: repository,
+    competitionParticipants: repository,
+    competitionResults: repository,
+    competitions: repository,
     exerciseFavorites: repository,
     exercises: repository,
     friendships: repository,
@@ -1192,6 +1296,45 @@ function toChallengeParticipant(row: Row): ChallengeParticipant {
     status: stringValue(row.status) as ChallengeParticipant['status'],
     updatedAt: stringValue(row.updated_at),
     userId: stringValue(row.user_id),
+  };
+}
+
+function toCompetition(row: Row): Competition {
+  return {
+    createdAt: stringValue(row.created_at),
+    creatorUserId: stringValue(row.creator_user_id),
+    endsAt: stringValue(row.ends_at),
+    id: stringValue(row.id),
+    metric: stringValue(row.metric) as Competition['metric'],
+    registrationEndsAt: stringValue(row.registration_ends_at),
+    rulesVersion: numberValue(row.rules_version),
+    startsAt: stringValue(row.starts_at),
+    status: stringValue(row.status) as Competition['status'],
+    title: stringValue(row.title),
+    updatedAt: stringValue(row.updated_at),
+  };
+}
+
+function toCompetitionParticipant(row: Row): CompetitionParticipant {
+  return {
+    competitionId: stringValue(row.competition_id),
+    id: stringValue(row.id),
+    joinedAt: stringValue(row.joined_at),
+    leftAt: nullableString(row.left_at),
+    status: stringValue(row.status) as CompetitionParticipant['status'],
+    updatedAt: stringValue(row.updated_at),
+    userId: stringValue(row.user_id),
+  };
+}
+
+function toCompetitionResult(row: Row): CompetitionResult {
+  return {
+    competitionId: stringValue(row.competition_id),
+    finalizedAt: stringValue(row.finalized_at),
+    id: stringValue(row.id),
+    rulesVersion: numberValue(row.rules_version),
+    standings: jsonValue(row.standings_json, []),
+    updatedAt: stringValue(row.updated_at),
   };
 }
 

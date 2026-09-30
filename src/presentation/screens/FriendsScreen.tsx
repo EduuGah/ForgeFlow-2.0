@@ -6,6 +6,7 @@ import {
   Check,
   Search,
   Swords,
+  Trophy as CompetitionIcon,
   Trophy,
   UserMinus,
   UserPlus,
@@ -168,6 +169,20 @@ export function FriendsScreen() {
           <Text style={styles.profileName}>Desafios</Text>
           <Text style={styles.profileDetail}>
             Crie disputas, acompanhe o progresso e compare resultados.
+          </Text>
+        </View>
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => navigation.navigate('Competitions')}
+        style={styles.rankingLink}
+      >
+        <CompetitionIcon color={colors.accent} size={22} />
+        <View style={styles.profileCopy}>
+          <Text style={styles.profileName}>Competicoes</Text>
+          <Text style={styles.profileDetail}>
+            Regras fixas, inscricoes controladas e resultado oficial.
           </Text>
         </View>
       </Pressable>

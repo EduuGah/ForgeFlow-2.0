@@ -8,6 +8,10 @@ import {
   previewChallenges,
 } from '../seeds/challenges';
 import {
+  previewCompetitionParticipants,
+  previewCompetitions,
+} from '../seeds/competitions';
+import {
   createSQLiteMigrationExecutor,
   type SQLiteMigrationConnection,
 } from '../migrations/sqliteMigrationExecutor';
@@ -19,6 +23,7 @@ import { createExpoSQLiteConnection } from './expoSQLiteConnection';
 export const systemExerciseCatalogVersion = '2026-09-28-v1';
 export const socialProfileCatalogVersion = '2026-09-30-v2';
 export const challengeCatalogVersion = '2026-09-30-v1';
+export const competitionCatalogVersion = '2026-09-30-v1';
 
 export async function initializeLocalDatabase(database: SQLiteDatabase) {
   const connection = createExpoSQLiteConnection(database);
@@ -107,6 +112,41 @@ export async function initializeLocalStorage(
         lastSuccessAt: now,
         scope: 'bootstrap',
         serverCursor: challengeCatalogVersion,
+      });
+    });
+  }
+  const competitionSeedState = await repositories.syncState.getSyncState(
+    'bootstrap',
+    'social_competitions',
+  );
+  if (competitionSeedState?.serverCursor !== competitionCatalogVersion) {
+    await connection.withTransactionAsync(async () => {
+      for (const competition of previewCompetitions) {
+        const existing = await repositories.competitions.findCompetitionById(
+          competition.id,
+        );
+        if (!existing) {
+          await repositories.competitions.saveCompetition(competition);
+        }
+      }
+      for (const participant of previewCompetitionParticipants) {
+        const existing =
+          await repositories.competitionParticipants.findCompetitionParticipant(
+            participant.competitionId,
+            participant.userId,
+          );
+        if (!existing) {
+          await repositories.competitionParticipants.saveCompetitionParticipant(
+            participant,
+          );
+        }
+      }
+      await repositories.syncState.saveSyncState({
+        key: 'social_competitions',
+        lastError: null,
+        lastSuccessAt: now,
+        scope: 'bootstrap',
+        serverCursor: competitionCatalogVersion,
       });
     });
   }

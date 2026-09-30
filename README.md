@@ -226,3 +226,9 @@ Em `Perfil > Amigos > Desafios`, o usuario cria ou participa de disputas de 7, 3
 90 dias. O progresso e a classificacao usam as mesmas metricas dos rankings e sao
 recalculados com os treinos concluidos no periodo. Consulte
 [`Docs/28-Social-Challenges.md`](Docs/28-Social-Challenges.md).
+
+### Competicoes sociais
+
+Em `Perfil > Amigos > Competicoes`, disputas estruturadas possuem inscricoes, regras
+versionadas, ranking provisorio e resultado oficial. Consulte
+[`Docs/29-Social-Competitions.md`](Docs/29-Social-Competitions.md).

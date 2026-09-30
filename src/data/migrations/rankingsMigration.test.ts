@@ -7,8 +7,8 @@ import {
 
 describe('rankings migration', () => {
   it('registers an explicit opt-in after social profiles', () => {
-    expect(localMigrations.at(-2)).toBe(localRankingsMigration);
-    expect(serverMigrations.at(-2)).toBe(serverRankingsMigration);
+    expect(localMigrations.at(-3)).toBe(localRankingsMigration);
+    expect(serverMigrations.at(-3)).toBe(serverRankingsMigration);
     const sql = localRankingsMigration.statements.join(' ').toLowerCase();
     expect(sql).toContain('ranking_opt_in integer not null default 0');
     expect(sql).toContain('ranking_opt_in in (0, 1)');

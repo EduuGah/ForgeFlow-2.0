@@ -261,3 +261,9 @@ Usuarios podem criar desafios sociais de volume, frequencia ou consistencia com 
 de 7, 30 ou 90 dias. A pontuacao usa os treinos concluidos no periodo, e cada desafio
 possui regras, classificacao e ciclo de participacao visiveis. Criacao, entrada, saida e
 encerramento sao persistidos localmente e enviados pela fila de sincronizacao.
+
+## FF-037 - Competicoes
+
+Competicoes estruturadas possuem inscricoes controladas, regras versionadas e imutaveis
+apos o inicio, classificacao provisoria auditavel e resultado final persistido pelo servidor.
+O cliente deriva pontuacoes dos treinos e nunca oferece uma operacao para altera-las.
