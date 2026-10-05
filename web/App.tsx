@@ -6,7 +6,7 @@ import {
   useNavigation,
   type Route,
 } from './navigation/Navigator';
-import { BottomNav, DOCK_GAP, NAV_HEIGHT } from './navigation/BottomNav';
+import { BottomNav, SideNav } from './navigation/BottomNav';
 import { ConfirmProvider, ToastProvider } from './ui/Overlay';
 import { ActiveWorkoutScreen } from './features/ActiveWorkout';
 import { RestTimerWatcher } from './features/RestTimer';
@@ -108,8 +108,11 @@ function renderRoute(route: Route) {
   }
 }
 
-/** Room for the floating dock, so the last row of every screen stays reachable. */
-const BOTTOM_INSET = `calc(${NAV_HEIGHT + DOCK_GAP + 24}px + env(safe-area-inset-bottom))`;
+/**
+ * Room for the floating dock, so the last row of every screen stays
+ * reachable (`--dock-inset` in index.css; small on desktop, no dock).
+ */
+const BOTTOM_INSET = 'var(--dock-inset)';
 
 function MainShell() {
   const { tab, push } = useNavigation();
@@ -120,7 +123,7 @@ function MainShell() {
       className="min-h-dvh animate-fade-in"
       style={{ paddingBottom: BOTTOM_INSET }}
     >
-      <main>
+      <main className="lg:pl-[var(--sidebar-width)]">
         {tab === 'home' && <HomeScreen />}
         {tab === 'routines' && <RoutinesScreen />}
         {tab === 'progress' && <ProgressScreen />}
@@ -128,6 +131,7 @@ function MainShell() {
       </main>
       <StackHost render={renderRoute} bottomInset={BOTTOM_INSET} />
       <BottomNav />
+      <SideNav />
       <ActiveWorkoutScreen onFinished={setSummary} />
       <WorkoutSummary
         result={summary}

@@ -37,7 +37,7 @@ export function RestTimerBar() {
   const fraction = Math.max(0, Math.min(1, progress));
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+    <div className="pointer-events-none fixed right-0 bottom-0 left-[var(--sidebar-width)] z-10 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
       <div
         className="app-column pointer-events-auto flex animate-rise items-center gap-2 rounded-2xl border border-line-strong bg-surface/95 p-2 pr-2.5 shadow-dock backdrop-blur-md"
         role="timer"

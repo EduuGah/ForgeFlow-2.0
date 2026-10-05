@@ -141,7 +141,9 @@ export function Sheet({
         }}
         className={cx(
           'app-column absolute inset-x-0 bottom-0 flex max-h-[92dvh] flex-col rounded-t-xl bg-surface shadow-sheet outline-none',
-          size === 'tall' && 'h-[92dvh]',
+          // Desktop: a centered window instead of a sheet from the bottom.
+          'lg:inset-x-auto lg:top-[8dvh] lg:bottom-auto lg:left-[calc(50%-17.5rem)] lg:w-[35rem] lg:max-h-[84dvh] lg:rounded-xl',
+          size === 'tall' && 'h-[92dvh] lg:h-[84dvh]',
           closing ? 'animate-sheet-out' : 'animate-sheet-in',
         )}
         style={{
@@ -157,7 +159,7 @@ export function Sheet({
           onPointerCancel={onPointerEnd}
         >
           <div
-            className="mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-line-strong"
+            className="mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-line-strong lg:invisible"
             aria-hidden="true"
           />
           {(title || headerAction) && (
@@ -480,7 +482,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {createPortal(
         <div
           aria-live="polite"
-          className="app-column pointer-events-none fixed inset-x-0 top-0 z-70 flex flex-col gap-2 px-3 pt-[calc(0.75rem+env(safe-area-inset-top))]"
+          className="app-column pointer-events-none fixed inset-x-0 top-0 z-70 flex flex-col gap-2 px-3 pt-[calc(0.75rem+env(safe-area-inset-top))] lg:left-[var(--sidebar-width)]"
         >
           {toasts.map((item) => (
             <ToastItem key={item.id} toast={item} onDismiss={dismiss} />

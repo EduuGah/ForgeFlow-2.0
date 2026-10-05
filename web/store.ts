@@ -468,7 +468,9 @@ function remoteSet(
   if (path.length === 0) {
     supabaseSetProfile(user.uid, payload).catch(markSyncError);
   } else {
-    supabaseSetDocument(path[0], path[1], user.uid, payload).catch(markSyncError);
+    supabaseSetDocument(path[0], path[1], user.uid, payload).catch(
+      markSyncError,
+    );
   }
 }
 
@@ -547,8 +549,12 @@ async function runSync(user: AppUser) {
           ...Object.fromEntries(
             Object.entries(profile).filter(([key]) => key in state.userProfile),
           ),
-          name: (profile.name as string) || user.displayName || state.userProfile.name,
-          email: (profile.email as string) || user.email || state.userProfile.email,
+          name:
+            (profile.name as string) ||
+            user.displayName ||
+            state.userProfile.name,
+          email:
+            (profile.email as string) || user.email || state.userProfile.email,
         },
       });
     } else {

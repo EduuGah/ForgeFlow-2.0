@@ -12,14 +12,22 @@ export function TabHeader({
   title,
   eyebrow,
   actions,
+  wide = false,
 }: {
   title: string;
   eyebrow?: ReactNode;
   actions?: ReactNode;
+  /** Lines up with an `app-wide` (two-column on desktop) screen. */
+  wide?: boolean;
 }) {
   return (
     <header className="pt-safe sticky top-0 z-20 bg-canvas/90 backdrop-blur-md">
-      <div className="app-column flex min-h-16 items-center justify-between gap-3 px-4">
+      <div
+        className={cx(
+          'flex min-h-16 items-center justify-between gap-3 px-4',
+          wide ? 'app-wide lg:px-8' : 'app-column',
+        )}
+      >
         <div className="min-w-0 py-2">
           {eyebrow && (
             <p className="text-footnote truncate text-ink-2 first-letter:uppercase">

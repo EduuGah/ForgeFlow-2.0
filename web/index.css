@@ -279,6 +279,19 @@
   --duration-slow: 320ms;
   --app-max-width: 560px;
   --nav-height: 64px;
+  /* Desktop sidebar (0 on phones and tablets in portrait). */
+  --sidebar-width: 0px;
+  /* Room kept below content for the floating dock (phones only). */
+  --dock-inset: calc(104px + env(safe-area-inset-bottom));
+}
+
+/* Desktop: sidebar navigation, wider reading column, no dock. */
+@media (min-width: 64rem) {
+  :root {
+    --sidebar-width: 15.5rem;
+    --app-max-width: 760px;
+    --dock-inset: 3rem;
+  }
 }
 
 /*
@@ -416,6 +429,16 @@
   width: 100%;
   max-width: var(--app-max-width);
   margin-inline: auto;
+}
+
+/* Wide container for dashboards that switch to two columns on desktop. */
+@utility app-wide {
+  width: 100%;
+  max-width: var(--app-max-width);
+  margin-inline: auto;
+  @media (min-width: 64rem) {
+    max-width: 1160px;
+  }
 }
 
 @utility pressable {

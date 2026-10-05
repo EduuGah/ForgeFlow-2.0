@@ -50,7 +50,7 @@ import {
 } from '../ui/Feedback';
 import { Card, SectionHeader, Stat, TabHeader } from '../ui/Layout';
 import { useToast } from '../ui/Overlay';
-import { cx, useNow } from '../ui/core';
+import { cx, useMediaQuery, useNow } from '../ui/core';
 
 const WEEKDAYS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
 const WEEKDAY_NAMES = [
@@ -86,10 +86,66 @@ export function HomeScreen() {
   const { push, selectTab } = useNavigation();
   const firstName = userProfile.name.split(' ')[0] || 'atleta';
   const recent = history.slice(0, 4);
+  const desktop = useMediaQuery('(min-width: 64rem)');
+
+  const recentWorkouts = (
+    <section aria-labelledby="recent-workouts">
+      <SectionHeader
+        id="recent-workouts"
+        title="Diário de treinos"
+        action={
+          history.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => push({ name: 'history' })}
+            >
+              Ver tudo
+            </Button>
+          )
+        }
+      />
+      {history.length === 0 && currentUser && isSyncingWithFirestore ? (
+        <div
+          className="space-y-2"
+          aria-busy="true"
+          aria-label="Carregando treinos"
+        >
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+        </div>
+      ) : history.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Dumbbell}
+            title="Seu diário começa hoje"
+            message="Conclua seu primeiro treino para vê-lo aqui. Vindo de outro app? Importe seu histórico em Configurações."
+            action={
+              <Button variant="secondary" onClick={() => selectTab('routines')}>
+                Ver rotinas
+              </Button>
+            }
+          />
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {recent.map((workout, index) => (
+            <WorkoutCard
+              key={workout.id}
+              workout={workout}
+              ordinal={history.length - index}
+              onOpen={() => push({ name: 'workout', workoutId: workout.id })}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
 
   return (
     <>
       <TabHeader
+        wide
         title="Hoje"
         eyebrow={`${greeting()}, ${firstName}`}
         actions={
@@ -107,70 +163,32 @@ export function HomeScreen() {
         }
       />
 
-      <div className="app-column space-y-6 px-4 pt-2">
+      <div className="app-wide px-4 pt-2 lg:px-8">
         <OfflineNotice />
-        <TodayCard />
-        <WeekHeat />
-        <HealthTiles />
-        <GoalsPreview />
-        <RecentRecords />
-
-        <section aria-labelledby="recent-workouts">
-          <SectionHeader
-            id="recent-workouts"
-            title="Diário de treinos"
-            action={
-              history.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => push({ name: 'history' })}
-                >
-                  Ver tudo
-                </Button>
-              )
-            }
-          />
-          {history.length === 0 && currentUser && isSyncingWithFirestore ? (
-            <div
-              className="space-y-2"
-              aria-busy="true"
-              aria-label="Carregando treinos"
-            >
-              <Skeleton className="h-24 w-full rounded-lg" />
-              <Skeleton className="h-24 w-full rounded-lg" />
+        {desktop ? (
+          // Desktop: the training day on the left, the rest on the right.
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,24rem)] items-start gap-6">
+            <div className="space-y-6">
+              <TodayCard />
+              <WeekHeat />
+              {recentWorkouts}
             </div>
-          ) : history.length === 0 ? (
-            <Card>
-              <EmptyState
-                icon={Dumbbell}
-                title="Seu diário começa hoje"
-                message="Conclua seu primeiro treino para vê-lo aqui. Vindo de outro app? Importe seu histórico em Configurações."
-                action={
-                  <Button
-                    variant="secondary"
-                    onClick={() => selectTab('routines')}
-                  >
-                    Ver rotinas
-                  </Button>
-                }
-              />
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {recent.map((workout, index) => (
-                <WorkoutCard
-                  key={workout.id}
-                  workout={workout}
-                  ordinal={history.length - index}
-                  onOpen={() =>
-                    push({ name: 'workout', workoutId: workout.id })
-                  }
-                />
-              ))}
+            <div className="space-y-6">
+              <HealthTiles />
+              <GoalsPreview />
+              <RecentRecords />
             </div>
-          )}
-        </section>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <TodayCard />
+            <WeekHeat />
+            <HealthTiles />
+            <GoalsPreview />
+            <RecentRecords />
+            {recentWorkouts}
+          </div>
+        )}
       </div>
     </>
   );
@@ -668,7 +686,7 @@ function RecentRecords() {
           </Button>
         }
       />
-      <div className="scrollbar-none -mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1">
+      <div className="scrollbar-none -mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-2 lg:overflow-visible lg:px-0">
         {latest.map((record) => {
           const date = recordDate(record);
           return (
@@ -678,7 +696,7 @@ function RecentRecords() {
               onClick={() =>
                 push({ name: 'exercise', exerciseId: record.exerciseId })
               }
-              className="w-44 shrink-0 snap-start rounded-lg border border-line bg-surface p-3.5 text-left active:bg-raised"
+              className="w-44 shrink-0 snap-start rounded-lg border border-line bg-surface p-3.5 text-left active:bg-raised lg:w-auto lg:hover:bg-raised"
             >
               <Medal size={22} />
               <p className="font-metric text-metric-sm mt-2">

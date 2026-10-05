@@ -213,6 +213,19 @@ Cada treino pode guardar **onde foi feito** (`gymId` em `CompletedWorkout`;
 - Coleção sincronizada `users/{uid}/gyms` (regra em `firestore.rules`); as
   academias entram no backup JSON.
 
+## Computador (≥ 1024 px)
+
+- **Barra lateral** (`SideNav`) no lugar do dock: marca, botão **Treinar** (ou o
+  treino em andamento com o relógio/descanso) e os quatro destinos. Telas
+  empilhadas, treino em andamento, aviso de descanso e toasts começam depois
+  dela (`--sidebar-width`).
+- **Largura:** `--app-max-width` sobe de 560 para 760 px; Hoje, Evolução e
+  Perfil usam `app-wide` (até 1160 px) com **duas colunas** (`useMediaQuery`),
+  mantendo a ordem do celular abaixo de 1024 px.
+- **Folhas inferiores** viram janelas centralizadas; a alça de arrastar some.
+- **Boas-vindas** em duas colunas (texto e entrada à esquerda, demo à direita);
+  no exercício, a animação fica ao lado do nome.
+
 ## Arrastar e gestos
 
 Listas reordenáveis usam `@dnd-kit` com o componente `SortableList`

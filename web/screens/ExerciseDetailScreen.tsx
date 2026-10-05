@@ -172,29 +172,39 @@ export function ExerciseDetailView({
           aria-labelledby="tab-summary"
           className="animate-fade-in px-4 pt-5 pb-6"
         >
-          <ExerciseAnimation
-            exerciseId={exercise.id}
-            name={exercise.name}
-            className="mb-4"
-          />
-          <div className="flex items-center gap-4">
-            {!exerciseMedia(exercise.id) && (
-              <ExerciseThumb muscle={exercise.primaryMuscleGroup} size={64} />
+          {/* Desktop: the animation beside the name instead of above it. */}
+          <div
+            className={cx(
+              !embedded &&
+                'lg:grid lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-center lg:gap-6',
             )}
-            <div className="min-w-0">
-              <h2 className="text-title font-bold">{exercise.name}</h2>
-              <p className="text-callout text-ink-2">
-                Primário: {muscleLabel(exercise.primaryMuscleGroup)}
-              </p>
-              {exercise.secondaryMuscleGroups.length > 0 && (
+          >
+            <ExerciseAnimation
+              exerciseId={exercise.id}
+              name={exercise.name}
+              className={cx('mb-4', !embedded && 'lg:mb-0')}
+            />
+            <div className="flex items-center gap-4">
+              {!exerciseMedia(exercise.id) && (
+                <ExerciseThumb muscle={exercise.primaryMuscleGroup} size={64} />
+              )}
+              <div className="min-w-0">
+                <h2 className="text-title font-bold">{exercise.name}</h2>
                 <p className="text-callout text-ink-2">
-                  Secundário:{' '}
-                  {exercise.secondaryMuscleGroups.map(muscleLabel).join(', ')}
+                  Primário: {muscleLabel(exercise.primaryMuscleGroup)}
                 </p>
-              )}
-              {exercise.equipment && (
-                <p className="text-footnote text-ink-3">{exercise.equipment}</p>
-              )}
+                {exercise.secondaryMuscleGroups.length > 0 && (
+                  <p className="text-callout text-ink-2">
+                    Secundário:{' '}
+                    {exercise.secondaryMuscleGroups.map(muscleLabel).join(', ')}
+                  </p>
+                )}
+                {exercise.equipment && (
+                  <p className="text-footnote text-ink-3">
+                    {exercise.equipment}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -330,7 +340,7 @@ export function ExerciseDetailView({
               <ExerciseAnimation
                 exerciseId={exercise.id}
                 name={exercise.name}
-                className="mt-4"
+                className={cx('mt-4', !embedded && 'lg:max-w-md')}
               />
               <GuideList title="Preparação" items={guide.setup} />
               <GuideList title="Execução" items={guide.steps} numbered />

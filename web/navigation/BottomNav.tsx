@@ -19,6 +19,7 @@ import { haptic } from '../lib/haptics';
 import { useWorkoutLauncher } from '../features/useWorkoutLauncher';
 import { useRestCountdown } from '../features/RestTimer';
 import { Button } from '../ui/Button';
+import { BrandMark } from '../ui/Feedback';
 import { Sheet } from '../ui/Overlay';
 import { cx, useNow } from '../ui/core';
 import { useNavigation, type Tab } from './Navigator';
@@ -92,7 +93,7 @@ export function BottomNav() {
     <>
       <nav
         aria-label="Navegação principal"
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 lg:hidden"
         style={{
           paddingBottom: `calc(${DOCK_GAP}px + env(safe-area-inset-bottom))`,
         }}
@@ -119,6 +120,122 @@ export function BottomNav() {
       </nav>
       <StartWorkoutSheet open={startOpen} onClose={() => setStartOpen(false)} />
     </>
+  );
+}
+
+/**
+ * Desktop navigation: a sidebar with the brand, the "Treinar" action (or
+ * the running workout with its clock) and the four destinations.
+ */
+export function SideNav() {
+  const { tab, selectTab, openWorkout } = useNavigation();
+  const { activeWorkout } = useAppStore();
+  const [startOpen, setStartOpen] = useState(false);
+
+  return (
+    <>
+      <nav
+        aria-label="Navegação principal"
+        className="fixed inset-y-0 left-0 z-40 hidden w-[var(--sidebar-width)] flex-col border-r border-line bg-surface px-3 pt-5 pb-4 lg:flex"
+      >
+        <div className="flex items-center gap-2.5 px-2">
+          <BrandMark size={34} />
+          <span className="text-headline font-bold tracking-tight">
+            ForgeFlow
+          </span>
+        </div>
+
+        <div className="mt-6 px-1">
+          {activeWorkout ? (
+            <SideWorkoutButton
+              name={activeWorkout.name}
+              startedAt={activeWorkout.startedAt}
+              onPress={openWorkout}
+            />
+          ) : (
+            <Button
+              block
+              size="lg"
+              icon={Dumbbell}
+              onClick={() => setStartOpen(true)}
+            >
+              Treinar
+            </Button>
+          )}
+        </div>
+
+        <ul className="mt-6 space-y-1" role="list">
+          {[...LEFT, ...RIGHT].map(({ tab: itemTab, label, icon: Icon }) => {
+            const active = tab === itemTab;
+            return (
+              <li key={itemTab}>
+                <button
+                  type="button"
+                  aria-current={active ? 'page' : undefined}
+                  onClick={() => selectTab(itemTab)}
+                  className={cx(
+                    'text-body flex h-11 w-full items-center gap-3 rounded-md px-3 text-left transition-colors',
+                    active
+                      ? 'bg-brand-soft font-semibold text-brand-ink'
+                      : 'font-medium text-ink-2 hover:bg-raised hover:text-ink',
+                  )}
+                >
+                  <Icon
+                    size={20}
+                    strokeWidth={active ? 2.3 : 1.9}
+                    aria-hidden="true"
+                  />
+                  {label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+
+        <p className="text-caption mt-auto px-3 text-ink-3">
+          Dica: arraste pela alça ⋮⋮ para reordenar.
+        </p>
+      </nav>
+      <StartWorkoutSheet open={startOpen} onClose={() => setStartOpen(false)} />
+    </>
+  );
+}
+
+function SideWorkoutButton({
+  name,
+  startedAt,
+  onPress,
+}: {
+  name: string;
+  startedAt: string;
+  onPress: () => void;
+}) {
+  const now = useNow(1000);
+  const rest = useRestCountdown();
+  const elapsed = Math.max(
+    0,
+    Math.floor((now - new Date(startedAt).getTime()) / 1000),
+  );
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      className="ember-edge pressable flex w-full items-center gap-3 rounded-lg bg-raised p-3 text-left"
+    >
+      <span
+        className="size-2.5 shrink-0 animate-pulse-dot rounded-full bg-brand"
+        aria-hidden="true"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="text-footnote block font-semibold">
+          {rest.active ? 'Descansando' : 'Treino em andamento'}
+        </span>
+        <span className="text-caption block truncate text-ink-2">{name}</span>
+      </span>
+      <span className="font-metric text-metric-sm text-brand-ink tabular">
+        {formatClock(rest.active ? rest.remainingSeconds : elapsed)}
+      </span>
+    </button>
   );
 }
 
