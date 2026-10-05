@@ -191,6 +191,28 @@ aba Rotinas continua uma lista simples.
   (regra em `firestore.rules`). Rotinas cuja pasta foi apagada em outro aparelho
   aparecem em "Sem pasta".
 
+## Academias
+
+Cada treino pode guardar **onde foi feito** (`gymId` em `CompletedWorkout`;
+`Gym { id, name, createdAt }`, lógica em `web/lib/gyms.ts`).
+
+- **Ao concluir:** o resumo pergunta "Onde você treinou?" com um chip por
+  academia, "Nenhuma" e "+ Nova". Já vem marcada a academia onde esta rotina foi
+  feita da última vez (ou a última usada), então na maioria dos treinos não é
+  preciso tocar em nada.
+- **Detalhe do treino:** o selo com a academia abaixo do nome troca o local
+  (inclusive de treinos antigos ou importados).
+- **Perfil › Academias:** lista com treinos e última visita; cada academia mostra
+  treinos, tempo total, volume, recordes, frequência nas últimas 8 semanas,
+  exercícios e treinos mais feitos e os treinos recentes. O menu permite
+  renomear, excluir (os treinos ficam sem academia, sem reescrever o histórico)
+  e **marcar de uma vez os treinos sem academia** (útil após importar do Hevy).
+- **Filtros:** o Diário filtra por academia (e "Sem academia"); a Evolução filtra
+  números, gráfico e grupos musculares por academia e mostra o cartão "Por
+  academia" no período. Recordes e conquistas continuam gerais.
+- Coleção sincronizada `users/{uid}/gyms` (regra em `firestore.rules`); as
+  academias entram no backup JSON.
+
 ## Recordes por série
 
 Um recorde (maior peso, melhor 1RM estimado, melhor série em volume) pertence a

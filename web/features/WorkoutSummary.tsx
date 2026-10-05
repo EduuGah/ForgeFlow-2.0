@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Target } from 'lucide-react';
-import type { FinishResult } from '../store';
+import { MapPin, Target } from 'lucide-react';
+import { actions, useStoreValue, type FinishResult } from '../store';
 import {
   formatDurationMinutes,
   formatNumber,
@@ -12,6 +12,7 @@ import { Button } from '../ui/Button';
 import { Medal } from '../ui/Feedback';
 import { Stat } from '../ui/Layout';
 import { cx, useBackLayer, usePresence, useScrollLock } from '../ui/core';
+import { GymChips } from './GymPicker';
 
 /** Full-screen celebration after saving a workout. */
 export function WorkoutSummary({
@@ -32,6 +33,12 @@ export function WorkoutSummary({
   const [lastResult, setLastResult] = useState(result);
   if (result && result !== lastResult) setLastResult(result);
   const shown = result ?? lastResult;
+  // The gym can change here, so read it from the saved workout.
+  const shownId = shown?.workout.id;
+  const gymId = useStoreValue(
+    (current) =>
+      current.history.find((workout) => workout.id === shownId)?.gymId ?? null,
+  );
 
   if (!mounted || !shown) return null;
   const { workout, records, goalsReached, workoutNumber } = shown;
@@ -109,6 +116,24 @@ export function WorkoutSummary({
               size="sm"
             />
           </div>
+
+          <section
+            className="mt-4 w-full animate-rise rounded-lg bg-surface p-4 text-left"
+            style={{ animationDelay: '360ms' }}
+            aria-labelledby="summary-gym"
+          >
+            <h2
+              id="summary-gym"
+              className="text-headline mb-3 flex items-center gap-2 font-semibold"
+            >
+              <MapPin size={18} className="text-brand-ink" aria-hidden="true" />
+              Onde você treinou?
+            </h2>
+            <GymChips
+              value={gymId}
+              onChange={(id) => actions.setWorkoutGym(workout.id, id)}
+            />
+          </section>
 
           {hasRecords && (
             <section

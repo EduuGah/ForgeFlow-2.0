@@ -72,8 +72,17 @@ export interface CompletedWorkout {
   templateId?: string;
   /** Free text about the whole session (Hevy "description"). */
   notes?: string;
+  /** Gym where the workout happened. */
+  gymId?: string;
   exercises: CompletedExercise[];
   prsAchieved: string[];
+}
+
+/** A place where the person trains; workouts point to it with `gymId`. */
+export interface Gym {
+  id: string;
+  name: string;
+  createdAt: string;
 }
 
 export interface TemplateExercise {

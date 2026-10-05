@@ -21,7 +21,9 @@ export type Route =
   | { name: 'settings' }
   | { name: 'editProfile' }
   | { name: 'library' }
-  | { name: 'history' }
+  | { name: 'history'; gymFilter?: string }
+  | { name: 'gyms' }
+  | { name: 'gym'; gymId: string }
   | { name: 'exercise'; exerciseId: string }
   | { name: 'workout'; workoutId: string }
   | { name: 'routine'; templateId?: string; folderId?: string }

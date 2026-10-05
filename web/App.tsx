@@ -29,6 +29,7 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { EditProfileScreen } from './screens/EditProfileScreen';
 import { LibraryScreen } from './screens/LibraryScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
+import { GymDetailScreen, GymsScreen } from './screens/GymsScreen';
 import { ExerciseDetailScreen } from './screens/ExerciseDetailScreen';
 import { WorkoutDetailScreen } from './screens/WorkoutDetailScreen';
 import { RoutineEditorScreen } from './screens/RoutineEditorScreen';
@@ -84,7 +85,11 @@ function renderRoute(route: Route) {
     case 'library':
       return <LibraryScreen />;
     case 'history':
-      return <HistoryScreen />;
+      return <HistoryScreen gymFilter={route.gymFilter} />;
+    case 'gyms':
+      return <GymsScreen />;
+    case 'gym':
+      return <GymDetailScreen gymId={route.gymId} />;
     case 'import':
       return <ImportScreen />;
     case 'measurements':

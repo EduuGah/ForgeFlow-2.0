@@ -63,6 +63,11 @@ service cloud.firestore {
       match /folders/{folderId} {
         allow get, list, create, update, delete: if isOwner(userId);
       }
+
+      // Gyms subcollection
+      match /gyms/{gymId} {
+        allow get, list, create, update, delete: if isOwner(userId);
+      }
     }
 
     // Default-deny catch-all for any other collection

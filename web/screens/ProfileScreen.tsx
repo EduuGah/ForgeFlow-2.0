@@ -10,6 +10,7 @@ import {
   Target,
   Users,
   Utensils,
+  MapPin,
 } from 'lucide-react';
 import { useAppStore, useProfilePhoto } from '../store';
 import { formatNumber } from '../lib/format';
@@ -30,6 +31,7 @@ export function ProfileScreen() {
     goals,
     streakWeeks,
     measurements,
+    gyms,
   } = useAppStore();
   const latestWeight = measurements.find((item) => item.weightKg)?.weightKg;
   const photo = useProfilePhoto();
@@ -153,6 +155,12 @@ export function ProfileScreen() {
             icon={Dumbbell}
             title="Exercícios"
             onClick={() => push({ name: 'library' })}
+          />
+          <ListRow
+            icon={MapPin}
+            title="Academias"
+            value={gyms.length > 0 ? formatNumber(gyms.length, 0) : undefined}
+            onClick={() => push({ name: 'gyms' })}
           />
           <ListRow
             icon={Target}

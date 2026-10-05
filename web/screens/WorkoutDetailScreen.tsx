@@ -1,5 +1,8 @@
-import { ChevronRight, SearchX } from 'lucide-react';
-import { findExercise, useAppStore } from '../store';
+import { useState } from 'react';
+import { ChevronRight, MapPin, SearchX } from 'lucide-react';
+import { actions, findExercise, useAppStore } from '../store';
+import { gymOf } from '../lib/gyms';
+import { GymPickerSheet } from '../features/GymPicker';
 import {
   formatDateTime,
   formatDurationMinutes,
@@ -19,8 +22,9 @@ import { Stat, StackHeader } from '../ui/Layout';
 import { cx } from '../ui/core';
 
 export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
-  const { history } = useAppStore();
+  const { history, gyms } = useAppStore();
   const { pop, push } = useNavigation();
+  const [gymOpen, setGymOpen] = useState(false);
   const workout = history.find((item) => item.id === workoutId);
 
   if (!workout) {
@@ -56,6 +60,17 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
             {formatDateTime(workout.completedAt)}
           </p>
           <h2 className="text-title-lg font-bold">{workout.name}</h2>
+          <button
+            type="button"
+            onClick={() => setGymOpen(true)}
+            className="text-callout mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-full bg-raised py-1 pr-3 pl-2.5 font-medium active:bg-overlay"
+          >
+            <MapPin size={16} className="text-brand-ink" aria-hidden="true" />
+            {gymOf(workout, gyms)?.name ?? (
+              <span className="text-ink-2">Adicionar academia</span>
+            )}
+            <span className="sr-only">. Trocar academia</span>
+          </button>
           <div className="mt-4 grid grid-cols-4 gap-3">
             <Stat
               label="Tempo"
@@ -243,6 +258,12 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
           })}
         </ul>
       </div>
+      <GymPickerSheet
+        open={gymOpen}
+        value={workout.gymId ?? null}
+        onClose={() => setGymOpen(false)}
+        onChange={(id) => actions.setWorkoutGym(workout.id, id)}
+      />
     </>
   );
 }
