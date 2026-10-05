@@ -3,53 +3,79 @@
 /*
  * ForgeFlow design system — single source of visual truth.
  *
- * Direction: dark-first gym interface (Hevy-like clarity), pure black canvas for
- * OLED phones, one vivid blue for every primary action, and a condensed
- * industrial face reserved for training numbers (weight, volume, time, PRs).
- * Every color below was checked for WCAG contrast on the surface it sits on;
- * the macro trio (protein/carbs/fat) passed the CVD validator on `surface`.
+ * Direction "Forja": cool graphite surfaces (steel) with one ember accent
+ * (hot metal) for primary actions, completed sets and progress. Numbers and
+ * headings use Sora, bundled with the app so it also works offline.
+ * Dark is the default; `:root[data-theme='light']` below swaps every token.
+ * Every color was checked for WCAG contrast on the surface it sits on; the
+ * macro trio passed the color-vision validator in both themes.
  * Components must consume these tokens — no raw hex values in screens.
  */
+@font-face {
+  font-family: 'Sora';
+  font-style: normal;
+  font-weight: 300 800;
+  font-display: swap;
+  src: url('/fonts/sora-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Sora';
+  font-style: normal;
+  font-weight: 300 800;
+  font-display: swap;
+  src: url('/fonts/sora-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+
 @theme {
   /* Reset Tailwind's default palette so only design-system colors exist. */
   --color-*: initial;
   --color-white: #ffffff;
   --color-black: #000000;
 
-  /* Surfaces (elevation is expressed by lightness, not shadows) */
-  --color-canvas: #000000;
-  --color-surface: #141416;
-  --color-raised: #1c1c1f;
-  --color-overlay: #26262a;
-  --color-scrim: rgb(0 0 0 / 0.64);
+  /* Surfaces — cool graphite; elevation is expressed by lightness */
+  --color-canvas: #0d0f12;
+  --color-surface: #16191e;
+  --color-raised: #1f232a;
+  --color-overlay: #2a2f37;
+  --color-scrim: rgb(5 6 8 / 0.66);
 
   /* Hairlines */
-  --color-line: #242428;
-  --color-line-strong: #34343a;
+  --color-line: #242830;
+  --color-line-strong: #343a44;
 
   /* Text — ink-3 keeps ≥ 4.5:1 on raised surfaces */
-  --color-ink: #f5f5f7;
-  --color-ink-2: #a1a1aa;
-  --color-ink-3: #85858f;
+  --color-ink: #f2f4f7;
+  --color-ink-2: #a3aab6;
+  --color-ink-3: #8a92a0;
 
-  /* Brand: fill passes 4.7:1 with white labels, ink passes 7:1 on surface */
-  --color-brand: #0a6cf0;
-  --color-brand-press: #0958c8;
-  --color-brand-ink: #4da3ff;
-  --color-brand-soft: rgb(46 139 250 / 0.16);
-  --color-chart: #2e8bfa;
+  /* Brand "ember": dark labels on the fill (7.2:1); ember ink 8.4:1 on surface */
+  --color-brand: #ff7a1a;
+  --color-brand-press: #ec6a0e;
+  --color-on-brand: #1b0e04;
+  --color-brand-ink: #ff9a4d;
+  --color-brand-soft: rgb(255 122 26 / 0.16);
+  --color-chart: #ff8a33;
 
   /* Training semantics */
-  --color-success: #22a04f;
-  --color-success-ink: #3dd06e;
-  --color-success-soft: rgb(34 160 79 / 0.16);
-  --color-warmup: #f5a524;
-  --color-warmup-soft: rgb(245 165 36 / 0.14);
-  --color-record: #ffc83d;
-  --color-record-soft: rgb(255 200 61 / 0.14);
-  --color-danger: #d93025;
-  --color-danger-ink: #ff6b61;
-  --color-danger-soft: rgb(255 83 71 / 0.14);
+  --color-success: #2fbf71;
+  --color-success-ink: #4ade80;
+  --color-success-soft: rgb(47 191 113 / 0.16);
+  /* Warm-up sets are still "cold metal": steel blue, labelled "A" */
+  --color-warmup: #5ec2e6;
+  --color-warmup-soft: rgb(94 194 230 / 0.14);
+  --color-record: #ffd166;
+  --color-record-soft: rgb(255 209 102 / 0.14);
+  --color-danger: #d93636;
+  --color-danger-ink: #ff6b6b;
+  --color-danger-soft: rgb(255 107 107 / 0.14);
 
   /* Health trackers */
   --color-water: #38bdf8;
@@ -58,12 +84,12 @@
   --color-carbs: #1fa88a;
   --color-fat: #9d7bf0;
 
-  /* Typography */
+  /* Typography — one bundled family for the whole interface */
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Sora', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif;
   --font-display:
-    'Big Shoulders Display', 'Arial Narrow', ui-sans-serif, system-ui,
+    'Sora', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     sans-serif;
 
   --text-*: initial;
@@ -85,16 +111,23 @@
   --text-title-lg: 1.75rem;
   --text-title-lg--line-height: 2.125rem;
   --text-title-lg--letter-spacing: -0.01em;
+  --text-display: 2.25rem;
+  --text-display--line-height: 2.625rem;
+  --text-display--letter-spacing: -0.03em;
 
-  /* Metric scale — used only with font-display */
-  --text-metric-sm: 1.375rem;
+  /* Metric scale — used only with font-metric */
+  --text-metric-sm: 1.1875rem;
   --text-metric-sm--line-height: 1.5rem;
-  --text-metric: 1.75rem;
+  --text-metric-sm--letter-spacing: -0.02em;
+  --text-metric: 1.5rem;
   --text-metric--line-height: 1.875rem;
-  --text-metric-lg: 2.5rem;
+  --text-metric--letter-spacing: -0.03em;
+  --text-metric-lg: 2.125rem;
   --text-metric-lg--line-height: 2.5rem;
-  --text-metric-xl: 3.5rem;
-  --text-metric-xl--line-height: 3.5rem;
+  --text-metric-lg--letter-spacing: -0.035em;
+  --text-metric-xl: 3rem;
+  --text-metric-xl--line-height: 3.25rem;
+  --text-metric-xl--letter-spacing: -0.04em;
 
   /* Shape */
   --radius-sm: 0.5rem;
@@ -102,8 +135,9 @@
   --radius-lg: 0.875rem;
   --radius-xl: 1.25rem;
 
-  --shadow-pop: 0 16px 48px rgb(0 0 0 / 0.6);
-  --shadow-sheet: 0 -12px 40px rgb(0 0 0 / 0.55);
+  --shadow-pop: 0 16px 48px rgb(0 0 0 / 0.55);
+  --shadow-sheet: 0 -12px 40px rgb(0 0 0 / 0.5);
+  --shadow-dock: 0 10px 30px rgb(0 0 0 / 0.45);
 
   /* Motion */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
@@ -224,7 +258,7 @@
   }
   @keyframes row-done {
     to {
-      background-color: var(--color-success-soft);
+      background-color: var(--color-brand-soft);
     }
   }
   @keyframes pulse-dot {
@@ -245,6 +279,48 @@
   --duration-slow: 320ms;
   --app-max-width: 560px;
   --nav-height: 64px;
+}
+
+/*
+ * Light theme ("Aço claro"): cool paper-gray canvas, white cards. The ember
+ * fill keeps its dark labels; ember text darkens to stay ≥ 4.5:1.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-canvas: #f3f4f6;
+  --color-surface: #ffffff;
+  --color-raised: #eef0f3;
+  --color-overlay: #e2e5ea;
+  --color-scrim: rgb(15 17 21 / 0.42);
+  --color-line: #e3e6eb;
+  --color-line-strong: #cdd2d9;
+  --color-ink: #12151a;
+  --color-ink-2: #4a5261;
+  --color-ink-3: #5f6878;
+  --color-brand: #ff7a1a;
+  --color-brand-press: #ec6a0e;
+  --color-on-brand: #1b0e04;
+  --color-brand-ink: #c2410c;
+  --color-brand-soft: rgb(255 122 26 / 0.14);
+  --color-chart: #e8620c;
+  --color-success: #16a34a;
+  --color-success-ink: #15803d;
+  --color-success-soft: rgb(22 163 74 / 0.12);
+  --color-warmup: #096a93;
+  --color-warmup-soft: rgb(9 106 147 / 0.1);
+  --color-record: #e0a100;
+  --color-record-soft: rgb(224 161 0 / 0.14);
+  --color-danger: #d93636;
+  --color-danger-ink: #c62828;
+  --color-danger-soft: rgb(217 54 54 / 0.1);
+  --color-water: #0369a1;
+  --color-water-soft: rgb(3 105 161 / 0.1);
+  --color-protein: #d4553f;
+  --color-carbs: #12937a;
+  --color-fat: #7c5ce0;
+  --shadow-pop: 0 16px 40px rgb(15 17 21 / 0.14);
+  --shadow-sheet: 0 -12px 40px rgb(15 17 21 / 0.12);
+  --shadow-dock: 0 10px 30px rgb(15 17 21 / 0.14);
 }
 
 @layer base {
@@ -269,7 +345,7 @@
 
   ::selection {
     background-color: var(--color-brand);
-    color: var(--color-white);
+    color: var(--color-on-brand);
   }
 
   button,
@@ -314,7 +390,6 @@
 @utility font-metric {
   font-family: var(--font-display);
   font-weight: 700;
-  letter-spacing: 0.005em;
   font-variant-numeric: lining-nums;
 }
 
@@ -365,9 +440,9 @@
 }
 
 /*
- * Signature: the "strike". Completing a set sends a brief bright sweep across
- * the row — the hammer-on-metal moment of the forge — then leaves the row
- * tinted as done. PR rows use the record gold instead of success green.
+ * Signature: the "strike". Completing a set sends a brief ember sweep across
+ * the row — the hammer-on-hot-metal moment of the forge — and leaves the row
+ * glowing as done.
  */
 @utility strike {
   position: relative;
@@ -380,8 +455,8 @@
     background: linear-gradient(
       100deg,
       transparent 0%,
-      rgb(61 208 110 / 0.35) 45%,
-      rgb(255 255 255 / 0.18) 50%,
+      rgb(255 122 26 / 0.38) 45%,
+      rgb(255 214 170 / 0.3) 50%,
       transparent 60%
     );
     transform: translateX(-100%);
@@ -390,10 +465,38 @@
   }
 }
 
+/* Ember edge marking the exercise currently being trained. */
+@utility ember-edge {
+  box-shadow:
+    inset 3px 0 0 var(--color-brand),
+    0 0 0 1px var(--color-line);
+}
+
 @keyframes strike-sweep {
   to {
     transform: translateX(100%);
   }
+}
+
+/* Bars of the illustrated charts rising from the baseline. */
+@utility demo-grow {
+  transform-origin: bottom;
+  animation: demo-grow 620ms var(--ease-decelerate) both;
+}
+
+@keyframes demo-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+/* Soft ember glow behind hero illustrations. */
+@utility ember-glow {
+  background: radial-gradient(
+    60% 55% at 50% 45%,
+    rgb(255 122 26 / 0.22),
+    transparent 70%
+  );
 }
 
 @media (prefers-reduced-motion: reduce) {

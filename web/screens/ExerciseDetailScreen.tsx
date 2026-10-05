@@ -126,8 +126,10 @@ export function ExerciseDetailView({
     <div className={cx(!embedded && 'app-column')}>
       <div
         className={cx(
-          'sticky z-10',
-          embedded ? 'top-0' : 'top-[calc(3.5rem+env(safe-area-inset-top))]',
+          'sticky z-10 px-4 py-2 backdrop-blur-md',
+          embedded
+            ? 'top-0 bg-surface/95'
+            : 'top-[calc(3.5rem+env(safe-area-inset-top))] bg-canvas/95',
         )}
       >
         <Tabs

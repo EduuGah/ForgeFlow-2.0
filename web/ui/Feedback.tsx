@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { AlertTriangle, CloudOff, Info, type LucideIcon } from 'lucide-react';
 import { cx } from './core';
 import { initials } from '../lib/format';
@@ -254,7 +254,7 @@ export function Avatar({
         width={size}
         height={size}
         className={cx(
-          'shrink-0 rounded-full bg-raised object-cover',
+          'shrink-0 rounded-[32%] bg-raised object-cover',
           className,
         )}
         style={{ width: size, height: size }}
@@ -265,7 +265,7 @@ export function Avatar({
     <span
       aria-hidden="true"
       className={cx(
-        'grid shrink-0 place-items-center rounded-full bg-brand-soft font-semibold text-brand-ink',
+        'grid shrink-0 place-items-center rounded-[32%] bg-brand-soft font-semibold text-brand-ink',
         className,
       )}
       style={{ width: size, height: size, fontSize: size * 0.36 }}
@@ -276,8 +276,8 @@ export function Avatar({
 }
 
 /**
- * Exercise "plate": a stamped disc with the muscle group code, standing in
- * for exercise photos the catalog does not have.
+ * Exercise tag: a squircle with the muscle group code and an ember underline,
+ * standing in for exercise photos the catalog does not have.
  */
 export function ExerciseThumb({
   muscle,
@@ -290,11 +290,11 @@ export function ExerciseThumb({
     <span
       role="img"
       aria-label={muscleLabel(muscle)}
-      className="relative grid shrink-0 place-items-center rounded-full bg-raised ring-1 ring-line-strong"
+      className="relative grid shrink-0 place-items-center rounded-[30%] bg-raised ring-1 ring-line-strong"
       style={{ width: size, height: size }}
     >
       <span
-        className="absolute inset-[18%] rounded-full ring-1 ring-line"
+        className="absolute inset-x-[22%] bottom-[16%] h-[3px] rounded-full bg-brand/70"
         aria-hidden="true"
       />
       <span
@@ -307,17 +307,71 @@ export function ExerciseThumb({
   );
 }
 
-export function BrandMark({ size = 40 }: { size?: number }) {
+/** App icon: ember "F" inside a progress ring (see assets/brand). */
+export function BrandMark({
+  size = 40,
+  plain = false,
+}: {
+  size?: number;
+  plain?: boolean;
+}) {
+  const id = useId().replace(/:/g, '');
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 64 64"
-      fill="none"
-      aria-hidden="true"
-    >
-      <rect width="64" height="64" rx="16" fill="var(--color-brand)" />
-      <path d="M20 16h26v8H29v7h14v8H29v11h-9V16Z" fill="#fff" />
+    <svg width={size} height={size} viewBox="0 0 1024 1024" aria-hidden="true">
+      <defs>
+        <radialGradient id={`${id}-bg`} cx="50%" cy="30%" r="80%">
+          <stop offset="0" stopColor="#2A3038" />
+          <stop offset="1" stopColor="#0D0F12" />
+        </radialGradient>
+        <linearGradient id={`${id}-ember`} x1="0" y1="0" x2="0.35" y2="1">
+          <stop offset="0" stopColor="#FFC27A" />
+          <stop offset="0.5" stopColor="#FF7A1A" />
+          <stop offset="1" stopColor="#E0460B" />
+        </linearGradient>
+      </defs>
+      {!plain && (
+        <rect width="1024" height="1024" rx="232" fill={`url(#${id}-bg)`} />
+      )}
+      <circle
+        cx="512"
+        cy="512"
+        r="330"
+        fill="none"
+        stroke={plain ? 'var(--color-line-strong)' : '#2B313A'}
+        strokeWidth="44"
+      />
+      <path
+        d="M512 182A330 330 0 1 1 226.2 347"
+        fill="none"
+        stroke={`url(#${id}-ember)`}
+        strokeWidth="44"
+        strokeLinecap="round"
+      />
+      <rect
+        x="382"
+        y="312"
+        width="92"
+        height="400"
+        rx="46"
+        fill={`url(#${id}-ember)`}
+      />
+      <rect
+        x="382"
+        y="312"
+        width="266"
+        height="92"
+        rx="46"
+        fill={`url(#${id}-ember)`}
+      />
+      <rect
+        x="382"
+        y="474"
+        width="206"
+        height="86"
+        rx="43"
+        fill={`url(#${id}-ember)`}
+      />
+      <circle cx="226.2" cy="347" r="26" fill="#FFE2BF" />
     </svg>
   );
 }

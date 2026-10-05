@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import {
   Bell,
+  BookOpen,
+  Check,
   CloudCog,
   Download,
   Droplet,
   FileText,
+  FileUp,
   Info,
-  LogIn,
   LogOut,
   UserRound,
   Utensils,
 } from 'lucide-react';
 import { actions, useAppStore } from '../store';
-import { describeLoginError, isLoginDismissed } from '../firebase';
 import {
   formatNumber,
   formatRelativeDay,
@@ -21,12 +22,16 @@ import {
 } from '../lib/format';
 import { RECORD_LABELS } from '../lib/training';
 import type { NotificationPrefs } from '../lib/types';
+import { tutorial } from '../lib/tutorial';
+import { useTheme, type ThemePreference } from '../lib/theme';
 import { useNavigation } from '../navigation/Navigator';
+import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
 import { Button } from '../ui/Button';
 import { Medal } from '../ui/Feedback';
 import { NumberField, Switch } from '../ui/Form';
 import { GroupLabel, ListGroup, ListRow, StackHeader } from '../ui/Layout';
 import { Sheet, useConfirm, useToast } from '../ui/Overlay';
+import { cx } from '../ui/core';
 
 const NOTIFICATION_ROWS: {
   key: keyof NotificationPrefs;
@@ -70,20 +75,9 @@ export function SettingsScreen() {
   const [sheet, setSheet] = useState<
     'notifications' | 'hydration' | 'nutrition' | 'report' | null
   >(null);
-  const [signingIn, setSigningIn] = useState(false);
-
-  const signIn = async () => {
-    setSigningIn(true);
-    try {
-      await actions.login();
-      toast({ tone: 'success', title: 'Conta conectada' });
-    } catch (error) {
-      if (!isLoginDismissed(error))
-        toast({ tone: 'error', title: describeLoginError(error) });
-    } finally {
-      setSigningIn(false);
-    }
-  };
+  const { signIn, signingIn } = useGoogleSignIn(() =>
+    toast({ tone: 'success', title: 'Conta conectada' }),
+  );
 
   const signOut = async () => {
     const ok = await confirm({
@@ -148,29 +142,32 @@ export function SettingsScreen() {
     <>
       <StackHeader title="Configurações" onBack={pop} />
       <div className="app-column pb-6">
+        <GroupLabel>Aparência</GroupLabel>
+        <ThemePicker />
+
         <GroupLabel>Conta</GroupLabel>
+        {!currentUser && (
+          <div className="mx-4 mb-3 rounded-lg border border-line bg-surface p-4">
+            <p className="text-callout mb-3 text-ink-2">
+              Entre para sincronizar seus treinos entre aparelhos e manter um
+              backup na nuvem.
+            </p>
+            <GoogleButton onClick={signIn} loading={signingIn} />
+          </div>
+        )}
         <ListGroup>
           <ListRow
             icon={UserRound}
             title="Editar perfil"
             onClick={() => push({ name: 'editProfile' })}
           />
-          {currentUser ? (
+          {currentUser && (
             <ListRow
               icon={CloudCog}
               title="Sincronização"
               subtitle={currentUser.email ?? undefined}
               value={syncLabel}
               onClick={actions.retrySync}
-            />
-          ) : (
-            <ListRow
-              icon={LogIn}
-              title={signingIn ? 'Entrando…' : 'Entrar com Google'}
-              subtitle="Sincronize seus treinos entre aparelhos"
-              tone="brand"
-              onClick={signIn}
-              disabled={signingIn}
             />
           )}
         </ListGroup>
@@ -199,6 +196,12 @@ export function SettingsScreen() {
         <GroupLabel>Seus dados</GroupLabel>
         <ListGroup>
           <ListRow
+            icon={FileUp}
+            title="Importar histórico (CSV)"
+            subtitle="Traga treinos exportados de outro app"
+            onClick={() => push({ name: 'import' })}
+          />
+          <ListRow
             icon={FileText}
             title="Relatório consolidado"
             onClick={() => setSheet('report')}
@@ -213,6 +216,11 @@ export function SettingsScreen() {
 
         <GroupLabel>Sobre</GroupLabel>
         <ListGroup>
+          <ListRow
+            icon={BookOpen}
+            title="Ver tutorial"
+            onClick={tutorial.show}
+          />
           <ListRow icon={Info} title="ForgeFlow" value="2.0" />
         </ListGroup>
 
@@ -243,6 +251,94 @@ export function SettingsScreen() {
         onExport={exportBackup}
       />
     </>
+  );
+}
+
+const THEMES: { value: ThemePreference; label: string }[] = [
+  { value: 'system', label: 'Sistema' },
+  { value: 'light', label: 'Claro' },
+  { value: 'dark', label: 'Escuro' },
+];
+
+/** Three miniature screens; the selected one gets the ember outline. */
+function ThemePicker() {
+  const { preference, setPreference } = useTheme();
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Tema do app"
+      className="mx-4 grid grid-cols-3 gap-3"
+    >
+      {THEMES.map((theme) => {
+        const selected = preference === theme.value;
+        return (
+          <button
+            key={theme.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => setPreference(theme.value)}
+            className={cx(
+              'pressable flex flex-col items-center gap-2 rounded-lg border bg-surface p-2.5 pb-3 transition-colors',
+              selected ? 'border-brand ring-1 ring-brand' : 'border-line',
+            )}
+          >
+            <ThemePreview theme={theme.value} />
+            <span className="text-callout flex items-center gap-1 font-semibold">
+              {selected && (
+                <Check
+                  size={14}
+                  strokeWidth={3}
+                  className="text-brand-ink"
+                  aria-hidden="true"
+                />
+              )}
+              {theme.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ThemePreview({ theme }: { theme: ThemePreference }) {
+  const half = (mode: 'light' | 'dark') => {
+    const dark = mode === 'dark';
+    return (
+      <span
+        className="flex h-full flex-1 flex-col gap-1 p-1.5"
+        style={{ background: dark ? '#0d0f12' : '#f3f4f6' }}
+      >
+        <span
+          className="h-1.5 w-2/3 rounded-full"
+          style={{ background: dark ? '#f2f4f7' : '#12151a', opacity: 0.8 }}
+        />
+        <span
+          className="flex-1 rounded-sm"
+          style={{ background: dark ? '#1f232a' : '#ffffff' }}
+        />
+        <span
+          className="h-2 w-1/2 rounded-sm"
+          style={{ background: '#ff7a1a' }}
+        />
+      </span>
+    );
+  };
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-16 w-full overflow-hidden rounded-md border border-line"
+    >
+      {theme === 'system' ? (
+        <>
+          {half('light')}
+          {half('dark')}
+        </>
+      ) : (
+        half(theme)
+      )}
+    </span>
   );
 }
 

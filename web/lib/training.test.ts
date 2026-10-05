@@ -105,9 +105,9 @@ function workoutOn(
 }
 
 describe('active workout metrics', () => {
-  it('labels warm-ups as W and numbers only working sets', () => {
+  it('labels warm-ups as A and numbers only working sets', () => {
     expect(setLabels(activeWorkout().exercises[0].sets)).toEqual([
-      'W',
+      'A',
       '1',
       '2',
       '3',

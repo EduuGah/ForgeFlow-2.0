@@ -35,8 +35,10 @@ import {
   mergeById,
   previousSetsFor,
   repairExerciseRefs,
+  replayRecords,
   sortByCompletedDesc,
 } from './lib/training';
+import type { ImportPlan } from './lib/importCsv';
 import type {
   ActiveExerciseSession,
   ActiveWorkoutState,
@@ -946,6 +948,62 @@ export interface FinishResult {
   workoutNumber: number;
 }
 
+/**
+ * Stores a new history and rebuilds records from it. Records tied to a
+ * replayable workout come from the replay; legacy records (no per-set data)
+ * are kept. Only changed documents are written to the cloud.
+ */
+function commitHistory(
+  nextHistory: CompletedWorkout[],
+  removedIds: Set<string>,
+  createdIds: Set<string>,
+): { prs: PersonalRecordItem[] } {
+  const { records: replayed, achievedByWorkout } = replayRecords(nextHistory);
+  const legacy = state.prs.filter(
+    (record) =>
+      !record.workoutId ||
+      (!achievedByWorkout.has(record.workoutId) &&
+        !removedIds.has(record.workoutId)),
+  );
+  const prs = dedupeRecords([...replayed, ...legacy]);
+  const history = nextHistory.map((workout) => {
+    const achieved = achievedByWorkout.get(workout.id);
+    if (!achieved) return workout;
+    const prsAchieved = achieved.map(describeRecord);
+    return prsAchieved.join('|') === workout.prsAchieved.join('|')
+      ? workout
+      : { ...workout, prsAchieved };
+  });
+
+  const previousWorkouts = new Map(state.history.map((w) => [w.id, w]));
+  const previousRecords = new Map(state.prs.map((r) => [r.id, r]));
+  const keptRecordIds = new Set(prs.map((record) => record.id));
+  const removedRecords = state.prs.filter(
+    (record) => !keptRecordIds.has(record.id),
+  );
+
+  setState({ history, prs });
+
+  const now = new Date().toISOString();
+  history.forEach((workout) => {
+    if (createdIds.has(workout.id))
+      remoteSet(['history', workout.id], { ...workout, createdAt: now });
+    else if (previousWorkouts.get(workout.id) !== workout)
+      remoteSet(['history', workout.id], workout, true);
+  });
+  prs.forEach((record) => {
+    const previous = previousRecords.get(record.id);
+    if (
+      !previous ||
+      previous.value !== record.value ||
+      previous.workoutId !== record.workoutId
+    )
+      remoteSet(['prs', record.id], record);
+  });
+  removedRecords.forEach((record) => remoteDelete('prs', record.id));
+  return { prs };
+}
+
 export const actions = {
   /* Auth */
   login: async () => {
@@ -1283,6 +1341,61 @@ export const actions = {
     setState({ customExercises: [created, ...state.customExercises] });
     remoteSet(['custom_exercises', created.id], created);
     return created;
+  },
+
+  /* History import */
+  /**
+   * Adds imported workouts and their custom exercises. Records are replayed
+   * over the merged history, since older sessions can change who holds one.
+   */
+  importHistory: (plan: ImportPlan): { imported: number; records: number } => {
+    const known = new Set(state.history.map((workout) => workout.id));
+    const incoming = plan.workouts.filter((workout) => !known.has(workout.id));
+    if (incoming.length === 0) return { imported: 0, records: 0 };
+
+    const customIds = new Set(state.customExercises.map((e) => e.id));
+    const owner = state.currentUser?.uid || 'local-user';
+    const newExercises = plan.newExercises
+      .filter((exercise) => !customIds.has(exercise.id))
+      .map((exercise) => ({ ...exercise, ownerUserId: owner }));
+
+    setState({ customExercises: [...newExercises, ...state.customExercises] });
+    newExercises.forEach((exercise) =>
+      remoteSet(['custom_exercises', exercise.id], exercise),
+    );
+    const incomingIds = new Set(incoming.map((workout) => workout.id));
+    const { prs } = commitHistory(
+      sortByCompletedDesc([...incoming, ...state.history]),
+      new Set(),
+      incomingIds,
+    );
+    return {
+      imported: incoming.length,
+      records: prs.filter(
+        (record) => record.workoutId && incomingIds.has(record.workoutId),
+      ).length,
+    };
+  },
+
+  /** Reverts an import: its workouts, and custom exercises nothing else uses. */
+  undoImport: (workoutIds: string[], exerciseIds: string[]) => {
+    const removed = new Set(workoutIds);
+    const history = state.history.filter((workout) => !removed.has(workout.id));
+    const stillUsed = new Set([
+      ...history.flatMap((w) => w.exercises.map((e) => e.exerciseId)),
+      ...state.templates.flatMap((t) => t.exercises.map((e) => e.exerciseId)),
+    ]);
+    const dropExercises = new Set(
+      exerciseIds.filter((id) => !stillUsed.has(id)),
+    );
+    setState({
+      customExercises: state.customExercises.filter(
+        (exercise) => !dropExercises.has(exercise.id),
+      ),
+    });
+    dropExercises.forEach((id) => remoteDelete('custom_exercises', id));
+    removed.forEach((id) => remoteDelete('history', id));
+    commitHistory(history, removed, new Set());
   },
 
   /* Hydration */

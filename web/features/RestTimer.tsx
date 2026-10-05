@@ -6,7 +6,7 @@ import { formatClock } from '../lib/format';
 import { haptic } from '../lib/haptics';
 import { Button } from '../ui/Button';
 import { useToast } from '../ui/Overlay';
-import { cx, useNow } from '../ui/core';
+import { useNow } from '../ui/core';
 
 export function useRestCountdown() {
   const { restTimer } = useAppStore();
@@ -24,51 +24,70 @@ export function useRestCountdown() {
   };
 }
 
-/** Rest countdown docked at the bottom of the active workout. */
+/**
+ * Floating rest capsule over the active workout: a countdown ring (tap to
+ * pause), the time left and quick adjustments.
+ */
 export function RestTimerBar() {
   const { timer, active, remainingSeconds, progress } = useRestCountdown();
   if (!active) return null;
   const paused = timer.status === 'paused';
+  const radius = 21;
+  const circumference = 2 * Math.PI * radius;
+  const fraction = Math.max(0, Math.min(1, progress));
 
   return (
-    <div
-      className="pb-safe fixed inset-x-0 bottom-0 z-10 animate-sheet-in border-t border-line-strong bg-raised/95 backdrop-blur-md"
-      role="timer"
-      aria-label={`Descanso: ${formatClock(remainingSeconds)} restantes${paused ? ', pausado' : ''}`}
-    >
-      <div className="h-1 bg-overlay" aria-hidden="true">
-        <div
-          className="h-full bg-brand-ink transition-[width] duration-300 ease-linear"
-          style={{ width: `${Math.max(0, Math.min(1, progress)) * 100}%` }}
-        />
-      </div>
-      <div className="app-column flex items-center gap-2 px-4 py-2.5">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+      <div
+        className="app-column pointer-events-auto flex animate-rise items-center gap-2 rounded-2xl border border-line-strong bg-surface/95 p-2 pr-2.5 shadow-dock backdrop-blur-md"
+        role="timer"
+        aria-label={`Descanso: ${formatClock(remainingSeconds)} restantes${paused ? ', pausado' : ''}`}
+      >
         <button
           type="button"
           onClick={actions.pauseResumeRestTimer}
           aria-label={paused ? 'Retomar descanso' : 'Pausar descanso'}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left active:opacity-70"
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-0.5 pl-0.5 text-left active:opacity-70"
         >
-          <span
-            className={cx(
-              'grid size-9 shrink-0 place-items-center rounded-full',
-              paused
-                ? 'bg-warmup-soft text-warmup'
-                : 'bg-brand-soft text-brand-ink',
-            )}
-          >
+          <span className="relative grid size-12 shrink-0 place-items-center">
+            <svg
+              className="absolute inset-0 -rotate-90"
+              viewBox="0 0 48 48"
+              aria-hidden="true"
+            >
+              <circle
+                cx="24"
+                cy="24"
+                r={radius}
+                fill="none"
+                stroke="var(--color-raised)"
+                strokeWidth="4"
+              />
+              <circle
+                cx="24"
+                cy="24"
+                r={radius}
+                fill="none"
+                stroke={paused ? 'var(--color-warmup)' : 'var(--color-brand)'}
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={circumference * (1 - fraction)}
+                style={{ transition: 'stroke-dashoffset 250ms linear' }}
+              />
+            </svg>
             {paused ? (
-              <Play size={16} aria-hidden="true" />
+              <Play size={16} className="text-warmup" aria-hidden="true" />
             ) : (
-              <Pause size={16} aria-hidden="true" />
+              <Pause size={16} className="text-brand-ink" aria-hidden="true" />
             )}
           </span>
           <span className="min-w-0">
-            <span className="text-headline block font-semibold tabular">
+            <span className="font-metric text-metric-sm block tabular">
               {formatClock(remainingSeconds)}
             </span>
             <span className="text-caption block truncate text-ink-2">
-              {paused ? 'Pausado' : 'Descanso'}
+              {paused ? 'Pausado' : 'Descansando'}
               {timer.label ? ` · ${timer.label}` : ''}
             </span>
           </span>
@@ -78,6 +97,7 @@ export function RestTimerBar() {
           size="sm"
           onClick={() => actions.addRestTime(-15)}
           aria-label="Menos 15 segundos"
+          className="px-2.5"
         >
           −15
         </Button>
@@ -86,10 +106,11 @@ export function RestTimerBar() {
           size="sm"
           onClick={() => actions.addRestTime(15)}
           aria-label="Mais 15 segundos"
+          className="px-2.5"
         >
           +15
         </Button>
-        <Button variant="tinted" size="sm" onClick={actions.stopRestTimer}>
+        <Button variant="primary" size="sm" onClick={actions.stopRestTimer}>
           Pular
         </Button>
       </div>
