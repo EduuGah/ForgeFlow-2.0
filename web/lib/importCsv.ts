@@ -1,9 +1,13 @@
 import type { Exercise } from '../../src/domain/training/entities';
-import type {
-  CompletedExercise,
-  CompletedSet,
-  CompletedWorkout,
-  SetType,
+import {
+  MEASUREMENT_SITES,
+  type BodyMeasurement,
+  type CompletedExercise,
+  type CompletedSet,
+  type CompletedWorkout,
+  type MeasurementSite,
+  type SetTag,
+  type SetType,
 } from './types';
 import { setVolume } from './training';
 
@@ -231,15 +235,15 @@ export type ImportFormat = 'hevy' | 'strong';
 export interface ParsedExercise {
   sourceName: string;
   notes?: string;
+  supersetId?: string;
   sets: CompletedSet[];
-  distanceKm: number;
-  durationSeconds: number;
 }
 
 export interface ParsedWorkout {
   title: string;
   startedAt: Date;
   endedAt: Date;
+  description?: string;
   exercises: ParsedExercise[];
 }
 
@@ -269,13 +273,17 @@ interface Row {
   start: string;
   end: string;
   durationMinutes: number | null;
+  description: string;
   exercise: string;
   notes: string;
+  supersetId: string;
   setType: SetType;
+  tag?: SetTag;
   weightKg: number;
   reps: number;
   distanceKm: number;
   seconds: number;
+  rpe: number;
 }
 
 function headerIndex(header: string[]) {
@@ -287,6 +295,17 @@ function headerIndex(header: string[]) {
     }
     return -1;
   };
+}
+
+/** Hevy: warmup | normal | failure | dropset. Strong "Set Order": 1, W, F, D. */
+function setKind(raw: string): { setType: SetType; tag?: SetTag } {
+  const value = raw.trim().toLowerCase();
+  if (value === 'warmup' || value === 'w') return { setType: 'warmup' };
+  if (value === 'failure' || value === 'f')
+    return { setType: 'working', tag: 'failure' };
+  if (value === 'dropset' || value === 'drop' || value === 'd')
+    return { setType: 'working', tag: 'dropset' };
+  return { setType: 'working' };
 }
 
 function readRows(table: string[][]): { format: ImportFormat; rows: Row[] } {
@@ -301,7 +320,9 @@ function readRows(table: string[][]): { format: ImportFormat; rows: Row[] } {
       title: col('title'),
       start: col('start_time'),
       end: col('end_time'),
+      description: col('description'),
       exercise: col('exercise_title'),
+      superset: col('superset_id'),
       notes: col('exercise_notes'),
       type: col('set_type'),
       kg: col('weight_kg'),
@@ -310,6 +331,7 @@ function readRows(table: string[][]): { format: ImportFormat; rows: Row[] } {
       km: col('distance_km'),
       miles: col('distance_miles'),
       seconds: col('duration_seconds'),
+      rpe: col('rpe'),
     };
     return {
       format: 'hevy',
@@ -318,10 +340,11 @@ function readRows(table: string[][]): { format: ImportFormat; rows: Row[] } {
         start: at(row, i.start),
         end: at(row, i.end),
         durationMinutes: null,
+        description: at(row, i.description),
         exercise: at(row, i.exercise),
         notes: at(row, i.notes),
-        setType:
-          at(row, i.type).toLowerCase() === 'warmup' ? 'warmup' : 'working',
+        supersetId: at(row, i.superset),
+        ...setKind(at(row, i.type)),
         weightKg:
           i.kg !== -1
             ? toNumber(at(row, i.kg))
@@ -332,6 +355,7 @@ function readRows(table: string[][]): { format: ImportFormat; rows: Row[] } {
             ? toNumber(at(row, i.km))
             : toNumber(at(row, i.miles)) * MILE_TO_KM,
         seconds: toNumber(at(row, i.seconds)),
+        rpe: toNumber(at(row, i.rpe)),
       })),
     };
   }
@@ -341,6 +365,7 @@ function readRows(table: string[][]): { format: ImportFormat; rows: Row[] } {
       date: col('date'),
       title: col('workout name'),
       duration: col('duration', 'workout duration'),
+      description: col('workout notes'),
       exercise: col('exercise name'),
       order: col('set order'),
       weight: col('weight', 'weight (kg)'),
@@ -348,6 +373,7 @@ function readRows(table: string[][]): { format: ImportFormat; rows: Row[] } {
       distance: col('distance', 'distance (km)'),
       seconds: col('seconds'),
       notes: col('notes'),
+      rpe: col('rpe'),
     };
     return {
       format: 'strong',
@@ -356,20 +382,44 @@ function readRows(table: string[][]): { format: ImportFormat; rows: Row[] } {
         start: at(row, i.date),
         end: '',
         durationMinutes: parseDurationMinutes(at(row, i.duration)),
+        description: at(row, i.description),
         exercise: at(row, i.exercise),
         notes: at(row, i.notes),
-        setType: /^w/i.test(at(row, i.order)) ? 'warmup' : 'working',
+        supersetId: '',
+        ...setKind(/^\d+$/.test(at(row, i.order)) ? '' : at(row, i.order)),
         weightKg: toNumber(at(row, i.weight)),
         reps: toNumber(at(row, i.reps)),
         distanceKm: toNumber(at(row, i.distance)),
         seconds: toNumber(at(row, i.seconds)),
+        rpe: toNumber(at(row, i.rpe)),
       })),
     };
   }
 
+  if (col('weight_kg') !== -1 || col('fat_percent') !== -1)
+    throw new ImportError(
+      'Esse é o arquivo de medidas. Ele também pode ser importado: escolha-o de novo que o ForgeFlow reconhece sozinho.',
+    );
   throw new ImportError(
-    'Formato não reconhecido. Use o CSV exportado pelo Hevy ou pelo Strong.',
+    'Formato não reconhecido. Use o CSV de treinos ou de medidas exportado pelo Hevy, ou o de treinos do Strong.',
   );
+}
+
+/** A row worth keeping: lifted reps, cardio/timed work or a failed attempt. */
+function toSet(row: Row): CompletedSet | null {
+  const cardio = row.distanceKm > 0 || row.seconds > 0;
+  const failedAttempt = row.tag === 'failure' && row.weightKg > 0;
+  if (!(row.reps > 0) && !cardio && !failedAttempt) return null;
+  const set: CompletedSet = {
+    type: row.setType,
+    weightKg: round(Math.max(0, row.weightKg)),
+    repetitions: Math.max(0, Math.round(row.reps)),
+  };
+  if (row.tag) set.tag = row.tag;
+  if (row.rpe > 0) set.rpe = round(row.rpe, 1);
+  if (row.distanceKm > 0) set.distanceKm = round(row.distanceKm, 3);
+  if (row.seconds > 0) set.durationSeconds = Math.round(row.seconds);
+  return set;
 }
 
 /** Groups set rows into workouts and consecutive rows into exercises. */
@@ -401,37 +451,29 @@ export function readWorkoutCsv(text: string): ParsedFile {
       };
       workouts.set(key, workout);
     }
+    if (!workout.description && row.description)
+      workout.description = row.description;
 
     let exercise = workout.exercises.at(-1);
-    if (!exercise || exercise.sourceName !== row.exercise) {
-      exercise = {
-        sourceName: row.exercise,
-        sets: [],
-        distanceKm: 0,
-        durationSeconds: 0,
-      };
+    if (
+      !exercise ||
+      exercise.sourceName !== row.exercise ||
+      (exercise.supersetId ?? '') !== row.supersetId
+    ) {
+      exercise = { sourceName: row.exercise, sets: [] };
+      if (row.supersetId) exercise.supersetId = row.supersetId;
       workout.exercises.push(exercise);
     }
     if (!exercise.notes && row.notes) exercise.notes = row.notes;
-    exercise.distanceKm += row.distanceKm;
-    exercise.durationSeconds += row.seconds;
-    if (row.reps > 0) {
-      exercise.sets.push({
-        type: row.setType,
-        weightKg: round(Math.max(0, row.weightKg)),
-        repetitions: Math.round(row.reps),
-      });
-    }
+    const set = toSet(row);
+    if (set) exercise.sets.push(set);
   }
 
   const list = [...workouts.values()]
     .map((workout) => ({
       ...workout,
       exercises: workout.exercises.filter(
-        (exercise) =>
-          exercise.sets.length > 0 ||
-          exercise.distanceKm > 0 ||
-          exercise.durationSeconds > 0,
+        (exercise) => exercise.sets.length > 0,
       ),
     }))
     .filter((workout) => workout.exercises.length > 0)
@@ -863,6 +905,18 @@ export function matchExercises(
 /* Import plan                                                         */
 /* ------------------------------------------------------------------ */
 
+/** What came along besides plain sets, shown in the import preview. */
+export interface ImportExtras {
+  warmups: number;
+  failures: number;
+  dropsets: number;
+  cardio: number;
+  rpe: number;
+  supersets: number;
+  exerciseNotes: number;
+  workoutNotes: number;
+}
+
 export interface ImportPlan {
   format: ImportFormat;
   /** New workouts, newest first, ready to store. */
@@ -873,6 +927,7 @@ export interface ImportPlan {
   duplicates: number;
   skippedRows: number;
   totalSets: number;
+  extras: ImportExtras;
   firstDate: string | null;
   lastDate: string | null;
 }
@@ -882,14 +937,8 @@ function minuteKey(iso: string | Date): number {
   return Math.floor(new Date(iso).getTime() / 60000);
 }
 
-function describeCardio(exercise: ParsedExercise): string | undefined {
-  const parts: string[] = [];
-  if (exercise.distanceKm > 0)
-    parts.push(`${String(round(exercise.distanceKm)).replace('.', ',')} km`);
-  if (exercise.durationSeconds > 0)
-    parts.push(`${Math.round(exercise.durationSeconds / 60)} min`);
-  return parts.length > 0 ? parts.join(' · ') : undefined;
-}
+const isCardio = (set: CompletedSet) =>
+  (set.distanceKm ?? 0) > 0 || (set.durationSeconds ?? 0) > 0;
 
 export function planImport(
   parsed: ParsedFile,
@@ -913,6 +962,16 @@ export function planImport(
 
   let duplicates = 0;
   let totalSets = 0;
+  const extras: ImportExtras = {
+    warmups: 0,
+    failures: 0,
+    dropsets: 0,
+    cardio: 0,
+    rpe: 0,
+    supersets: 0,
+    exerciseNotes: 0,
+    workoutNotes: 0,
+  };
   const workouts: CompletedWorkout[] = [];
 
   for (const source of parsed.workouts) {
@@ -926,37 +985,56 @@ export function planImport(
     let volume = 0;
     let sets = 0;
     let reps = 0;
+    const supersets = new Set<string>();
     const exercises: CompletedExercise[] = source.exercises.map((exercise) => {
       const match = matchOf.get(exercise.sourceName)!;
       const working = exercise.sets.filter((set) => set.type === 'working');
-      const exerciseVolume = working.reduce(
+      // Volume, reps and best load come from lifted reps only; a failed
+      // attempt (0 reps) or a treadmill session still counts as a set.
+      const lifted = working.filter((set) => set.repetitions > 0);
+      const counted = working.filter(
+        (set) => set.repetitions > 0 || isCardio(set) || set.tag === 'failure',
+      );
+      const exerciseVolume = lifted.reduce(
         (sum, set) => sum + setVolume(set),
         0,
       );
       volume += exerciseVolume;
-      sets += working.length;
-      reps += working.reduce((sum, set) => sum + set.repetitions, 0);
-      const notes = [describeCardio(exercise), exercise.notes?.trim()]
-        .filter(Boolean)
-        .join('\n');
+      sets += counted.length;
+      reps += lifted.reduce((sum, set) => sum + set.repetitions, 0);
+      for (const set of exercise.sets) {
+        if (set.type === 'warmup') extras.warmups += 1;
+        if (set.tag === 'failure') extras.failures += 1;
+        if (set.tag === 'dropset') extras.dropsets += 1;
+        if (isCardio(set)) extras.cardio += 1;
+        if (set.rpe) extras.rpe += 1;
+      }
+      if (exercise.supersetId) supersets.add(exercise.supersetId);
+
       const completed: CompletedExercise = {
         exerciseId: match.exerciseId,
         exerciseName: match.exerciseName,
         primaryMuscleGroup: match.primaryMuscleGroup,
-        setsCount: working.length,
-        bestWeightKg: working.reduce(
+        setsCount: counted.length,
+        bestWeightKg: lifted.reduce(
           (best, set) => Math.max(best, set.weightKg),
           0,
         ),
         totalVolumeKg: round(exerciseVolume),
         sets: exercise.sets,
       };
-      if (notes) completed.notes = notes;
+      const notes = exercise.notes?.trim();
+      if (notes) {
+        completed.notes = notes;
+        extras.exerciseNotes += 1;
+      }
+      if (exercise.supersetId) completed.supersetId = exercise.supersetId;
       return completed;
     });
+    extras.supersets += supersets.size;
 
     totalSets += sets;
-    workouts.push({
+    const workout: CompletedWorkout = {
       id: `import-${source.startedAt.getTime().toString(36)}`,
       name: source.title,
       startedAt: source.startedAt.toISOString(),
@@ -972,7 +1050,13 @@ export function planImport(
       totalReps: reps,
       exercises,
       prsAchieved: [],
-    });
+    };
+    const description = source.description?.trim();
+    if (description) {
+      workout.notes = description;
+      extras.workoutNotes += 1;
+    }
+    workouts.push(workout);
   }
 
   const used = new Set(
@@ -1010,7 +1094,149 @@ export function planImport(
     duplicates,
     skippedRows: parsed.skippedRows,
     totalSets,
+    extras,
     firstDate: workouts.at(-1)?.startedAt ?? null,
     lastDate: workouts[0]?.startedAt ?? null,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Body measurements (Hevy "measurement_data.csv")                     */
+/* ------------------------------------------------------------------ */
+
+const IN_TO_CM = 2.54;
+
+/** "leftBicepCm" → "left_bicep" (column stem without the unit). */
+function columnStem(site: MeasurementSite): string {
+  return site
+    .replace(/Cm$/, '')
+    .replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
+
+export function isMeasurementCsv(table: string[][]): boolean {
+  const header = (table[0] ?? []).map((name) => name.trim().toLowerCase());
+  return (
+    header.includes('date') &&
+    !header.includes('exercise_title') &&
+    !header.includes('exercise name') &&
+    header.some(
+      (name) =>
+        name.startsWith('weight_') ||
+        name === 'fat_percent' ||
+        name.endsWith('_cm') ||
+        name.endsWith('_in'),
+    )
+  );
+}
+
+export interface ParsedMeasurements {
+  rows: Omit<BodyMeasurement, 'id'>[];
+  skippedRows: number;
+}
+
+export function readMeasurementCsv(text: string): ParsedMeasurements {
+  const [header, ...body] = parseCsv(text);
+  if (!header) throw new ImportError('O arquivo está vazio.');
+  const col = headerIndex(header);
+  const at = (row: string[], index: number) =>
+    index === -1 ? '' : (row[index] ?? '').trim();
+  const dateIndex = col('date');
+  const kg = col('weight_kg');
+  const lbs = col('weight_lbs');
+  const fat = col('fat_percent', 'body_fat_percent');
+  const sites = MEASUREMENT_SITES.map((site) => {
+    const stem = columnStem(site);
+    return { site, cm: col(`${stem}_cm`), inches: col(`${stem}_in`) };
+  });
+
+  let skippedRows = 0;
+  const rows: Omit<BodyMeasurement, 'id'>[] = [];
+  for (const row of body) {
+    const date = parseImportDate(at(row, dateIndex));
+    if (!date) {
+      skippedRows += 1;
+      continue;
+    }
+    const entry: Omit<BodyMeasurement, 'id'> = {
+      measuredAt: date.toISOString(),
+    };
+    const weight =
+      kg !== -1 ? toNumber(at(row, kg)) : toNumber(at(row, lbs)) * LB_TO_KG;
+    if (weight > 0) entry.weightKg = round(weight);
+    const fatPercent = toNumber(at(row, fat));
+    if (fatPercent > 0) entry.fatPercent = round(fatPercent, 1);
+    for (const { site, cm, inches } of sites) {
+      const value =
+        cm !== -1
+          ? toNumber(at(row, cm))
+          : toNumber(at(row, inches)) * IN_TO_CM;
+      if (value > 0) entry[site] = round(value, 1);
+    }
+    if (Object.keys(entry).length > 1) rows.push(entry);
+    else skippedRows += 1;
+  }
+  rows.sort(
+    (a, b) =>
+      new Date(a.measuredAt).getTime() - new Date(b.measuredAt).getTime(),
+  );
+  return { rows, skippedRows };
+}
+
+export interface MeasurementPlan {
+  measurements: BodyMeasurement[];
+  duplicates: number;
+  skippedRows: number;
+  /** Which values the file has (weightKg, fatPercent, chestCm…). */
+  fields: (keyof BodyMeasurement)[];
+  firstDate: string | null;
+  lastDate: string | null;
+}
+
+function dayKey(iso: string): string {
+  const date = new Date(iso);
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+/** One measurement per calendar day: days already recorded are skipped. */
+export function planMeasurementImport(
+  parsed: ParsedMeasurements,
+  existing: BodyMeasurement[],
+): MeasurementPlan {
+  const taken = new Set(existing.map((item) => dayKey(item.measuredAt)));
+  let duplicates = 0;
+  const measurements: BodyMeasurement[] = [];
+  for (const row of parsed.rows) {
+    const key = dayKey(row.measuredAt);
+    if (taken.has(key)) {
+      duplicates += 1;
+      continue;
+    }
+    taken.add(key);
+    measurements.push({
+      id: `measure-${new Date(row.measuredAt).getTime().toString(36)}`,
+      ...row,
+    });
+  }
+  const fields = [
+    ...new Set(
+      measurements.flatMap(
+        (item) =>
+          Object.keys(item).filter(
+            (key) => key !== 'id' && key !== 'measuredAt',
+          ) as (keyof BodyMeasurement)[],
+      ),
+    ),
+  ];
+  measurements.sort(
+    (a, b) =>
+      new Date(b.measuredAt).getTime() - new Date(a.measuredAt).getTime(),
+  );
+  return {
+    measurements,
+    duplicates,
+    skippedRows: parsed.skippedRows,
+    fields,
+    firstDate: measurements.at(-1)?.measuredAt ?? null,
+    lastDate: measurements[0]?.measuredAt ?? null,
   };
 }

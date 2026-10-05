@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Bell,
   BookOpen,
@@ -8,6 +8,7 @@ import {
   Droplet,
   FileText,
   FileUp,
+  ImageDown,
   Info,
   LogOut,
   UserRound,
@@ -23,6 +24,12 @@ import {
 import { RECORD_LABELS } from '../lib/training';
 import type { NotificationPrefs } from '../lib/types';
 import { tutorial } from '../lib/tutorial';
+import {
+  EXERCISE_PHOTOS_MB,
+  countOfflinePhotos,
+  downloadOfflinePhotos,
+  offlinePhotosSupported,
+} from '../lib/offlineMedia';
 import { useTheme, type ThemePreference } from '../lib/theme';
 import { useNavigation } from '../navigation/Navigator';
 import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
@@ -104,10 +111,12 @@ export function SettingsScreen() {
       profile: store.userProfile,
       history: store.history,
       templates: store.templates,
+      folders: store.folders,
       prs: store.prs,
       goals: store.goals,
       hydrationLogs: store.hydrationLogs,
       meals: store.meals,
+      measurements: store.measurements,
       customExercises: store.customExercises,
       exportedAt: new Date().toISOString(),
       version: 'ForgeFlow-2.0-web',
@@ -172,6 +181,28 @@ export function SettingsScreen() {
           )}
         </ListGroup>
 
+        <GroupLabel>Seus dados</GroupLabel>
+        <ListGroup>
+          <ListRow
+            icon={FileUp}
+            title="Importar histórico (CSV)"
+            subtitle="Treinos e medidas exportados de outro app"
+            onClick={() => push({ name: 'import' })}
+          />
+          <OfflinePhotosRow />
+          <ListRow
+            icon={FileText}
+            title="Relatório consolidado"
+            onClick={() => setSheet('report')}
+          />
+          <ListRow
+            icon={Download}
+            title="Exportar backup (JSON)"
+            subtitle="Treinos, rotinas, recordes, metas, medidas e diário"
+            onClick={exportBackup}
+          />
+        </ListGroup>
+
         <GroupLabel>Preferências</GroupLabel>
         <ListGroup>
           <ListRow
@@ -190,27 +221,6 @@ export function SettingsScreen() {
             title="Metas de nutrição"
             value={`${formatNumber(nutritionTargetKcal, 0)} kcal`}
             onClick={() => setSheet('nutrition')}
-          />
-        </ListGroup>
-
-        <GroupLabel>Seus dados</GroupLabel>
-        <ListGroup>
-          <ListRow
-            icon={FileUp}
-            title="Importar histórico (CSV)"
-            subtitle="Traga treinos exportados de outro app"
-            onClick={() => push({ name: 'import' })}
-          />
-          <ListRow
-            icon={FileText}
-            title="Relatório consolidado"
-            onClick={() => setSheet('report')}
-          />
-          <ListRow
-            icon={Download}
-            title="Exportar backup (JSON)"
-            subtitle="Treinos, rotinas, recordes, metas e diário"
-            onClick={exportBackup}
           />
         </ListGroup>
 
@@ -251,6 +261,63 @@ export function SettingsScreen() {
         onExport={exportBackup}
       />
     </>
+  );
+}
+
+/** Downloads every exercise photo so the demos work without internet. */
+function OfflinePhotosRow() {
+  const toast = useToast();
+  const [counts, setCounts] = useState<{ cached: number; total: number }>();
+  const [progress, setProgress] = useState<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void countOfflinePhotos().then((result) => {
+      if (alive) setCounts(result);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (!offlinePhotosSupported()) return null;
+  const complete = counts !== undefined && counts.cached >= counts.total;
+
+  const download = async () => {
+    setProgress(0);
+    try {
+      await downloadOfflinePhotos((done, total) =>
+        setProgress(Math.round((done / total) * 100)),
+      );
+      setCounts(await countOfflinePhotos());
+      toast({ tone: 'success', title: 'Fotos disponíveis offline' });
+    } catch {
+      toast({
+        tone: 'error',
+        title: 'Não foi possível baixar as fotos',
+        description: 'Confira a conexão e tente de novo.',
+      });
+    } finally {
+      setProgress(null);
+    }
+  };
+
+  return (
+    <ListRow
+      icon={ImageDown}
+      title="Fotos dos exercícios offline"
+      subtitle={
+        progress !== null
+          ? `Baixando… ${progress}%`
+          : complete
+            ? 'Todas salvas neste aparelho'
+            : `Baixe para ver as demonstrações sem internet (${formatNumber(EXERCISE_PHOTOS_MB)} MB)`
+      }
+      value={complete ? '✓' : undefined}
+      onClick={
+        complete || progress !== null ? undefined : () => void download()
+      }
+    />
   );
 }
 

@@ -95,8 +95,8 @@ aberto sobre grafite. Gerados a partir delas: `assets/icon.png`,
 - Dock flutuante: **Hoje**, **Rotinas**, **Treinar** (centro), **Evolução**, **Perfil**.
   "Treinar" abre a folha de início (treino livre, sugestão do dia, rotinas) ou
   retoma o treino em andamento, mostrando o tempo e o anel do descanso.
-- Perfil em grupos: Treino (diário, exercícios, metas), Saúde, Comunidade, Dados
-  (importar, backup) e App (configurações, tutorial).
+- Perfil em grupos: Treino (diário, exercícios, metas), Saúde, Comunidade
+  e App (configurações — tema, conta, importar e backup — e tutorial).
 - Telas secundárias entram pela direita e preservam a rolagem da aba.
 - **Botão voltar do Android/navegador:** cada tela, folha ou diálogo aberto ocupa
   uma entrada do histórico. As entradas são reconciliadas em série com o número de
@@ -116,7 +116,8 @@ aberto sobre grafite. Gerados a partir delas: `assets/icon.png`,
 
 ## Importar histórico (CSV)
 
-`Perfil › Importar histórico` (também em Rotinas, Diário e Configurações) aceita o
+`Configurações › Seus dados › Importar histórico (CSV)` (único ponto de entrada,
+além do atalho no fim do tutorial) aceita o
 CSV exportado pelo **Hevy** e pelo **Strong**. A lógica pura está em
 `web/lib/importCsv.ts` (testada em `importCsv.test.ts`):
 
@@ -128,12 +129,113 @@ CSV exportado pelo **Hevy** e pelo **Strong**. A lógica pura está em
 - Nomes em inglês do Hevy/Strong são ligados ao catálogo do ForgeFlow (ex.: *Bench
   Press (Barbell)* → Supino reto com barra); os demais viram exercícios
   personalizados com grupo muscular estimado e id estável.
+- Nada do arquivo é descartado: séries até a falha e drop sets ficam marcadas
+  (FALHA/DROP), tentativas falhas (ex.: 140 kg × 0) entram como série sem volume,
+  cardio e exercícios por tempo guardam distância e duração, RPE, supersets,
+  notas de exercício e a descrição do treino também vêm. A prévia lista tudo
+  isso em "Também vem junto".
+- O arquivo de medidas do Hevy (`measurement_data.csv`) é reconhecido sozinho e
+  vira Medidas corporais (uma medição por dia; dias já registrados são ignorados).
 - Treinos já existentes (mesmo minuto de início) são ignorados — reimportar não
   duplica. Os recordes são **recalculados sobre todo o histórico** em ordem
   cronológica, e só documentos alterados vão para a nuvem.
 - Fluxo: escolher/arrastar arquivo → prévia (treinos novos, séries, período,
   exercícios reconhecidos e novos) → confirmação → resultado com **Desfazer
   importação**.
+
+## Dados iniciais
+
+Toda conta começa **vazia**: sem rotinas, metas, favoritos ou desafios de exemplo,
+e o perfil sem experiência, objetivo, peso ou altura presumidos ("Não informado").
+Versões anteriores criavam 3 rotinas e 4 metas de exemplo; `web/lib/samples.ts`
+as reconhece (por id, nome e alvos de séries/reps/carga/descanso — ids e nomes de
+exercícios mudaram entre versões) e as remove ao abrir o app e após sincronizar,
+inclusive na nuvem, **só se nunca foram editadas nem usadas** em um treino.
+
+## Exercícios: animações e instruções
+
+- **Animação:** cada um dos 130 exercícios tem duas fotos (início e fim do
+  movimento) do [Free Exercise DB](https://github.com/yuhonas/free-exercise-db)
+  (domínio público), convertidas para WebP de 480 px (~14 KB cada, 3,4 MB no
+  total) em `public/exercises/<pasta>/{0,1}.webp`. `ExerciseAnimation` alterna
+  as duas com um cross-fade CSS (`ex-swap`, 2,6 s) e tem botão de pausar; com
+  `prefers-reduced-motion` fica parada na posição inicial. O mapa id → pasta
+  está em `web/data/exerciseMedia.ts`.
+- **Miniaturas:** `ExerciseThumb` recebe `exerciseId` e mostra a foto inicial
+  (biblioteca, seletor, treino ativo, detalhe de treino, editor de rotina e
+  metas); exercícios personalizados ou sem foto continuam com o código do grupo.
+- **Instruções:** `web/data/guides/` tem, por exercício, músculos trabalhados,
+  preparação, execução numerada, respiração, dicas e erros comuns, em
+  português simples. A aba Instruções mostra a animação e esses blocos; o
+  texto antigo continua como fallback.
+- **Offline:** `Configurações › Seus dados › Fotos dos exercícios offline` baixa
+  as 250 fotos de uma vez para o cache do service worker (`public/sw.js`, que só
+  guarda `/exercises/*`). Fotos abertas no uso normal também ficam em cache.
+  `web/data/exerciseContent.test.ts` garante que todo exercício tem fotos e guia.
+
+## Pastas de rotinas
+
+Rotinas podem ficar em **pastas** (ex.: uma por academia). Sem nenhuma pasta, a
+aba Rotinas continua uma lista simples.
+
+- **Criar:** botão "Pasta" ao lado de "Nova" (ou "Criar pasta" no estado vazio),
+  "Nova pasta…" ao mover uma rotina.
+- **Pasta:** cabeçalho recolhível (lembrado neste aparelho), contagem de rotinas
+  e menu com Nova rotina nesta pasta, Renomear, Mover para cima/baixo e Excluir.
+  Excluir pergunta se as rotinas vão para "Sem pasta" ou se são apagadas junto
+  (com confirmação); o diário de treinos nunca é afetado.
+- **Rotina:** "Mover para pasta" no menu ⋯ e o campo **Pasta** no editor.
+- **Começar treino:** as rotinas aparecem agrupadas por pasta.
+- Dados: `RoutineFolder { id, name, order, createdAt }` e `folderId` opcional na
+  rotina (`web/lib/folders.ts`). Coleção sincronizada `users/{uid}/folders`
+  (regra em `firestore.rules`). Rotinas cuja pasta foi apagada em outro aparelho
+  aparecem em "Sem pasta".
+
+## Recordes por série
+
+Um recorde (maior peso, melhor 1RM estimado, melhor série em volume) pertence a
+uma **série**: a primeira que atinge o melhor valor do treino, se ele supera o
+recorde anterior (`recordsBySet` em `web/lib/training.ts`, mesma regra do resumo
+do treino).
+
+- **Treino em andamento:** ao concluir a série, a coluna "Última vez" vira o
+  selo **PR** com a medalha; superar um recorde existente também mostra um toast
+  ("Maior peso: 100 kg · …"). O primeiro registro de um exercício ganha o selo,
+  mas sem toast.
+- **Detalhe do treino e histórico do exercício:** selo PR na série que fez cada
+  recorde listado no treino.
+- **Detalhe do exercício › Recordes pessoais:** cada recorde mostra a série
+  ("65 kg × 8"; no 1RM, "Estimado de 65 kg × 8"), o treino e a data, e abre o
+  treino ao tocar (`recordOrigin`).
+
+## Medidas corporais
+
+`Perfil › Saúde › Medidas corporais` registra peso, gordura corporal e as 14
+circunferências que o Hevy exporta (pescoço, ombros, peito, bíceps e antebraços
+E/D, abdômen, cintura, quadril, coxas e panturrilhas E/D). A tela mostra a
+medida escolhida com variação desde a anterior e desde o início, gráfico com
+escala ajustada aos dados (o período é escolhido sozinho para nunca abrir vazio),
+últimos valores de cada medida e o histórico (tocar para editar; excluir tem
+desfazer). O peso do perfil acompanha a medição mais recente, e a Evolução
+mostra um cartão de peso corporal. Coleção sincronizada: `users/{uid}/measurements`
+(regra em `firestore.rules`).
+
+## Foto de perfil
+
+`Editar perfil › Alterar foto` (galeria ou câmera). A imagem é recortada em
+quadrado e reduzida para um JPEG de ~15 KB (`web/lib/image.ts`), salva no
+documento do perfil e sincronizada; ela tem prioridade sobre a foto do Google.
+"Voltar para a foto do Google" / "Remover foto" desfaz.
+
+## Login com Google
+
+Erros agora dizem a causa (`describeLoginError` em `web/firebase.ts`), por
+exemplo domínio não autorizado, pop-up bloqueado, sem internet ou provedor
+desativado, com o código do erro nos demais casos. Se o pop-up não pode abrir,
+o login cai para o modo de redirecionamento, e um erro na volta é mostrado ao
+reabrir o app. **O domínio onde o app roda precisa estar em Firebase ›
+Authentication › Configurações › Domínios autorizados** (ex.:
+`newforgeflow.vercel.app` e `localhost`).
 
 ## Estados
 

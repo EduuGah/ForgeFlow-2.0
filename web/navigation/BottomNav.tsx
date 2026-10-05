@@ -14,6 +14,7 @@ import {
 import { findExercise, useAppStore } from '../store';
 import { formatClock, pluralize } from '../lib/format';
 import { muscleCode, suggestNextTemplate } from '../lib/training';
+import { groupRoutines } from '../lib/folders';
 import { haptic } from '../lib/haptics';
 import { useWorkoutLauncher } from '../features/useWorkoutLauncher';
 import { useRestCountdown } from '../features/RestTimer';
@@ -207,7 +208,7 @@ function StartWorkoutSheet({
   open: boolean;
   onClose: () => void;
 }) {
-  const { templates, history } = useAppStore();
+  const { templates, folders, history } = useAppStore();
   const { push } = useNavigation();
   const launcher = useWorkoutLauncher();
   const suggestion = useMemo(
@@ -215,6 +216,10 @@ function StartWorkoutSheet({
     [templates, history],
   );
   const others = templates.filter((template) => template.id !== suggestion?.id);
+  // One list per folder (e.g. per gym); routines without a folder last.
+  const groups = groupRoutines(others, folders).filter(
+    (group) => group.templates.length > 0,
+  );
 
   const start = (templateId: string) => {
     onClose();
@@ -292,16 +297,20 @@ function StartWorkoutSheet({
           </section>
         )}
 
-        {others.length > 0 && (
-          <section aria-labelledby="start-routines">
+        {groups.map((group, groupIndex) => (
+          <section
+            key={group.folder?.id ?? 'loose'}
+            aria-labelledby={`start-routines-${groupIndex}`}
+          >
             <h3
-              id="start-routines"
+              id={`start-routines-${groupIndex}`}
               className="text-micro mb-1 font-semibold tracking-wider text-ink-2 uppercase"
             >
-              Suas rotinas
+              {group.folder?.name ??
+                (folders.length > 0 ? 'Sem pasta' : 'Suas rotinas')}
             </h3>
             <ul className="divide-y divide-line" role="list">
-              {others.map((template) => (
+              {group.templates.map((template) => (
                 <li key={template.id}>
                   <button
                     type="button"
@@ -330,7 +339,7 @@ function StartWorkoutSheet({
               ))}
             </ul>
           </section>
-        )}
+        ))}
 
         <Button
           variant="ghost"

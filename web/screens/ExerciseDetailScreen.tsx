@@ -1,20 +1,40 @@
 import { useMemo, useState } from 'react';
-import { ChevronRight, History, Plus, Search, Star } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronRight,
+  History,
+  Lightbulb,
+  Plus,
+  Search,
+  Star,
+  Wind,
+  type LucideIcon,
+} from 'lucide-react';
 import { actions, findExercise, useAppStore } from '../store';
-import { formatDateTime, formatShortDate, formatWeight } from '../lib/format';
+import {
+  formatDateTime,
+  formatSetResult,
+  formatShortDate,
+  formatWeight,
+} from '../lib/format';
 import {
   RECORD_LABELS,
   exerciseSessions,
   muscleLabel,
   recordDate,
+  recordOrigin,
   setLabels,
   type ExerciseSession,
+  type RecordOrigin,
 } from '../lib/training';
-import type { PersonalRecordType } from '../lib/types';
+import type { PersonalRecordItem, PersonalRecordType } from '../lib/types';
 import { useNavigation } from '../navigation/Navigator';
+import { exerciseGuide } from '../data/guides';
+import { exerciseMedia } from '../data/exerciseMedia';
+import { ExerciseAnimation } from '../features/ExerciseAnimation';
 import { Button, IconButton } from '../ui/Button';
 import { LineChart } from '../ui/Charts';
-import { EmptyState, ExerciseThumb, Medal } from '../ui/Feedback';
+import { EmptyState, ExerciseThumb, Medal, RecordBadge } from '../ui/Feedback';
 import { SegmentedControl, Tabs } from '../ui/Form';
 import { StackHeader } from '../ui/Layout';
 import { useToast } from '../ui/Overlay';
@@ -121,6 +141,7 @@ export function ExerciseDetailView({
     .map((step) => step.trim())
     .filter(Boolean);
   const focus = steps[0]?.startsWith('Foco:') ? steps.shift() : undefined;
+  const guide = exerciseGuide(exercise.id);
 
   return (
     <div className={cx(!embedded && 'app-column')}>
@@ -151,8 +172,15 @@ export function ExerciseDetailView({
           aria-labelledby="tab-summary"
           className="animate-fade-in px-4 pt-5 pb-6"
         >
+          <ExerciseAnimation
+            exerciseId={exercise.id}
+            name={exercise.name}
+            className="mb-4"
+          />
           <div className="flex items-center gap-4">
-            <ExerciseThumb muscle={exercise.primaryMuscleGroup} size={64} />
+            {!exerciseMedia(exercise.id) && (
+              <ExerciseThumb muscle={exercise.primaryMuscleGroup} size={64} />
+            )}
             <div className="min-w-0">
               <h2 className="text-title font-bold">{exercise.name}</h2>
               <p className="text-callout text-ink-2">
@@ -226,31 +254,23 @@ export function ExerciseDetailView({
                 ['weight', 'estimated_1rm', 'volume'] as PersonalRecordType[]
               ).map((type) => {
                 const record = recordOf(type);
-                const date = record ? recordDate(record) : null;
+                const origin = record ? recordOrigin(record, history) : null;
                 return (
-                  <li
+                  <RecordRow
                     key={type}
-                    className="flex items-center justify-between gap-3 py-3.5"
-                  >
-                    <span>
-                      <span className="text-body block">
-                        {RECORD_LABELS[type]}
-                      </span>
-                      {date && (
-                        <span className="text-caption text-ink-3">
-                          {formatShortDate(date.toISOString())}
-                        </span>
-                      )}
-                    </span>
-                    <span
-                      className={cx(
-                        'text-headline font-semibold tabular',
-                        record ? 'text-brand-ink' : 'text-ink-3',
-                      )}
-                    >
-                      {record ? `${formatWeight(record.value)} kg` : '—'}
-                    </span>
-                  </li>
+                    type={type}
+                    record={record}
+                    origin={origin}
+                    onOpen={
+                      origin && !embedded
+                        ? () =>
+                            push({
+                              name: 'workout',
+                              workoutId: origin.workoutId,
+                            })
+                        : undefined
+                    }
+                  />
                 );
               })}
             </ul>
@@ -277,6 +297,7 @@ export function ExerciseDetailView({
                 <SessionBlock
                   key={session.workoutId}
                   session={session}
+                  exerciseId={exercise.id}
                   exerciseName={exercise.name}
                   muscle={exercise.primaryMuscleGroup}
                   onOpen={
@@ -303,22 +324,59 @@ export function ExerciseDetailView({
           className="animate-fade-in px-4 pt-5 pb-6"
         >
           <h2 className="text-title font-bold">{exercise.name}</h2>
-          {focus && <p className="text-callout mt-1 text-brand-ink">{focus}</p>}
-          {steps.length === 0 ? (
-            <p className="text-body mt-4 text-ink-2">
-              Este exercício ainda não tem instruções.
-            </p>
+          {guide ? (
+            <>
+              <p className="text-callout mt-1 text-ink-2">{guide.muscles}</p>
+              <ExerciseAnimation
+                exerciseId={exercise.id}
+                name={exercise.name}
+                className="mt-4"
+              />
+              <GuideList title="Preparação" items={guide.setup} />
+              <GuideList title="Execução" items={guide.steps} numbered />
+              <GuideNote
+                icon={Wind}
+                title="Respiração"
+                text={guide.breathing}
+              />
+              <GuideList
+                title="Dicas"
+                items={guide.tips}
+                icon={Lightbulb}
+                tone="success"
+              />
+              <GuideList
+                title="Erros comuns"
+                items={guide.mistakes}
+                icon={AlertTriangle}
+                tone="danger"
+              />
+              <p className="text-caption mt-6 text-ink-3">
+                Fotos: Free Exercise DB (domínio público).
+              </p>
+            </>
           ) : (
-            <ol className="mt-4 space-y-4">
-              {steps.map((step, index) => (
-                <li key={index} className="text-body flex gap-4">
-                  <span className="w-5 shrink-0 font-bold tabular">
-                    {index + 1}.
-                  </span>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
+            <>
+              {focus && (
+                <p className="text-callout mt-1 text-brand-ink">{focus}</p>
+              )}
+              {steps.length === 0 ? (
+                <p className="text-body mt-4 text-ink-2">
+                  Este exercício ainda não tem instruções.
+                </p>
+              ) : (
+                <ol className="mt-4 space-y-4">
+                  {steps.map((step, index) => (
+                    <li key={index} className="text-body flex gap-4">
+                      <span className="w-5 shrink-0 font-bold tabular">
+                        {index + 1}.
+                      </span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </>
           )}
         </div>
       )}
@@ -326,13 +384,90 @@ export function ExerciseDetailView({
   );
 }
 
+function RecordRow({
+  type,
+  record,
+  origin,
+  onOpen,
+}: {
+  type: PersonalRecordType;
+  record: PersonalRecordItem | undefined;
+  origin: RecordOrigin | null;
+  onOpen?: () => void;
+}) {
+  const date = origin
+    ? new Date(origin.completedAt)
+    : record
+      ? recordDate(record)
+      : null;
+  // The set behind the number: "100 kg × 5"; 1RM is an estimate from it.
+  const set = origin?.set
+    ? `${type === 'estimated_1rm' ? 'Estimado de ' : ''}${formatSetResult(origin.set)}`
+    : null;
+  const where = [
+    origin?.workoutName,
+    date && formatShortDate(date.toISOString()),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const Row = onOpen ? 'button' : 'div';
+  return (
+    <li>
+      <Row
+        {...(onOpen
+          ? {
+              type: 'button' as const,
+              onClick: onOpen,
+              'aria-label': `${RECORD_LABELS[type]}: ${record ? `${formatWeight(record.value)} kg` : 'sem registro'}${set ? `, ${set}` : ''}${where ? `, ${where}` : ''}. Abrir treino`,
+            }
+          : {})}
+        className={cx(
+          'flex w-full items-center gap-3 py-3.5 text-left',
+          onOpen && '-mx-2 rounded-md px-2 active:bg-raised',
+        )}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="text-body block">{RECORD_LABELS[type]}</span>
+          {set && (
+            <span className="text-callout block font-medium text-ink-2 tabular">
+              {set}
+            </span>
+          )}
+          {where && (
+            <span className="text-caption block truncate text-ink-3">
+              {where}
+            </span>
+          )}
+        </span>
+        <span
+          className={cx(
+            'text-headline shrink-0 font-semibold tabular',
+            record ? 'text-brand-ink' : 'text-ink-3',
+          )}
+        >
+          {record ? `${formatWeight(record.value)} kg` : '—'}
+        </span>
+        {onOpen && (
+          <ChevronRight
+            size={18}
+            className="-mr-1 shrink-0 text-ink-3"
+            aria-hidden="true"
+          />
+        )}
+      </Row>
+    </li>
+  );
+}
+
 function SessionBlock({
   session,
+  exerciseId,
   exerciseName,
   muscle,
   onOpen,
 }: {
   session: ExerciseSession;
+  exerciseId: string;
   exerciseName: string;
   muscle: string;
   onOpen?: () => void;
@@ -360,7 +495,7 @@ function SessionBlock({
         )}
       </Header>
       <div className="mt-3 flex items-center gap-3 px-4">
-        <ExerciseThumb muscle={muscle} size={36} />
+        <ExerciseThumb muscle={muscle} exerciseId={exerciseId} size={36} />
         <span className="text-body font-medium">{exerciseName}</span>
       </div>
       {session.notes && (
@@ -393,7 +528,21 @@ function SessionBlock({
                   {labels[index]}
                 </td>
                 <td className="text-body py-3 tabular">
-                  {formatWeight(set.weightKg)} kg × {set.repetitions}
+                  {formatSetResult(set)}
+                  {(set.tag || session.setRecords[index]?.length > 0) && (
+                    <span className="ml-2 inline-flex gap-1 align-middle">
+                      <RecordBadge
+                        labels={(session.setRecords[index] ?? []).map(
+                          (type) => RECORD_LABELS[type],
+                        )}
+                      />
+                      {set.tag && (
+                        <span className="text-micro rounded-sm bg-danger-soft px-1.5 py-0.5 font-semibold text-danger-ink">
+                          {set.tag === 'failure' ? 'FALHA' : 'DROP'}
+                        </span>
+                      )}
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -405,5 +554,84 @@ function SessionBlock({
         </p>
       )}
     </li>
+  );
+}
+
+function GuideList({
+  title,
+  items,
+  numbered = false,
+  icon: Icon,
+  tone,
+}: {
+  title: string;
+  items: string[];
+  numbered?: boolean;
+  icon?: LucideIcon;
+  tone?: 'success' | 'danger';
+}) {
+  return (
+    <section className="mt-6">
+      <h3 className="text-headline flex items-center gap-2 font-semibold">
+        {Icon && (
+          <Icon
+            size={18}
+            className={
+              tone === 'danger' ? 'text-danger-ink' : 'text-success-ink'
+            }
+            aria-hidden="true"
+          />
+        )}
+        {title}
+      </h3>
+      {numbered ? (
+        <ol className="mt-3 space-y-3">
+          {items.map((item, index) => (
+            <li key={item} className="text-body flex gap-3">
+              <span className="text-callout grid size-6 shrink-0 place-items-center rounded-full bg-brand-soft font-bold text-brand-ink">
+                {index + 1}
+              </span>
+              <span className="pt-0.5">{item}</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <ul className="mt-2.5 space-y-2" role="list">
+          {items.map((item) => (
+            <li key={item} className="text-body flex gap-3 text-ink-2">
+              <span
+                className="mt-2.5 size-1.5 shrink-0 rounded-full bg-ink-3"
+                aria-hidden="true"
+              />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function GuideNote({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: LucideIcon;
+  title: string;
+  text: string;
+}) {
+  return (
+    <section className="mt-6 flex gap-3 rounded-lg bg-raised p-3.5">
+      <Icon
+        size={20}
+        className="mt-0.5 shrink-0 text-water"
+        aria-hidden="true"
+      />
+      <div>
+        <h3 className="text-callout font-semibold">{title}</h3>
+        <p className="text-callout mt-0.5 text-ink-2">{text}</p>
+      </div>
+    </section>
   );
 }

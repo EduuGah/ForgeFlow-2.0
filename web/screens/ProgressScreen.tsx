@@ -1,11 +1,19 @@
 import { useMemo, useState } from 'react';
-import { Award, Calculator, Check, Lock } from 'lucide-react';
+import {
+  Award,
+  Calculator,
+  Check,
+  ChevronRight,
+  Lock,
+  Ruler,
+} from 'lucide-react';
 import { findExercise, useAppStore } from '../store';
 import { addDays, startOfDay } from '../lib/dates';
 import {
   formatCompact,
   formatDurationMinutes,
   formatNumber,
+  formatShortDate,
   formatWeight,
 } from '../lib/format';
 import {
@@ -21,7 +29,9 @@ import {
 } from '../lib/training';
 import type { PersonalRecordItem, PersonalRecordType } from '../lib/types';
 import { useNavigation } from '../navigation/Navigator';
-import { BarChart, RankedBars } from '../ui/Charts';
+import { BarChart, LineChart, RankedBars } from '../ui/Charts';
+import { measurementSeries } from '../lib/measurements';
+import { Button } from '../ui/Button';
 import { EmptyState, Medal, ProgressBar } from '../ui/Feedback';
 import { NumberField, SegmentedControl } from '../ui/Form';
 import { Card, Delta, SectionHeader, Stat, TabHeader } from '../ui/Layout';
@@ -215,11 +225,9 @@ export function ProgressScreen() {
 
         <section aria-labelledby="stats-chart">
           <SectionHeader
+            id="stats-chart"
             title={`${METRICS.find((item) => item.value === metric)?.label} por ${bucketUnit}`}
           />
-          <h2 id="stats-chart" className="sr-only">
-            Gráfico do período
-          </h2>
           <Card className="p-4">
             <BarChart
               data={buckets.map((bucket) => ({
@@ -242,11 +250,10 @@ export function ProgressScreen() {
           </Card>
         </section>
 
+        <BodyWeightCard />
+
         <section aria-labelledby="stats-muscles">
-          <SectionHeader title="Séries por grupo muscular" />
-          <h2 id="stats-muscles" className="sr-only">
-            Séries por grupo muscular
-          </h2>
+          <SectionHeader id="stats-muscles" title="Séries por grupo muscular" />
           <Card className="p-4">
             {muscles.length === 0 ? (
               <p className="text-callout py-4 text-center text-ink-3">
@@ -267,10 +274,7 @@ export function ProgressScreen() {
         </section>
 
         <section aria-labelledby="stats-records">
-          <SectionHeader title="Recordes pessoais" />
-          <h2 id="stats-records" className="sr-only">
-            Recordes pessoais
-          </h2>
+          <SectionHeader id="stats-records" title="Recordes pessoais" />
           {recordsByExercise.length === 0 ? (
             <Card>
               <EmptyState
@@ -322,10 +326,7 @@ export function ProgressScreen() {
         </section>
 
         <section aria-labelledby="stats-achievements">
-          <SectionHeader title="Conquistas" />
-          <h2 id="stats-achievements" className="sr-only">
-            Conquistas
-          </h2>
+          <SectionHeader id="stats-achievements" title="Conquistas" />
           <Card as="div" className="divide-y divide-line">
             {achievements.map((achievement) => {
               const unlocked = achievement.progress >= achievement.target;
@@ -433,6 +434,81 @@ function OneRepMaxCalculator() {
           />
         </div>
       </Card>
+    </section>
+  );
+}
+
+/** Body weight next to training numbers; full history lives in Medidas. */
+function BodyWeightCard() {
+  const { measurements } = useAppStore();
+  const { push } = useNavigation();
+  const series = useMemo(
+    () => measurementSeries(measurements, 'weightKg').slice(-12),
+    [measurements],
+  );
+  const latest = series.at(-1);
+  const first = series[0];
+
+  return (
+    <section aria-labelledby="stats-weight">
+      <SectionHeader
+        id="stats-weight"
+        title="Peso corporal"
+        action={
+          series.length > 0 ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              trailingIcon={ChevronRight}
+              onClick={() => push({ name: 'measurements' })}
+            >
+              Medidas
+            </Button>
+          ) : undefined
+        }
+      />
+      {latest ? (
+        <Card className="p-4">
+          <p className="font-metric text-metric tabular">
+            {formatNumber(latest.value, 2)}
+            <span className="text-callout ml-1 font-sans text-ink-2">kg</span>
+          </p>
+          <p className="text-caption text-ink-2 tabular">
+            {series.length > 1 && first
+              ? `${latest.value >= first.value ? '▲' : '▼'} ${formatNumber(Math.abs(latest.value - first.value), 2)} kg nas últimas ${series.length} medições`
+              : `Medido em ${formatShortDate(latest.date)}`}
+          </p>
+          {series.length > 1 && (
+            <div className="mt-3">
+              <LineChart
+                zoom
+                height={140}
+                data={series.map((point) => ({
+                  key: point.date,
+                  label: formatShortDate(point.date),
+                  value: point.value,
+                }))}
+                label="Peso corporal nas últimas medições"
+                formatValue={(value) => `${formatNumber(value, 2)} kg`}
+                formatTick={(value) => formatNumber(value, 1)}
+              />
+            </div>
+          )}
+        </Card>
+      ) : (
+        <Card className="flex items-center gap-3 p-4">
+          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-brand-soft text-brand-ink">
+            <Ruler size={20} aria-hidden="true" />
+          </span>
+          <p className="text-callout min-w-0 flex-1 text-ink-2">
+            Registre peso e medidas para acompanhar o corpo junto com os
+            treinos.
+          </p>
+          <Button size="sm" onClick={() => push({ name: 'measurements' })}>
+            Registrar
+          </Button>
+        </Card>
+      )}
     </section>
   );
 }

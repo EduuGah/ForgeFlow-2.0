@@ -1,30 +1,38 @@
 import {
   BookOpen,
   CloudCog,
-  Download,
   Droplet,
   Dumbbell,
-  FileUp,
   History,
   Pencil,
+  Ruler,
   Settings,
   Target,
   Users,
   Utensils,
 } from 'lucide-react';
-import { useAppStore } from '../store';
+import { useAppStore, useProfilePhoto } from '../store';
 import { formatNumber } from '../lib/format';
 import { tutorial } from '../lib/tutorial';
 import { useNavigation } from '../navigation/Navigator';
 import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
 import { SyncBadge } from '../features/StatusBits';
-import { Button, IconButton } from '../ui/Button';
+import { IconButton } from '../ui/Button';
 import { Avatar } from '../ui/Feedback';
 import { Card, GroupLabel, ListGroup, ListRow, TabHeader } from '../ui/Layout';
 
 export function ProfileScreen() {
-  const { userProfile, currentUser, history, prs, goals, streakWeeks } =
-    useAppStore();
+  const {
+    userProfile,
+    currentUser,
+    history,
+    prs,
+    goals,
+    streakWeeks,
+    measurements,
+  } = useAppStore();
+  const latestWeight = measurements.find((item) => item.weightKg)?.weightKg;
+  const photo = useProfilePhoto();
   const { push } = useNavigation();
   const { signIn, signingIn } = useGoogleSignIn();
   const activeGoals = goals.filter((goal) => goal.status === 'active').length;
@@ -46,17 +54,14 @@ export function ProfileScreen() {
       <div className="app-column space-y-4 px-4 pt-2">
         <Card className="overflow-hidden">
           <div className="flex items-center gap-4 p-4">
-            <Avatar
-              name={userProfile.name}
-              photoUrl={currentUser?.photoURL}
-              size={64}
-            />
+            <Avatar name={userProfile.name} photoUrl={photo} size={64} />
             <div className="min-w-0 flex-1">
               <h2 className="text-title truncate font-bold">
                 {userProfile.name}
               </h2>
               <p className="text-footnote truncate text-ink-2">
-                @{userProfile.username} · {userProfile.experience}
+                @{userProfile.username}
+                {userProfile.experience && ` · ${userProfile.experience}`}
               </p>
               {currentUser && <SyncBadge className="mt-1.5" />}
             </div>
@@ -160,6 +165,14 @@ export function ProfileScreen() {
         <GroupLabel>Saúde</GroupLabel>
         <ListGroup>
           <ListRow
+            icon={Ruler}
+            title="Medidas corporais"
+            value={
+              latestWeight ? `${formatNumber(latestWeight, 1)} kg` : undefined
+            }
+            onClick={() => push({ name: 'measurements' })}
+          />
+          <ListRow
             icon={Droplet}
             title="Hidratação"
             onClick={() => push({ name: 'hydration' })}
@@ -181,27 +194,12 @@ export function ProfileScreen() {
           />
         </ListGroup>
 
-        <GroupLabel>Dados</GroupLabel>
-        <ListGroup>
-          <ListRow
-            icon={FileUp}
-            title="Importar histórico"
-            subtitle="CSV exportado de outro app de treino"
-            onClick={() => push({ name: 'import' })}
-          />
-          <ListRow
-            icon={Download}
-            title="Backup e relatório"
-            onClick={() => push({ name: 'settings' })}
-          />
-        </ListGroup>
-
         <GroupLabel>App</GroupLabel>
         <ListGroup>
           <ListRow
             icon={Settings}
             title="Configurações"
-            subtitle="Tema, notificações e conta"
+            subtitle="Tema, conta, importar e backup"
             onClick={() => push({ name: 'settings' })}
           />
           <ListRow
@@ -210,19 +208,6 @@ export function ProfileScreen() {
             onClick={tutorial.show}
           />
         </ListGroup>
-
-        {history.length === 0 && (
-          <div className="px-4 pt-6">
-            <Button
-              variant="secondary"
-              block
-              icon={FileUp}
-              onClick={() => push({ name: 'import' })}
-            >
-              Trazer treinos de outro app
-            </Button>
-          </div>
-        )}
       </div>
     </>
   );

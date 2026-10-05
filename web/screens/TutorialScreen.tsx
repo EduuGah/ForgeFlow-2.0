@@ -34,7 +34,7 @@ const SLIDES: Slide[] = [
   },
   {
     title: 'Seus dados, do seu jeito',
-    text: 'Tudo funciona sem internet e sincroniza quando a conexão volta. Vindo de outro app? Importe seu histórico em CSV e continue de onde parou.',
+    text: 'Tudo funciona sem internet e sincroniza quando a conexão volta. Vindo de outro app? Importe seu histórico em CSV pelas Configurações e continue de onde parou.',
     demo: <ImportDemo loopMs={7000} />,
   },
 ];

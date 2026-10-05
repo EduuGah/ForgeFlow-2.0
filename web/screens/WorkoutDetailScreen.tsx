@@ -4,11 +4,17 @@ import {
   formatDateTime,
   formatDurationMinutes,
   formatNumber,
+  formatSetResult,
   formatWeight,
 } from '../lib/format';
-import { estimateOneRepMax, setLabels } from '../lib/training';
+import {
+  RECORD_LABELS,
+  estimateOneRepMax,
+  setLabels,
+  workoutSetRecords,
+} from '../lib/training';
 import { useNavigation } from '../navigation/Navigator';
-import { EmptyState, ExerciseThumb, Medal } from '../ui/Feedback';
+import { EmptyState, ExerciseThumb, Medal, RecordBadge } from '../ui/Feedback';
 import { Stat, StackHeader } from '../ui/Layout';
 import { cx } from '../ui/core';
 
@@ -30,6 +36,16 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
       </>
     );
   }
+
+  const supersetIds = [
+    ...new Set(
+      workout.exercises
+        .map((exercise) => exercise.supersetId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const supersetLetter = (id: string) =>
+    String.fromCharCode(65 + Math.max(0, supersetIds.indexOf(id)));
 
   return (
     <>
@@ -86,6 +102,12 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
           </section>
         )}
 
+        {workout.notes && (
+          <p className="text-callout mx-4 mt-5 rounded-lg border border-line bg-surface px-4 py-3 whitespace-pre-line text-ink-2">
+            {workout.notes}
+          </p>
+        )}
+
         <ul className="mt-5 space-y-3 px-4" role="list">
           {workout.exercises.map((exercise, index) => {
             const catalog = exercise.exerciseId
@@ -96,6 +118,7 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
             const labels = exercise.sets
               ? setLabels(exercise.sets.map((set) => ({ setType: set.type })))
               : [];
+            const setRecords = workoutSetRecords(workout, exercise);
             return (
               <li
                 key={`${exercise.exerciseName}-${index}`}
@@ -110,18 +133,30 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
                   }
                   className="flex w-full items-center gap-3 p-3 text-left active:bg-raised disabled:cursor-default disabled:active:bg-transparent"
                 >
-                  <ExerciseThumb muscle={muscle} size={40} />
+                  <ExerciseThumb
+                    muscle={muscle}
+                    exerciseId={catalog?.id}
+                    size={40}
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="text-headline block truncate font-semibold">
                       {exercise.exerciseName}
                     </span>
-                    {exercise.setsCount > 0 && (
-                      <span className="text-caption text-ink-2 tabular">
-                        {exercise.setsCount}{' '}
-                        {exercise.setsCount === 1 ? 'série' : 'séries'} ·{' '}
-                        {formatWeight(exercise.totalVolumeKg)} kg
-                      </span>
-                    )}
+                    <span className="text-caption flex flex-wrap items-center gap-x-1.5 text-ink-2 tabular">
+                      {exercise.supersetId && (
+                        <span className="text-micro rounded-sm bg-brand-soft px-1.5 py-0.5 font-semibold text-brand-ink">
+                          SUPERSET {supersetLetter(exercise.supersetId)}
+                        </span>
+                      )}
+                      {exercise.setsCount > 0 && (
+                        <span>
+                          {exercise.setsCount}{' '}
+                          {exercise.setsCount === 1 ? 'série' : 'séries'}
+                          {exercise.totalVolumeKg > 0 &&
+                            ` · ${formatWeight(exercise.totalVolumeKg)} kg`}
+                        </span>
+                      )}
+                    </span>
                   </span>
                   {catalog && (
                     <ChevronRight
@@ -148,6 +183,9 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
                     <tbody className="divide-y divide-line">
                       {exercise.sets.map((set, setIndex) => {
                         const warmup = set.type === 'warmup';
+                        const records = (setRecords[setIndex] ?? []).map(
+                          (type) => RECORD_LABELS[type],
+                        );
                         return (
                           <tr key={setIndex}>
                             <td className="w-14 py-2 pl-3">
@@ -163,11 +201,27 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
                               </span>
                             </td>
                             <td className="text-body py-2 font-medium tabular">
-                              {formatWeight(set.weightKg)} kg ×{' '}
-                              {set.repetitions}
+                              {formatSetResult(set)}
+                              {(set.tag || set.rpe || records.length > 0) && (
+                                <span className="ml-2 inline-flex gap-1 align-middle">
+                                  <RecordBadge labels={records} />
+                                  {set.tag && (
+                                    <span className="text-micro rounded-sm bg-danger-soft px-1.5 py-0.5 font-semibold text-danger-ink">
+                                      {set.tag === 'failure' ? 'FALHA' : 'DROP'}
+                                    </span>
+                                  )}
+                                  {set.rpe && (
+                                    <span className="text-micro rounded-sm bg-raised px-1.5 py-0.5 font-semibold text-ink-2">
+                                      RPE {formatNumber(set.rpe)}
+                                    </span>
+                                  )}
+                                </span>
+                              )}
                             </td>
                             <td className="text-footnote py-2 pr-4 text-right text-ink-3 tabular">
-                              {!warmup && set.weightKg > 0
+                              {!warmup &&
+                              set.weightKg > 0 &&
+                              set.repetitions > 0
                                 ? `1RM ${formatWeight(Math.round(estimateOneRepMax(set.weightKg, set.repetitions)))} kg`
                                 : ''}
                             </td>

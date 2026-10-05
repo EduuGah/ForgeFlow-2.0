@@ -22,7 +22,7 @@ import { actions, useAppStore, type FinishResult } from '../store';
 import type {
   ActiveExerciseSession,
   CompletedSet,
-  PersonalRecordItem,
+  PersonalRecordType,
   SetEntry,
 } from '../lib/types';
 import {
@@ -32,17 +32,22 @@ import {
   formatWeight,
 } from '../lib/format';
 import {
+  RECORD_LABELS,
   alignPreviousSets,
+  beatsRecord,
+  bestRecordValues,
   countPendingSets,
-  estimateOneRepMax,
   previousSetsFor,
+  recordsBySet,
   setLabels,
+  setRecordValue,
   summarizeActiveWorkout,
+  type RecordBests,
 } from '../lib/training';
 import { haptic } from '../lib/haptics';
 import { useNavigation } from '../navigation/Navigator';
 import { Button, IconButton } from '../ui/Button';
-import { EmptyState, ExerciseThumb, Medal } from '../ui/Feedback';
+import { EmptyState, ExerciseThumb, Medal, RecordBadge } from '../ui/Feedback';
 import { NumericInput, TextField } from '../ui/Form';
 import {
   ActionSheet,
@@ -65,24 +70,6 @@ import { ExerciseDetailView } from '../screens/ExerciseDetailScreen';
 const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300];
 const SET_GRID =
   'grid grid-cols-[2.5rem_minmax(0,1fr)_4.25rem_3.75rem_2.75rem] items-center gap-2';
-
-interface Bests {
-  weight: number;
-  oneRepMax: number;
-}
-
-function bestsByExercise(records: PersonalRecordItem[]): Map<string, Bests> {
-  const map = new Map<string, Bests>();
-  for (const record of records) {
-    const current = map.get(record.exerciseId) ?? { weight: 0, oneRepMax: 0 };
-    if (record.type === 'weight')
-      current.weight = Math.max(current.weight, record.value);
-    if (record.type === 'estimated_1rm')
-      current.oneRepMax = Math.max(current.oneRepMax, record.value);
-    map.set(record.exerciseId, current);
-  }
-  return map;
-}
 
 /* ------------------------------------------------------------------ */
 /* Screen                                                              */
@@ -115,7 +102,7 @@ export function ActiveWorkoutScreen({
   const [restPickerOpen, setRestPickerOpen] = useState(false);
   const [infoExerciseId, setInfoExerciseId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const bests = useMemo(() => bestsByExercise(prs), [prs]);
+  const bests = useMemo(() => bestRecordValues(prs), [prs]);
 
   // Scroll to exercises added to the session already on screen — not when a
   // new session opens (it must start at the top).
@@ -453,7 +440,7 @@ function ExerciseBlock({
   total: number;
   current: boolean;
   previous: CompletedSet[] | null;
-  bests: Bests | undefined;
+  bests: RecordBests | undefined;
   onShowInfo: () => void;
 }) {
   const confirm = useConfirm();
@@ -471,6 +458,25 @@ function ExerciseBlock({
   const volume = exercise.sets
     .filter((set) => set.completed && set.setType === 'working')
     .reduce((sum, set) => sum + set.weightKg * set.repetitions, 0);
+
+  // Records this session would set, against the bests before the workout.
+  const recordInputs = exercise.sets.map((set) => ({
+    counts: set.completed && set.setType === 'working',
+    weightKg: set.weightKg,
+    repetitions: set.repetitions,
+  }));
+  const beats = (type: PersonalRecordType, value: number) =>
+    beatsRecord(bests, type, value);
+  const setRecords = recordsBySet(recordInputs, beats);
+  const recordsIfCompleted = (setIndex: number) =>
+    recordsBySet(
+      recordInputs.map((input, i) =>
+        i === setIndex
+          ? { ...input, counts: exercise.sets[i].setType === 'working' }
+          : input,
+      ),
+      beats,
+    )[setIndex];
 
   // A finished exercise folds away shortly after its last set, unless the
   // person already chose to keep it open.
@@ -542,7 +548,11 @@ function ExerciseBlock({
       aria-label={exercise.exerciseName}
     >
       <div className="flex items-center gap-3 px-3 pt-3">
-        <ExerciseThumb muscle={exercise.primaryMuscleGroup} size={40} />
+        <ExerciseThumb
+          muscle={exercise.primaryMuscleGroup}
+          exerciseId={exercise.exerciseId}
+          size={40}
+        />
         <button
           type="button"
           onClick={onShowInfo}
@@ -560,11 +570,11 @@ function ExerciseBlock({
             ) : (
               <>
                 {doneCount}/{exercise.sets.length} séries
-                {bests && bests.weight > 0 && (
+                {(bests?.weight ?? 0) > 0 && (
                   <>
                     <span aria-hidden="true">·</span>
                     <span className="inline-flex items-center gap-1">
-                      <Medal size={12} /> {formatWeight(bests.weight)} kg
+                      <Medal size={12} /> {formatWeight(bests?.weight ?? 0)} kg
                     </span>
                   </>
                 )}
@@ -659,6 +669,8 @@ function ExerciseBlock({
                 exerciseIndex={index}
                 setIndex={setIndex}
                 exerciseName={exercise.exerciseName}
+                records={setRecords[setIndex]}
+                recordsIfCompleted={() => recordsIfCompleted(setIndex)}
                 bests={bests}
                 canRemove={exercise.sets.length > 1}
               />
@@ -712,6 +724,8 @@ function SetRow({
   exerciseIndex,
   setIndex,
   exerciseName,
+  records,
+  recordsIfCompleted,
   bests,
   canRemove,
 }: {
@@ -721,7 +735,10 @@ function SetRow({
   exerciseIndex: number;
   setIndex: number;
   exerciseName: string;
-  bests: Bests | undefined;
+  /** Record types this set currently holds in the session. */
+  records: PersonalRecordType[];
+  recordsIfCompleted: () => PersonalRecordType[];
+  bests: RecordBests | undefined;
   canRemove: boolean;
 }) {
   const toast = useToast();
@@ -731,13 +748,7 @@ function SetRow({
   const update = (updates: Partial<SetEntry>) =>
     actions.updateSetActiveWorkout(exerciseIndex, setIndex, updates);
 
-  const isRecord =
-    set.completed &&
-    !warmup &&
-    bests !== undefined &&
-    set.repetitions > 0 &&
-    (set.weightKg > bests.weight ||
-      estimateOneRepMax(set.weightKg, set.repetitions) > bests.oneRepMax);
+  const isRecord = set.completed && records.length > 0;
 
   const toggle = () => {
     if (!set.completed && set.repetitions <= 0) {
@@ -749,8 +760,25 @@ function SetRow({
       repsRef.current?.focus();
       return;
     }
+    // Celebrate beating an existing best; a first-ever value still gets the
+    // medal but no toast, or every new exercise would interrupt the session.
+    const beaten = set.completed
+      ? []
+      : recordsIfCompleted().filter((type) => bests?.[type] !== undefined);
     const completedNow = update({ completed: !set.completed });
     haptic(completedNow ? 'success' : 'tap');
+    if (completedNow && beaten.length > 0) {
+      toast({
+        tone: 'record',
+        title: 'Novo recorde pessoal!',
+        description: beaten
+          .map(
+            (type) =>
+              `${RECORD_LABELS[type]}: ${formatWeight(setRecordValue(type, set))} kg`,
+          )
+          .join(' · '),
+      });
+    }
   };
 
   const copyPrevious = () => {
@@ -791,21 +819,32 @@ function SetRow({
         {label}
       </button>
 
-      <button
-        type="button"
-        onClick={copyPrevious}
-        disabled={!previous || set.completed}
-        className="text-footnote truncate text-left text-ink-3 tabular disabled:cursor-default"
-        aria-label={
-          previous
-            ? `Copiar anterior: ${formatWeight(previous.weightKg)} kg por ${previous.repetitions}`
-            : 'Sem registro anterior'
-        }
-      >
-        {previous
-          ? `${formatWeight(previous.weightKg)}kg × ${previous.repetitions}`
-          : '—'}
-      </button>
+      {isRecord ? (
+        // A record set swaps the reference it just beat for the medal.
+        <span className="min-w-0">
+          <RecordBadge
+            large
+            labels={records.map((type) => RECORD_LABELS[type])}
+            className="animate-medal"
+          />
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={copyPrevious}
+          disabled={!previous || set.completed}
+          className="text-footnote truncate text-left text-ink-3 tabular disabled:cursor-default"
+          aria-label={
+            previous
+              ? `Copiar anterior: ${formatWeight(previous.weightKg)} kg por ${previous.repetitions}`
+              : 'Sem registro anterior'
+          }
+        >
+          {previous
+            ? `${formatWeight(previous.weightKg)}kg × ${previous.repetitions}`
+            : '—'}
+        </button>
+      )}
 
       <NumericInput
         aria-label={`Carga da série ${label} em kg`}
@@ -851,15 +890,6 @@ function SetRow({
             aria-hidden="true"
           />
         </button>
-        {isRecord && (
-          <span
-            className="absolute -top-2 -right-1 animate-medal"
-            title="Novo recorde pessoal"
-          >
-            <Medal size={18} />
-            <span className="sr-only">Novo recorde pessoal</span>
-          </span>
-        )}
       </span>
 
       <ActionSheet

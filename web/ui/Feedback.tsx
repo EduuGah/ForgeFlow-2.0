@@ -1,8 +1,9 @@
-import { useId, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { AlertTriangle, CloudOff, Info, type LucideIcon } from 'lucide-react';
 import { cx } from './core';
 import { initials } from '../lib/format';
 import { muscleCode, muscleLabel } from '../lib/training';
+import { exerciseMedia } from '../data/exerciseMedia';
 
 /* ------------------------------------------------------------------ */
 /* Empty / loading / error                                             */
@@ -281,11 +282,37 @@ export function Avatar({
  */
 export function ExerciseThumb({
   muscle,
+  exerciseId,
   size = 44,
 }: {
   muscle?: string | null;
+  /** Catalog exercises show their start photo instead of the muscle tag. */
+  exerciseId?: string | null;
   size?: number;
 }) {
+  const [failed, setFailed] = useState(false);
+  const photo = exerciseId ? exerciseMedia(exerciseId)?.start : undefined;
+
+  if (photo && !failed) {
+    return (
+      <span
+        role="img"
+        aria-label={muscleLabel(muscle)}
+        className="relative block shrink-0 overflow-hidden rounded-[30%] bg-white ring-1 ring-line-strong"
+        style={{ width: size, height: size }}
+      >
+        <img
+          src={photo}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+          className="size-full object-cover"
+        />
+      </span>
+    );
+  }
+
   return (
     <span
       role="img"
@@ -438,5 +465,34 @@ export function Medal({
         strokeWidth="1.4"
       />
     </svg>
+  );
+}
+
+/** Inline "PR" chip for a set that set personal records (`labels` names them). */
+export function RecordBadge({
+  labels,
+  large = false,
+  className,
+}: {
+  labels: string[];
+  large?: boolean;
+  className?: string;
+}) {
+  if (labels.length === 0) return null;
+  return (
+    <span
+      className={cx(
+        'inline-flex items-center gap-1 rounded-sm bg-record-soft font-semibold text-ink',
+        large
+          ? 'text-footnote py-1 pr-2 pl-1.5'
+          : 'text-micro py-0.5 pr-1.5 pl-1',
+        className,
+      )}
+      title={labels.join(', ')}
+    >
+      <Medal size={large ? 16 : 13} />
+      <span aria-hidden="true">PR</span>
+      <span className="sr-only">Recorde pessoal: {labels.join(', ')}</span>
+    </span>
   );
 }

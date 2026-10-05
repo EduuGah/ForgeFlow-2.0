@@ -478,6 +478,25 @@
   }
 }
 
+/* Exercise demo: the end photo fades in and out over the start photo. */
+@utility ex-swap {
+  animation: ex-swap 2.6s var(--ease-standard) infinite;
+}
+
+@keyframes ex-swap {
+  0%,
+  38% {
+    opacity: 0;
+  }
+  50%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* Bars of the illustrated charts rising from the baseline. */
 @utility demo-grow {
   transform-origin: bottom;
