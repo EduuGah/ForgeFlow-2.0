@@ -83,10 +83,10 @@ export function GoalsScreen() {
         ) : (
           <>
             <section aria-labelledby="goals-active">
-              <SectionHeader title={`Em andamento (${active.length})`} />
-              <h2 id="goals-active" className="sr-only">
-                Metas em andamento
-              </h2>
+              <SectionHeader
+                id="goals-active"
+                title={`Em andamento (${active.length})`}
+              />
               {active.length === 0 ? (
                 <p className="text-callout rounded-lg bg-surface p-4 text-ink-2">
                   Todas as metas foram concluídas. Que tal a próxima?
@@ -106,10 +106,10 @@ export function GoalsScreen() {
             </section>
             {completed.length > 0 && (
               <section aria-labelledby="goals-done">
-                <SectionHeader title={`Concluídas (${completed.length})`} />
-                <h2 id="goals-done" className="sr-only">
-                  Metas concluídas
-                </h2>
+                <SectionHeader
+                  id="goals-done"
+                  title={`Concluídas (${completed.length})`}
+                />
                 <ul className="space-y-3" role="list">
                   {completed.map((goal) => (
                     <GoalCard

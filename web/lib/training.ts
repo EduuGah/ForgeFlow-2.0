@@ -646,10 +646,13 @@ export function previousSetsFor(
   exerciseId: string,
   exerciseName: string,
 ): CompletedSet[] | null {
-  const session = exerciseSessions(history, exerciseId, exerciseName).find(
-    (s) => s.sets && s.sets.length > 0,
-  );
-  return session?.sets ?? null;
+  // Only lifted sets are a useful reference: a failed attempt (0 reps) or a
+  // cardio entry would suggest "0 reps" for the next session.
+  for (const session of exerciseSessions(history, exerciseId, exerciseName)) {
+    const lifted = session.sets?.filter((set) => set.repetitions > 0) ?? [];
+    if (lifted.length > 0) return lifted;
+  }
+  return null;
 }
 
 /**

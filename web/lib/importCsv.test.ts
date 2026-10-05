@@ -2,6 +2,9 @@ import { systemExercises } from '../../src/data/seeds/systemExercises';
 import {
   ImportError,
   guessMuscleGroup,
+  isMeasurementCsv,
+  planMeasurementImport,
+  readMeasurementCsv,
   matchExercises,
   normalizeExerciseName,
   parseCsv,
@@ -106,7 +109,7 @@ describe('readWorkoutCsv', () => {
     expect(upper.exercises[0].sets).toEqual([
       { type: 'warmup', weightKg: 40, repetitions: 10 },
       { type: 'working', weightKg: 60, repetitions: 8 },
-      { type: 'working', weightKg: 62.5, repetitions: 6 },
+      { type: 'working', weightKg: 62.5, repetitions: 6, tag: 'failure' },
     ]);
     expect(upper.exercises[1].notes).toBe(
       'Nao consegui a 6rep com 30kg\nFiz 5 com ajuda',
@@ -119,11 +122,17 @@ describe('readWorkoutCsv', () => {
     );
 
     const leg = parsed.workouts[0];
-    expect(leg.exercises[0]).toMatchObject({
+    expect(leg.exercises[0]).toEqual({
       sourceName: 'Treadmill',
-      sets: [],
-      distanceKm: 7,
-      durationSeconds: 3600,
+      sets: [
+        {
+          type: 'working',
+          weightKg: 0,
+          repetitions: 0,
+          distanceKm: 7,
+          durationSeconds: 3600,
+        },
+      ],
     });
     // The 0-rep squat row is dropped, the valid one kept.
     expect(leg.exercises[1].sets).toHaveLength(1);
@@ -146,6 +155,69 @@ describe('readWorkoutCsv', () => {
       parsed.workouts[0].endedAt.getTime() -
         parsed.workouts[0].startedAt.getTime(),
     ).toBe(70 * 60000);
+  });
+
+  it('keeps failed attempts, RPE, supersets and the workout description', () => {
+    const csv = [
+      HEVY_HEADER,
+      '"Lower B","4 de set. de 2026, 20:20","4 de set. de 2026, 21:30","Dia pesado","Deadlift (Barbell)",,"",0,"failure",140,0,,,',
+      '"Lower B","4 de set. de 2026, 20:20","4 de set. de 2026, 21:30","Dia pesado","Deadlift (Barbell)",,"",1,"normal",130,3,,,8.5',
+      '"Lower B","4 de set. de 2026, 20:20","4 de set. de 2026, 21:30","Dia pesado","Leg Extension (Machine)",0,"",0,"dropset",50,10,,,',
+      '"Lower B","4 de set. de 2026, 20:20","4 de set. de 2026, 21:30","Dia pesado","Seated Leg Curl (Machine)",0,"",0,"normal",40,12,,,',
+      '"Lower B","4 de set. de 2026, 20:20","4 de set. de 2026, 21:30","Dia pesado","Plank",,"",0,"normal",,,,60,',
+    ].join('\n');
+    const parsed = readWorkoutCsv(csv);
+    const workout = parsed.workouts[0];
+    expect(workout.description).toBe('Dia pesado');
+    expect(workout.exercises[0].sets).toEqual([
+      { type: 'working', weightKg: 140, repetitions: 0, tag: 'failure' },
+      { type: 'working', weightKg: 130, repetitions: 3, rpe: 8.5 },
+    ]);
+    expect(workout.exercises[1]).toMatchObject({
+      supersetId: '0',
+      sets: [{ tag: 'dropset' }],
+    });
+    expect(workout.exercises[2].supersetId).toBe('0');
+    expect(workout.exercises[3].sets).toEqual([
+      { type: 'working', weightKg: 0, repetitions: 0, durationSeconds: 60 },
+    ]);
+
+    const plan = planImport(parsed, {
+      catalog: systemExercises,
+      history: [],
+      ownerUserId: 'u',
+      now: new Date(),
+    });
+    const deadlift = plan.workouts[0].exercises[0];
+    // The failed attempt counts as a set but adds no volume nor best load.
+    expect(deadlift).toMatchObject({
+      setsCount: 2,
+      bestWeightKg: 130,
+      totalVolumeKg: 390,
+    });
+    expect(plan.workouts[0].notes).toBe('Dia pesado');
+    expect(plan.extras).toMatchObject({
+      failures: 1,
+      dropsets: 1,
+      rpe: 1,
+      supersets: 1,
+      cardio: 1,
+      workoutNotes: 1,
+    });
+  });
+
+  it('reads Strong failure and drop-set markers', () => {
+    const csv = [
+      'Date,Workout Name,Duration,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,Notes,Workout Notes,RPE',
+      '2026-03-01 10:00:00,Push,1h,Bench Press (Barbell),F,80,4,0,0,,Bom dia,9',
+      '2026-03-01 10:00:00,Push,1h,Bench Press (Barbell),D,60,8,0,0,,Bom dia,',
+    ].join('\n');
+    const workout = readWorkoutCsv(csv).workouts[0];
+    expect(workout.description).toBe('Bom dia');
+    expect(workout.exercises[0].sets).toEqual([
+      { type: 'working', weightKg: 80, repetitions: 4, tag: 'failure', rpe: 9 },
+      { type: 'working', weightKg: 60, repetitions: 8, tag: 'dropset' },
+    ]);
   });
 
   it('converts pounds and miles', () => {
@@ -243,17 +315,29 @@ describe('planImport', () => {
       bestWeightKg: 62.5,
       setsCount: 2,
     });
+    // Cardio is a set (distance and time kept), without volume.
     expect(first.workouts[1].exercises[0]).toMatchObject({
       exerciseName: 'Treadmill',
-      notes: '7 km · 60 min',
-      setsCount: 0,
+      setsCount: 1,
+      totalVolumeKg: 0,
     });
+    expect(first.workouts[1].exercises[0].notes).toBeUndefined();
     expect(first.newExercises.map((e) => e.name).sort()).toEqual([
       'Seated Dip Machine',
       'Treadmill',
     ]);
     expect(first.newExercises[0].ownerUserId).toBe('u1');
-    expect(first.totalSets).toBe(5);
+    expect(first.totalSets).toBe(6);
+    expect(first.extras).toEqual({
+      warmups: 1,
+      failures: 1,
+      dropsets: 0,
+      cardio: 1,
+      rpe: 0,
+      supersets: 0,
+      exerciseNotes: 1,
+      workoutNotes: 0,
+    });
 
     const again = planImport(parsed, {
       catalog: [...systemExercises, ...first.newExercises],
@@ -290,5 +374,62 @@ describe('planImport', () => {
     expect(achievedByWorkout.get(byName.get('C')!)?.map((r) => r.type)).toEqual(
       ['weight', 'estimated_1rm'],
     );
+  });
+});
+
+describe('body measurements (Hevy measurement_data.csv)', () => {
+  const HEADER =
+    '"date","weight_kg","fat_percent","neck_cm","shoulder_cm","chest_cm","left_bicep_cm","right_bicep_cm","left_forearm_cm","right_forearm_cm","abdomen_cm","waist_cm","hips_cm","left_thigh_cm","right_thigh_cm","left_calf_cm","right_calf_cm"';
+  const CSV = [
+    HEADER,
+    '"28 jan 2026, 00:00",75,,,,,,,,,,,,,,,',
+    '"3 fev 2026, 00:00",76.2,18.5,,,101,35.5,36,,,,82,,,,,',
+    '"9 mar 2026, 00:00",75.05,,,,,,,,,,,,,,,',
+    '"sem data",80,,,,,,,,,,,,,,,',
+    '"10 mar 2026, 00:00",,,,,,,,,,,,,,,,',
+  ].join('\n');
+
+  it('is told apart from a workout export', () => {
+    expect(isMeasurementCsv(parseCsv(CSV))).toBe(true);
+    expect(isMeasurementCsv(parseCsv(HEVY_SAMPLE))).toBe(false);
+    expect(() => readWorkoutCsv(CSV)).toThrow(/medidas/);
+  });
+
+  it('reads weight, body fat and circumferences, skipping empty rows', () => {
+    const parsed = readMeasurementCsv(CSV);
+    expect(parsed.skippedRows).toBe(2);
+    expect(parsed.rows).toHaveLength(3);
+    const feb = parsed.rows[1];
+    expect(new Date(feb.measuredAt).getMonth()).toBe(1);
+    expect(feb).toMatchObject({
+      weightKg: 76.2,
+      fatPercent: 18.5,
+      chestCm: 101,
+      leftBicepCm: 35.5,
+      rightBicepCm: 36,
+      waistCm: 82,
+    });
+    expect(parsed.rows[2].weightKg).toBe(75.05);
+  });
+
+  it('converts pounds and inches', () => {
+    const parsed = readMeasurementCsv(
+      'date,weight_lbs,waist_in\n2026-01-01,165.3,32',
+    );
+    expect(parsed.rows[0].weightKg).toBeCloseTo(74.98, 2);
+    expect(parsed.rows[0].waistCm).toBeCloseTo(81.3, 1);
+  });
+
+  it('plans one measurement per day and skips days already recorded', () => {
+    const parsed = readMeasurementCsv(CSV);
+    const first = planMeasurementImport(parsed, []);
+    expect(first.measurements).toHaveLength(3);
+    expect(new Date(first.measurements[0].measuredAt).getMonth()).toBe(2); // newest first
+    expect(first.fields).toEqual(
+      expect.arrayContaining(['weightKg', 'fatPercent', 'chestCm', 'waistCm']),
+    );
+    const again = planMeasurementImport(parsed, first.measurements);
+    expect(again.measurements).toHaveLength(0);
+    expect(again.duplicates).toBe(3);
   });
 });

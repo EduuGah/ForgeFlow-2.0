@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import { actions, useAppStore } from '../store';
+import { useRef, useState } from 'react';
+import { Camera, ImagePlus, Trash2 } from 'lucide-react';
+import { actions, useAppStore, useProfilePhoto } from '../store';
+import { squarePhotoDataUrl } from '../lib/image';
 import type { UserProfile } from '../lib/types';
 import { useNavigation } from '../navigation/Navigator';
-import { Button } from '../ui/Button';
+import { Button, Spinner } from '../ui/Button';
 import { Avatar } from '../ui/Feedback';
 import { NumberField, SelectField, TextAreaField, TextField } from '../ui/Form';
 import { StackHeader } from '../ui/Layout';
-import { useConfirm, useToast } from '../ui/Overlay';
+import { ActionSheet, useConfirm, useToast } from '../ui/Overlay';
 import { useBackGuard } from '../ui/core';
 
 const EXPERIENCE = ['Iniciante', 'Intermediário', 'Avançado'];
@@ -56,6 +58,29 @@ export function EditProfileScreen() {
   // overwrite what the person is typing.
   const [draft, setDraft] = useState<Draft>(initial);
   const [submitted, setSubmitted] = useState(false);
+  const photo = useProfilePhoto();
+  const [photoMenu, setPhotoMenu] = useState(false);
+  const [savingPhoto, setSavingPhoto] = useState(false);
+  const galleryInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
+
+  // The photo is saved right away, apart from the form's Salvar button.
+  const choosePhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setSavingPhoto(true);
+    try {
+      actions.setProfilePhoto(await squarePhotoDataUrl(file));
+      toast({ tone: 'success', title: 'Foto atualizada' });
+    } catch (error) {
+      toast({
+        tone: 'error',
+        title: 'Não foi possível usar essa foto',
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setSavingPhoto(false);
+    }
+  };
 
   const dirty = (Object.keys(initial) as (keyof Draft)[]).some(
     (key) => draft[key] !== initial[key],
@@ -121,18 +146,90 @@ export function EditProfileScreen() {
           save();
         }}
       >
-        <div className="flex flex-col items-center gap-2">
-          <Avatar
-            name={draft.name}
-            photoUrl={currentUser?.photoURL}
-            size={96}
-          />
-          <p className="text-footnote text-ink-3">
-            {currentUser
-              ? 'A foto vem da sua conta Google.'
-              : 'Entre com Google para usar sua foto.'}
-          </p>
+        <div className="flex flex-col items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setPhotoMenu(true)}
+            aria-label="Alterar foto do perfil"
+            className="pressable relative rounded-[32%]"
+          >
+            <Avatar name={draft.name} photoUrl={photo} size={96} />
+            <span className="absolute -right-1 -bottom-1 grid size-9 place-items-center rounded-full bg-brand text-on-brand ring-4 ring-canvas">
+              {savingPhoto ? (
+                <Spinner size={16} />
+              ) : (
+                <Camera size={17} aria-hidden="true" />
+              )}
+            </span>
+          </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setPhotoMenu(true)}
+            disabled={savingPhoto}
+          >
+            Alterar foto
+          </Button>
         </div>
+        <input
+          ref={galleryInput}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            void choosePhoto(file);
+          }}
+        />
+        <input
+          ref={cameraInput}
+          type="file"
+          accept="image/*"
+          capture="user"
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            void choosePhoto(file);
+          }}
+        />
+        <ActionSheet
+          open={photoMenu}
+          onClose={() => setPhotoMenu(false)}
+          title="Foto do perfil"
+          actions={[
+            {
+              label: 'Escolher da galeria',
+              icon: ImagePlus,
+              onSelect: () => galleryInput.current?.click(),
+            },
+            {
+              label: 'Tirar foto',
+              icon: Camera,
+              onSelect: () => cameraInput.current?.click(),
+            },
+            ...(userProfile.photoDataUrl
+              ? [
+                  {
+                    label: currentUser?.photoURL
+                      ? 'Voltar para a foto do Google'
+                      : 'Remover foto',
+                    icon: Trash2,
+                    tone: 'danger' as const,
+                    onSelect: () => {
+                      actions.setProfilePhoto(null);
+                      toast({ title: 'Foto removida' });
+                    },
+                  },
+                ]
+              : []),
+          ]}
+        />
 
         <h2 className="text-callout pt-2 text-ink-2">Dados públicos</h2>
         <TextField

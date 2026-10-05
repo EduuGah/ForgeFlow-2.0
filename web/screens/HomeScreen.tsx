@@ -10,7 +10,7 @@ import {
   Plus,
   Target,
 } from 'lucide-react';
-import { actions, findExercise, useAppStore } from '../store';
+import { actions, findExercise, useAppStore, useProfilePhoto } from '../store';
 import { addDays, startOfWeek } from '../lib/dates';
 import {
   formatClock,
@@ -82,6 +82,7 @@ function templateMuscles(template: WorkoutTemplateItem): string[] {
 export function HomeScreen() {
   const { userProfile, currentUser, history, isSyncingWithFirestore } =
     useAppStore();
+  const photo = useProfilePhoto();
   const { push, selectTab } = useNavigation();
   const firstName = userProfile.name.split(' ')[0] || 'atleta';
   const recent = history.slice(0, 4);
@@ -100,11 +101,7 @@ export function HomeScreen() {
               aria-label="Abrir perfil"
               className="grid size-11 place-items-center rounded-full active:bg-raised"
             >
-              <Avatar
-                name={userProfile.name}
-                photoUrl={currentUser?.photoURL}
-                size={32}
-              />
+              <Avatar name={userProfile.name} photoUrl={photo} size={32} />
             </button>
           </>
         }
@@ -120,6 +117,7 @@ export function HomeScreen() {
 
         <section aria-labelledby="recent-workouts">
           <SectionHeader
+            id="recent-workouts"
             title="Diário de treinos"
             action={
               history.length > 0 && (
@@ -133,9 +131,6 @@ export function HomeScreen() {
               )
             }
           />
-          <h2 id="recent-workouts" className="sr-only">
-            Diário de treinos
-          </h2>
           {history.length === 0 && currentUser && isSyncingWithFirestore ? (
             <div
               className="space-y-2"
@@ -582,6 +577,7 @@ function GoalsPreview() {
   return (
     <section aria-labelledby="home-goals">
       <SectionHeader
+        id="home-goals"
         title="Metas"
         action={
           <Button
@@ -593,9 +589,6 @@ function GoalsPreview() {
           </Button>
         }
       />
-      <h2 id="home-goals" className="sr-only">
-        Metas
-      </h2>
       {active.length === 0 ? (
         <button
           type="button"
@@ -663,6 +656,7 @@ function RecentRecords() {
   return (
     <section aria-labelledby="home-records">
       <SectionHeader
+        id="home-records"
         title="Recordes recentes"
         action={
           <Button
@@ -674,9 +668,6 @@ function RecentRecords() {
           </Button>
         }
       />
-      <h2 id="home-records" className="sr-only">
-        Recordes recentes
-      </h2>
       <div className="scrollbar-none -mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1">
         {latest.map((record) => {
           const date = recordDate(record);

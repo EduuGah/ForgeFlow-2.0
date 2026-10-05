@@ -140,10 +140,7 @@ export function HydrationScreen() {
         </div>
 
         <section aria-labelledby="water-quick">
-          <SectionHeader title="Registrar" />
-          <h2 id="water-quick" className="sr-only">
-            Registrar consumo
-          </h2>
+          <SectionHeader id="water-quick" title="Registrar" />
           <div className="grid grid-cols-4 gap-2">
             {QUICK.map((item) => (
               <button
@@ -194,10 +191,7 @@ export function HydrationScreen() {
         </section>
 
         <section aria-labelledby="water-today">
-          <SectionHeader title={`Hoje (${today.length})`} />
-          <h2 id="water-today" className="sr-only">
-            Registros de hoje
-          </h2>
+          <SectionHeader id="water-today" title={`Hoje (${today.length})`} />
           {today.length === 0 ? (
             <Card>
               <EmptyState
@@ -241,10 +235,7 @@ export function HydrationScreen() {
         </section>
 
         <section aria-labelledby="water-week">
-          <SectionHeader title="Últimos 7 dias" />
-          <h2 id="water-week" className="sr-only">
-            Consumo nos últimos 7 dias
-          </h2>
+          <SectionHeader id="water-week" title="Últimos 7 dias" />
           <Card className="p-4">
             <BarChart
               data={week}

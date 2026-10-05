@@ -75,10 +75,13 @@ export function SectionHeader({
   title,
   action,
   className,
+  id,
 }: {
   title: string;
   action?: ReactNode;
   className?: string;
+  /** Lets the surrounding <section aria-labelledby> point at this title. */
+  id?: string;
 }) {
   return (
     <div
@@ -87,7 +90,9 @@ export function SectionHeader({
         className,
       )}
     >
-      <h2 className="text-headline font-semibold">{title}</h2>
+      <h2 id={id} className="text-headline font-semibold">
+        {title}
+      </h2>
       {action}
     </div>
   );

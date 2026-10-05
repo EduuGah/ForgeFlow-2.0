@@ -129,6 +129,13 @@ CSV exportado pelo **Hevy** e pelo **Strong**. A lógica pura está em
 - Nomes em inglês do Hevy/Strong são ligados ao catálogo do ForgeFlow (ex.: *Bench
   Press (Barbell)* → Supino reto com barra); os demais viram exercícios
   personalizados com grupo muscular estimado e id estável.
+- Nada do arquivo é descartado: séries até a falha e drop sets ficam marcadas
+  (FALHA/DROP), tentativas falhas (ex.: 140 kg × 0) entram como série sem volume,
+  cardio e exercícios por tempo guardam distância e duração, RPE, supersets,
+  notas de exercício e a descrição do treino também vêm. A prévia lista tudo
+  isso em "Também vem junto".
+- O arquivo de medidas do Hevy (`measurement_data.csv`) é reconhecido sozinho e
+  vira Medidas corporais (uma medição por dia; dias já registrados são ignorados).
 - Treinos já existentes (mesmo minuto de início) são ignorados — reimportar não
   duplica. Os recordes são **recalculados sobre todo o histórico** em ordem
   cronológica, e só documentos alterados vão para a nuvem.
@@ -144,6 +151,35 @@ Versões anteriores criavam 3 rotinas e 4 metas de exemplo; `web/lib/samples.ts`
 as reconhece (por id, nome e alvos de séries/reps/carga/descanso — ids e nomes de
 exercícios mudaram entre versões) e as remove ao abrir o app e após sincronizar,
 inclusive na nuvem, **só se nunca foram editadas nem usadas** em um treino.
+
+## Medidas corporais
+
+`Perfil › Saúde › Medidas corporais` registra peso, gordura corporal e as 14
+circunferências que o Hevy exporta (pescoço, ombros, peito, bíceps e antebraços
+E/D, abdômen, cintura, quadril, coxas e panturrilhas E/D). A tela mostra a
+medida escolhida com variação desde a anterior e desde o início, gráfico com
+escala ajustada aos dados (o período é escolhido sozinho para nunca abrir vazio),
+últimos valores de cada medida e o histórico (tocar para editar; excluir tem
+desfazer). O peso do perfil acompanha a medição mais recente, e a Evolução
+mostra um cartão de peso corporal. Coleção sincronizada: `users/{uid}/measurements`
+(regra em `firestore.rules`).
+
+## Foto de perfil
+
+`Editar perfil › Alterar foto` (galeria ou câmera). A imagem é recortada em
+quadrado e reduzida para um JPEG de ~15 KB (`web/lib/image.ts`), salva no
+documento do perfil e sincronizada; ela tem prioridade sobre a foto do Google.
+"Voltar para a foto do Google" / "Remover foto" desfaz.
+
+## Login com Google
+
+Erros agora dizem a causa (`describeLoginError` em `web/firebase.ts`), por
+exemplo domínio não autorizado, pop-up bloqueado, sem internet ou provedor
+desativado, com o código do erro nos demais casos. Se o pop-up não pode abrir,
+o login cai para o modo de redirecionamento, e um erro na volta é mostrado ao
+reabrir o app. **O domínio onde o app roda precisa estar em Firebase ›
+Authentication › Configurações › Domínios autorizados** (ex.:
+`newforgeflow.vercel.app` e `localhost`).
 
 ## Estados
 

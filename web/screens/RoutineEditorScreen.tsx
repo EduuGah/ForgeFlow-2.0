@@ -158,10 +158,10 @@ export function RoutineEditorScreen({ templateId }: { templateId?: string }) {
         />
 
         <section aria-labelledby="routine-exercises">
-          <SectionHeader title={`Exercícios (${items.length})`} />
-          <h2 id="routine-exercises" className="sr-only">
-            Exercícios
-          </h2>
+          <SectionHeader
+            id="routine-exercises"
+            title={`Exercícios (${items.length})`}
+          />
           {items.length === 0 ? (
             <Card>
               <EmptyState

@@ -30,10 +30,18 @@ export interface ActiveWorkoutState {
   notes?: string;
 }
 
+/** Extra set markers kept from imports (Hevy/Strong "F" and "D" sets). */
+export type SetTag = 'failure' | 'dropset';
+
 export interface CompletedSet {
   type: SetType;
   weightKg: number;
+  /** 0 for cardio/timed sets and for failed attempts. */
   repetitions: number;
+  tag?: SetTag;
+  rpe?: number;
+  distanceKm?: number;
+  durationSeconds?: number;
 }
 
 export interface CompletedExercise {
@@ -45,6 +53,8 @@ export interface CompletedExercise {
   bestWeightKg: number;
   totalVolumeKg: number;
   notes?: string;
+  /** Exercises sharing an id were done as a superset. */
+  supersetId?: string;
   sets?: CompletedSet[];
 }
 
@@ -60,6 +70,8 @@ export interface CompletedWorkout {
   totalSets: number;
   totalReps?: number;
   templateId?: string;
+  /** Free text about the whole session (Hevy "description"). */
+  notes?: string;
   exercises: CompletedExercise[];
   prsAchieved: string[];
 }
@@ -156,7 +168,38 @@ export interface UserProfile {
   heightCm: number;
   mainGoal: string;
   streakWeeks: number;
+  /** Profile photo chosen in the app (small JPEG data URL); wins over Google's. */
+  photoDataUrl?: string;
 }
+
+/** Circumferences in cm, as exported by Hevy. */
+export const MEASUREMENT_SITES = [
+  'neckCm',
+  'shoulderCm',
+  'chestCm',
+  'leftBicepCm',
+  'rightBicepCm',
+  'leftForearmCm',
+  'rightForearmCm',
+  'abdomenCm',
+  'waistCm',
+  'hipsCm',
+  'leftThighCm',
+  'rightThighCm',
+  'leftCalfCm',
+  'rightCalfCm',
+] as const;
+
+export type MeasurementSite = (typeof MEASUREMENT_SITES)[number];
+
+export type BodyMeasurement = {
+  id: string;
+  /** ISO date-time the measurement refers to. */
+  measuredAt: string;
+  weightKg?: number;
+  fatPercent?: number;
+  notes?: string;
+} & Partial<Record<MeasurementSite, number>>;
 
 export interface NotificationPrefs {
   workoutReminders: boolean;

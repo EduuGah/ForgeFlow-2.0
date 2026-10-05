@@ -5,6 +5,8 @@ import {
   auth,
   db,
   loginWithGoogle,
+  finishRedirectLogin,
+  isLoginDismissed,
   logoutFirebase,
   onAuthStateChanged,
   doc,
@@ -39,10 +41,11 @@ import {
   sortByCompletedDesc,
 } from './lib/training';
 import { removeUntouchedSamples } from './lib/samples';
-import type { ImportPlan } from './lib/importCsv';
+import type { ImportPlan, MeasurementPlan } from './lib/importCsv';
 import type {
   ActiveExerciseSession,
   ActiveWorkoutState,
+  BodyMeasurement,
   CompletedWorkout,
   GoalItem,
   HydrationLog,
@@ -83,7 +86,8 @@ type RemoteCollection =
   | 'goals'
   | 'hydration'
   | 'meals'
-  | 'custom_exercises';
+  | 'custom_exercises'
+  | 'measurements';
 
 interface PersistedData {
   templates: WorkoutTemplateItem[];
@@ -97,6 +101,8 @@ interface PersistedData {
   nutritionTargetCarbs: number;
   nutritionTargetFat: number;
   meals: MealItem[];
+  /** Body measurements, newest first. */
+  measurements: BodyMeasurement[];
   activeWorkout: ActiveWorkoutState | null;
   favorites: string[];
   customExercises: Exercise[];
@@ -116,6 +122,8 @@ interface RuntimeState {
   syncStatus: SyncStatus;
   isOnline: boolean;
   hasOnboarded: boolean;
+  /** Error from a redirect sign-in, shown once after the page reloads. */
+  loginError: unknown;
 }
 
 export type AppState = PersistedData & RuntimeState;
@@ -138,6 +146,8 @@ function defaultProfile(user: User | null): UserProfile {
     heightCm: 0,
     mainGoal: '',
     streakWeeks: 0,
+    // Present (empty) so a photo saved on another device is read on sync.
+    photoDataUrl: '',
   };
 }
 
@@ -155,6 +165,7 @@ function defaultData(user: User | null): PersistedData {
     nutritionTargetCarbs: 240,
     nutritionTargetFat: 70,
     meals: [],
+    measurements: [],
     activeWorkout: null,
     favorites: [],
     customExercises: [],
@@ -174,6 +185,11 @@ function defaultData(user: User | null): PersistedData {
 
 function asArray<T>(value: unknown, fallback: T[]): T[] {
   return Array.isArray(value) ? (value as T[]) : fallback;
+}
+
+function measurementDate(item: BodyMeasurement): Date | null {
+  const date = new Date(item.measuredAt);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function byDateDesc<T>(items: T[], getDate: (item: T) => Date | null): T[] {
@@ -246,6 +262,10 @@ function loadData(user: User | null): PersistedData {
     nutritionTargetFat:
       Number(raw.nutritionTargetFat) || defaults.nutritionTargetFat,
     meals: byDateDesc(asArray<MealItem>(raw.meals, []), mealDate),
+    measurements: byDateDesc(
+      asArray<BodyMeasurement>(raw.measurements, []),
+      measurementDate,
+    ),
     activeWorkout,
     favorites: asArray<string>(raw.favorites, defaults.favorites),
     customExercises,
@@ -281,6 +301,7 @@ function pickPersisted(source: AppState): PersistedData {
     nutritionTargetCarbs: source.nutritionTargetCarbs,
     nutritionTargetFat: source.nutritionTargetFat,
     meals: source.meals,
+    measurements: source.measurements,
     activeWorkout: source.activeWorkout,
     favorites: source.favorites,
     customExercises: source.customExercises,
@@ -322,6 +343,7 @@ let state: AppState = {
   syncStatus: 'idle',
   isOnline: typeof navigator === 'undefined' ? true : navigator.onLine,
   hasOnboarded: readOnboarded(),
+  loginError: null,
 };
 
 const listeners = new Set<() => void>();
@@ -573,6 +595,11 @@ async function runSync(user: User) {
     () => state.customExercises,
     (items) => ({ customExercises: items }),
   );
+  await syncList<BodyMeasurement>(
+    'measurements',
+    () => state.measurements,
+    (items) => ({ measurements: byDateDesc(items, measurementDate) }),
+  );
 
   if (!stillCurrent()) return;
 
@@ -618,6 +645,7 @@ function switchUser(user: User | null) {
     syncStatus: 'idle',
     isOnline: state.isOnline,
     hasOnboarded: user ? true : state.hasOnboarded,
+    loginError: state.loginError,
   };
   if (user) writeOnboarded(true);
   emit();
@@ -634,6 +662,12 @@ function initAuth() {
     if (state.isAuthLoading)
       setState({ isAuthLoading: false }, { persist: false });
   }, 5000);
+
+  // Finishes a sign-in that fell back to a full-page redirect.
+  finishRedirectLogin().catch((error: unknown) => {
+    if (!isLoginDismissed(error))
+      setState({ loginError: error }, { persist: false });
+  });
 
   onAuthStateChanged(auth, (user) => {
     clearTimeout(fallback);
@@ -817,6 +851,13 @@ function commitHistory(
   return { prs };
 }
 
+/** The profile weight follows the latest weighed-in measurement. */
+function syncProfileWeight() {
+  const latest = state.measurements.find((item) => (item.weightKg ?? 0) > 0);
+  if (latest?.weightKg && latest.weightKg !== state.userProfile.weightKg)
+    actions.updateProfile({ weightKg: latest.weightKg });
+}
+
 export const actions = {
   /* Auth */
   login: async () => {
@@ -835,6 +876,10 @@ export const actions = {
   completeOnboarding: () => {
     writeOnboarded(true);
     setState({ hasOnboarded: true }, { persist: false });
+  },
+
+  clearLoginError: () => {
+    setState({ loginError: null }, { persist: false });
   },
 
   retrySync: () => {
@@ -1211,6 +1256,81 @@ export const actions = {
     commitHistory(history, removed, new Set());
   },
 
+  /* Body measurements */
+  addMeasurement: (input: Omit<BodyMeasurement, 'id'>): BodyMeasurement => {
+    const created: BodyMeasurement = { ...input, id: uid('measure') };
+    setState({
+      measurements: byDateDesc(
+        [created, ...state.measurements],
+        measurementDate,
+      ),
+    });
+    remoteSet(['measurements', created.id], created);
+    syncProfileWeight();
+    return created;
+  },
+
+  updateMeasurement: (id: string, input: Omit<BodyMeasurement, 'id'>) => {
+    const updated: BodyMeasurement = { ...input, id };
+    setState({
+      measurements: byDateDesc(
+        state.measurements.map((item) => (item.id === id ? updated : item)),
+        measurementDate,
+      ),
+    });
+    // Replace (not merge) so a cleared field disappears in the cloud too.
+    remoteSet(['measurements', id], updated);
+    syncProfileWeight();
+  },
+
+  removeMeasurement: (id: string): BodyMeasurement | null => {
+    const removed = state.measurements.find((item) => item.id === id) ?? null;
+    setState({
+      measurements: state.measurements.filter((item) => item.id !== id),
+    });
+    remoteDelete('measurements', id);
+    syncProfileWeight();
+    return removed;
+  },
+
+  restoreMeasurement: (item: BodyMeasurement) => {
+    setState({
+      measurements: byDateDesc([item, ...state.measurements], measurementDate),
+      pendingDeletes: state.pendingDeletes.filter((id) => id !== item.id),
+    });
+    remoteSet(['measurements', item.id], item);
+    syncProfileWeight();
+  },
+
+  importMeasurements: (plan: MeasurementPlan): number => {
+    const known = new Set(state.measurements.map((item) => item.id));
+    const incoming = plan.measurements.filter((item) => !known.has(item.id));
+    if (incoming.length === 0) return 0;
+    setState({
+      measurements: byDateDesc(
+        [...incoming, ...state.measurements],
+        measurementDate,
+      ),
+    });
+    incoming.forEach((item) => remoteSet(['measurements', item.id], item));
+    syncProfileWeight();
+    return incoming.length;
+  },
+
+  undoMeasurementImport: (ids: string[]) => {
+    const removed = new Set(ids);
+    setState({
+      measurements: state.measurements.filter((item) => !removed.has(item.id)),
+    });
+    removed.forEach((id) => remoteDelete('measurements', id));
+    syncProfileWeight();
+  },
+
+  /** A small JPEG data URL, or null to go back to the Google photo/initials. */
+  setProfilePhoto: (dataUrl: string | null) => {
+    actions.updateProfile({ photoDataUrl: dataUrl ?? '' });
+  },
+
   /* Hydration */
   addHydration: (amountMl: number) => {
     const now = new Date();
@@ -1398,6 +1518,13 @@ function streakFor(history: CompletedWorkout[]): number {
     streakCache = { history, day, value: computeStreakWeeks(history) };
   }
   return streakCache.value;
+}
+
+/** The chosen profile photo, else the Google account photo, else none. */
+export function useProfilePhoto(): string | null {
+  const chosen = useStoreValue((current) => current.userProfile.photoDataUrl);
+  const google = useStoreValue((current) => current.currentUser?.photoURL);
+  return chosen || google || null;
 }
 
 export function useAppStore() {

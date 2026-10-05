@@ -1,3 +1,4 @@
+import type { CompletedSet } from './types';
 import { daysBetween, parseLocalDateInput } from './dates';
 
 const LOCALE = 'pt-BR';
@@ -155,4 +156,19 @@ export function greeting(now: Date = new Date()): string {
 /** Case- and accent-insensitive search key ("Tríceps" matches "triceps"). */
 export function searchKey(value: string): string {
   return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+
+/** "60 kg × 8", "12 reps", "7 km · 1:00:00" or "140 kg × 0" (failed attempt). */
+export function formatSetResult(set: CompletedSet): string {
+  const distance = set.distanceKm ?? 0;
+  const seconds = set.durationSeconds ?? 0;
+  if (set.repetitions <= 0 && (distance > 0 || seconds > 0)) {
+    const parts: string[] = [];
+    if (distance > 0) parts.push(`${formatNumber(distance, 2)} km`);
+    if (seconds > 0) parts.push(formatClock(seconds));
+    if (set.weightKg > 0) parts.push(`${formatWeight(set.weightKg)} kg`);
+    return parts.join(' · ');
+  }
+  if (set.weightKg <= 0) return `${set.repetitions} reps`;
+  return `${formatWeight(set.weightKg)} kg × ${set.repetitions}`;
 }

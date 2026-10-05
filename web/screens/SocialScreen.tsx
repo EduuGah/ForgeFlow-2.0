@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Check, Clock, UserCheck, Users } from 'lucide-react';
-import { actions, useAppStore } from '../store';
+import { actions, useAppStore, useProfilePhoto } from '../store';
 import { addDays, startOfDay } from '../lib/dates';
 import { formatCompact, formatNumber } from '../lib/format';
 import { totalsBetween } from '../lib/training';
@@ -88,7 +88,8 @@ const PODIUM = [
 ];
 
 export function SocialScreen() {
-  const { userProfile, currentUser, history, social } = useAppStore();
+  const { userProfile, history, social } = useAppStore();
+  const photo = useProfilePhoto();
   const { pop } = useNavigation();
   const toast = useToast();
   const [tab, setTab] = useState<SocialTab>('ranking');
@@ -179,7 +180,7 @@ export function SocialScreen() {
                   </span>
                   <Avatar
                     name={athlete.name}
-                    photoUrl={athlete.me ? currentUser?.photoURL : undefined}
+                    photoUrl={athlete.me ? photo : undefined}
                     size={40}
                   />
                   <span className="min-w-0 flex-1">

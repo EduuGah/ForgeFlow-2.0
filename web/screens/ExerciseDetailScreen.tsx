@@ -1,7 +1,12 @@
 import { useMemo, useState } from 'react';
 import { ChevronRight, History, Plus, Search, Star } from 'lucide-react';
 import { actions, findExercise, useAppStore } from '../store';
-import { formatDateTime, formatShortDate, formatWeight } from '../lib/format';
+import {
+  formatDateTime,
+  formatSetResult,
+  formatShortDate,
+  formatWeight,
+} from '../lib/format';
 import {
   RECORD_LABELS,
   exerciseSessions,
@@ -393,7 +398,12 @@ function SessionBlock({
                   {labels[index]}
                 </td>
                 <td className="text-body py-3 tabular">
-                  {formatWeight(set.weightKg)} kg × {set.repetitions}
+                  {formatSetResult(set)}
+                  {set.tag && (
+                    <span className="text-micro ml-2 rounded-sm bg-danger-soft px-1.5 py-0.5 align-middle font-semibold text-danger-ink">
+                      {set.tag === 'failure' ? 'FALHA' : 'DROP'}
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}

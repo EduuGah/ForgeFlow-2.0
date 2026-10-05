@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { actions } from '../store';
+import { useEffect, useState } from 'react';
+import { actions, useStoreValue } from '../store';
 import { describeLoginError, isLoginDismissed } from '../firebase';
 import { Spinner } from '../ui/Button';
 import { cx } from '../ui/core';
@@ -17,13 +17,25 @@ export function useGoogleSignIn(onSignedIn?: () => void) {
       onSignedIn?.();
     } catch (error) {
       if (!isLoginDismissed(error))
-        toast({ tone: 'error', title: describeLoginError(error) });
+        toast({ tone: 'error', ...describeLoginError(error) });
     } finally {
       setSigningIn(false);
     }
   };
 
   return { signIn, signingIn };
+}
+
+/** Shows, once, the error of a sign-in that went through a page redirect. */
+export function LoginErrorWatcher() {
+  const loginError = useStoreValue((current) => current.loginError);
+  const toast = useToast();
+  useEffect(() => {
+    if (!loginError) return;
+    toast({ tone: 'error', ...describeLoginError(loginError) });
+    actions.clearLoginError();
+  }, [loginError, toast]);
+  return null;
 }
 
 /** The official four-color "G", drawn inline so it works offline. */

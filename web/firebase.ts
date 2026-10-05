@@ -2,7 +2,9 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   GoogleAuthProvider,
+  getRedirectResult,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
   onAuthStateChanged,
   type User,
@@ -61,25 +63,92 @@ const DISMISSED_LOGIN_CODES = new Set([
   'auth/user-cancelled',
 ]);
 
+/** The popup cannot work here; a full-page redirect still can. */
+const REDIRECT_FALLBACK_CODES = new Set([
+  'auth/popup-blocked',
+  'auth/operation-not-supported-in-this-environment',
+]);
+
+function errorCode(error: unknown): string | undefined {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' ? code : undefined;
+}
+
 export function isLoginDismissed(error: unknown): boolean {
-  const code = (error as { code?: string } | null)?.code;
-  return typeof code === 'string' && DISMISSED_LOGIN_CODES.has(code);
+  const code = errorCode(error);
+  return code !== undefined && DISMISSED_LOGIN_CODES.has(code);
 }
 
-export function describeLoginError(error: unknown): string {
-  const code = (error as { code?: string } | null)?.code;
-  if (code === 'auth/popup-blocked') {
-    return 'O navegador bloqueou a janela de login. Permita pop-ups para este site e tente de novo.';
-  }
-  if (code === 'auth/network-request-failed') {
-    return 'Sem conexão com a internet. Conecte-se para entrar com Google.';
-  }
-  return 'Não foi possível entrar com Google. Tente novamente.';
+export interface LoginErrorMessage {
+  title: string;
+  description?: string;
 }
 
-export async function loginWithGoogle(): Promise<User> {
-  const result = await signInWithPopup(auth, googleProvider);
-  return result.user;
+/** Says what went wrong instead of a generic "try again". */
+export function describeLoginError(error: unknown): LoginErrorMessage {
+  const code = errorCode(error);
+  switch (code) {
+    case 'auth/unauthorized-domain':
+      return {
+        title: 'Login com Google não liberado neste endereço',
+        description: `O Firebase ainda não autorizou "${window.location.hostname}". Adicione-o em Authentication › Configurações › Domínios autorizados.`,
+      };
+    case 'auth/popup-blocked':
+      return {
+        title: 'O navegador bloqueou a janela de login',
+        description: 'Permita pop-ups para este site e tente de novo.',
+      };
+    case 'auth/network-request-failed':
+      return {
+        title: 'Sem conexão com a internet',
+        description: 'Conecte-se para entrar com o Google.',
+      };
+    case 'auth/operation-not-allowed':
+      return {
+        title: 'Login com Google desativado',
+        description:
+          'Ative o provedor Google em Authentication › Método de login no Firebase.',
+      };
+    case 'auth/too-many-requests':
+      return {
+        title: 'Muitas tentativas seguidas',
+        description: 'Aguarde alguns minutos e tente de novo.',
+      };
+    case 'auth/web-storage-unsupported':
+      return {
+        title: 'O navegador bloqueou o armazenamento do login',
+        description:
+          'Desative o modo privado ou o bloqueio de cookies para este site.',
+      };
+    default:
+      return {
+        title: 'Não foi possível entrar com o Google',
+        description: code ? `Código do erro: ${code}` : undefined,
+      };
+  }
+}
+
+/**
+ * Popup first (keeps the app state); when the popup cannot open, falls back
+ * to a full-page redirect, finished by `finishRedirectLogin` on return.
+ */
+export async function loginWithGoogle(): Promise<User | null> {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    return result.user;
+  } catch (error) {
+    const code = errorCode(error);
+    if (code && REDIRECT_FALLBACK_CODES.has(code)) {
+      await signInWithRedirect(auth, googleProvider);
+      return null;
+    }
+    throw error;
+  }
+}
+
+/** Resolves a redirect sign-in after the page loads again; throws its error. */
+export async function finishRedirectLogin(): Promise<void> {
+  await getRedirectResult(auth);
 }
 
 export async function logoutFirebase(): Promise<void> {

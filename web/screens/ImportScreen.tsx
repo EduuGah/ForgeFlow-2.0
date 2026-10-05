@@ -8,6 +8,7 @@ import {
   FileUp,
   History,
   ListChecks,
+  Ruler,
   Sparkles,
   TrendingUp,
   Undo2,
@@ -15,11 +16,22 @@ import {
 import { actions, useAppStore } from '../store';
 import {
   ImportError,
+  isMeasurementCsv,
+  parseCsv,
   planImport,
+  planMeasurementImport,
+  readMeasurementCsv,
   readWorkoutCsv,
   type ExerciseMatch,
+  type ImportExtras,
   type ImportPlan,
+  type MeasurementPlan,
 } from '../lib/importCsv';
+import {
+  MEASUREMENT_FIELDS,
+  MEASUREMENT_LABELS,
+  measurementSeries,
+} from '../lib/measurements';
 import { formatNumber, formatShortDate, pluralize } from '../lib/format';
 import { muscleCode } from '../lib/training';
 import { haptic } from '../lib/haptics';
@@ -34,18 +46,20 @@ type Step =
   | { kind: 'pick'; error?: string }
   | { kind: 'reading'; fileName: string }
   | { kind: 'preview'; fileName: string; plan: ImportPlan }
+  | { kind: 'measurePreview'; fileName: string; plan: MeasurementPlan }
   | {
       kind: 'done';
       imported: number;
       records: number;
       workoutIds: string[];
       exerciseIds: string[];
-    };
+    }
+  | { kind: 'measureDone'; imported: number; ids: string[] };
 
 const FORMAT_LABEL = { hevy: 'Hevy', strong: 'Strong' } as const;
 
 export function ImportScreen() {
-  const { allExercises, history, currentUser } = useAppStore();
+  const { allExercises, history, currentUser, measurements } = useAppStore();
   const { pop, push, selectTab } = useNavigation();
   const confirm = useConfirm();
   const toast = useToast();
@@ -59,6 +73,17 @@ export function ImportScreen() {
       if (file.size > 20 * 1024 * 1024)
         throw new ImportError('Arquivo grande demais (máximo de 20 MB).');
       const text = await file.text();
+      if (isMeasurementCsv(parseCsv(text))) {
+        const measures = readMeasurementCsv(text);
+        if (measures.rows.length === 0)
+          throw new ImportError('Não encontramos medidas nesse arquivo.');
+        setStep({
+          kind: 'measurePreview',
+          fileName: file.name,
+          plan: planMeasurementImport(measures, measurements),
+        });
+        return;
+      }
       const parsed = readWorkoutCsv(text);
       if (parsed.workouts.length === 0)
         throw new ImportError(
@@ -99,6 +124,38 @@ export function ImportScreen() {
       workoutIds: plan.workouts.map((workout) => workout.id),
       exerciseIds: plan.newExercises.map((exercise) => exercise.id),
     });
+  };
+
+  const runMeasurementImport = async (plan: MeasurementPlan) => {
+    const ok = await confirm({
+      title: `Importar ${pluralize(plan.measurements.length, 'medição', 'medições')}?`,
+      message:
+        'Elas entram em Medidas corporais, e o peso do seu perfil passa a seguir a medição mais recente.',
+      confirmLabel: 'Importar',
+      icon: Ruler,
+    });
+    if (!ok) return;
+    const imported = actions.importMeasurements(plan);
+    haptic('success');
+    setStep({
+      kind: 'measureDone',
+      imported,
+      ids: plan.measurements.map((item) => item.id),
+    });
+  };
+
+  const undoMeasurements = async (ids: string[]) => {
+    const ok = await confirm({
+      title: 'Desfazer importação?',
+      message: 'As medições importadas serão removidas.',
+      confirmLabel: 'Desfazer',
+      tone: 'danger',
+      icon: Undo2,
+    });
+    if (!ok) return;
+    actions.undoMeasurementImport(ids);
+    toast({ tone: 'success', title: 'Importação desfeita' });
+    setStep({ kind: 'pick' });
   };
 
   const undo = async (workoutIds: string[], exerciseIds: string[]) => {
@@ -145,12 +202,13 @@ export function ImportScreen() {
           <>
             <div className="animate-rise">
               <h2 className="text-title font-bold">
-                Traga seus treinos para o ForgeFlow
+                Traga seus treinos e medidas
               </h2>
               <p className="text-callout mt-1.5 text-ink-2">
-                Use o arquivo CSV exportado pelo seu app anterior. Séries,
-                cargas, aquecimentos e notas vêm junto, e seus recordes são
-                recalculados.
+                Use o CSV exportado pelo seu app anterior. Nos treinos vêm
+                séries, cargas, aquecimentos, falhas, cardio, RPE, supersets e
+                notas, e os recordes são recalculados. O arquivo de medidas traz
+                peso, gordura e circunferências.
               </p>
             </div>
 
@@ -190,7 +248,9 @@ export function ImportScreen() {
               <ol className="text-callout mt-3 space-y-3 text-ink-2">
                 <HowToStep n={1}>
                   <strong className="text-ink">Hevy:</strong> Perfil ›
-                  Configurações › Exportar e importar dados › Exportar treinos.
+                  Configurações › Exportar e importar dados › Exportar treinos
+                  e, se quiser, Exportar medidas (são dois arquivos: importe um
+                  de cada vez).
                 </HowToStep>
                 <HowToStep n={2}>
                   <strong className="text-ink">Strong:</strong> Perfil ›
@@ -201,8 +261,8 @@ export function ImportScreen() {
                 </HowToStep>
               </ol>
               <p className="text-footnote mt-4 text-ink-3">
-                Treinos que já estão no seu diário são ignorados, então importar
-                o mesmo arquivo de novo não duplica nada.
+                Treinos e medições que já estão no app são ignorados, então
+                importar o mesmo arquivo de novo não duplica nada.
               </p>
             </Card>
           </>
@@ -227,6 +287,53 @@ export function ImportScreen() {
             onImport={() => void runImport(step.plan)}
             onPickAnother={() => input.current?.click()}
           />
+        )}
+
+        {step.kind === 'measurePreview' && (
+          <MeasurementPreview
+            fileName={step.fileName}
+            plan={step.plan}
+            onImport={() => void runMeasurementImport(step.plan)}
+            onPickAnother={() => input.current?.click()}
+          />
+        )}
+
+        {step.kind === 'measureDone' && (
+          <div className="animate-rise space-y-4">
+            <Card className="flex flex-col items-center px-6 py-9 text-center">
+              <span className="grid size-16 animate-pop place-items-center rounded-full bg-success text-on-brand">
+                <Check size={32} strokeWidth={3} aria-hidden="true" />
+              </span>
+              <h2 className="text-title mt-4 font-bold">Medidas importadas</h2>
+              <p className="text-callout mt-1 text-ink-2">
+                {pluralize(
+                  step.imported,
+                  'medição entrou',
+                  'medições entraram',
+                )}{' '}
+                em Medidas corporais.
+              </p>
+            </Card>
+            <Button
+              size="lg"
+              block
+              icon={Ruler}
+              onClick={() => {
+                pop();
+                push({ name: 'measurements' });
+              }}
+            >
+              Ver medidas
+            </Button>
+            <Button
+              variant="danger-ghost"
+              block
+              icon={Undo2}
+              onClick={() => void undoMeasurements(step.ids)}
+            >
+              Desfazer importação
+            </Button>
+          </div>
         )}
 
         {step.kind === 'done' && (
@@ -363,6 +470,8 @@ function Preview({
         </InlineNotice>
       )}
 
+      {!nothingNew && <ExtrasList extras={plan.extras} />}
+
       {!nothingNew && (
         <>
           <MatchList
@@ -495,5 +604,172 @@ function MatchList({
         </ul>
       )}
     </Card>
+  );
+}
+
+const EXTRA_LABELS: { key: keyof ImportExtras; one: string; many: string }[] = [
+  {
+    key: 'warmups',
+    one: 'série de aquecimento',
+    many: 'séries de aquecimento',
+  },
+  { key: 'failures', one: 'série até a falha', many: 'séries até a falha' },
+  { key: 'dropsets', one: 'drop set', many: 'drop sets' },
+  {
+    key: 'cardio',
+    one: 'série de cardio ou tempo (distância e duração)',
+    many: 'séries de cardio ou tempo (distância e duração)',
+  },
+  { key: 'rpe', one: 'série com RPE', many: 'séries com RPE' },
+  { key: 'supersets', one: 'superset', many: 'supersets' },
+  {
+    key: 'exerciseNotes',
+    one: 'nota de exercício',
+    many: 'notas de exercício',
+  },
+  {
+    key: 'workoutNotes',
+    one: 'descrição de treino',
+    many: 'descrições de treino',
+  },
+];
+
+/** Everything besides plain sets that the file carries, so nothing is a surprise. */
+function ExtrasList({ extras }: { extras: ImportExtras }) {
+  const items = EXTRA_LABELS.filter(({ key }) => extras[key] > 0);
+  if (items.length === 0) return null;
+  return (
+    <Card className="p-4">
+      <h3 className="text-headline font-semibold">Também vem junto</h3>
+      <ul className="mt-2 space-y-1.5" role="list">
+        {items.map(({ key, one, many }) => (
+          <li key={key} className="text-callout flex items-center gap-2">
+            <Check
+              size={16}
+              strokeWidth={3}
+              className="shrink-0 text-success-ink"
+              aria-hidden="true"
+            />
+            {pluralize(extras[key], one, many)}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function MeasurementPreview({
+  fileName,
+  plan,
+  onImport,
+  onPickAnother,
+}: {
+  fileName: string;
+  plan: MeasurementPlan;
+  onImport: () => void;
+  onPickAnother: () => void;
+}) {
+  const nothingNew = plan.measurements.length === 0;
+  const weights = measurementSeries(plan.measurements, 'weightKg');
+  const fields = MEASUREMENT_FIELDS.filter((field) =>
+    plan.fields.includes(field),
+  );
+  return (
+    <div className="animate-rise space-y-4">
+      <Card className="overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-line p-4">
+          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-success-soft text-success-ink">
+            <Ruler size={20} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="text-body block truncate font-semibold">
+              {fileName}
+            </span>
+            <span className="text-footnote text-ink-2">
+              Medidas corporais exportadas do Hevy
+            </span>
+          </span>
+        </div>
+        <dl className="grid grid-cols-2 gap-px bg-line">
+          <PreviewStat
+            icon={ListChecks}
+            label="Medições novas"
+            value={formatNumber(plan.measurements.length, 0)}
+          />
+          <PreviewStat
+            icon={TrendingUp}
+            label="Peso"
+            value={
+              weights.length > 0
+                ? `${formatNumber(weights[0].value)} → ${formatNumber(weights[weights.length - 1].value)} kg`
+                : '—'
+            }
+          />
+          <PreviewStat
+            icon={CalendarRange}
+            label="Período"
+            value={
+              plan.firstDate && plan.lastDate
+                ? `${formatShortDate(plan.firstDate)} – ${formatShortDate(plan.lastDate)}`
+                : '—'
+            }
+            wide
+          />
+        </dl>
+      </Card>
+
+      {fields.length > 0 && (
+        <Card className="p-4">
+          <h3 className="text-headline font-semibold">Dados no arquivo</h3>
+          <ul className="mt-3 flex flex-wrap gap-1.5" role="list">
+            {fields.map((field) => (
+              <li
+                key={field}
+                className="text-footnote rounded-full bg-raised px-2.5 py-1 font-medium"
+              >
+                {MEASUREMENT_LABELS[field]}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {plan.duplicates > 0 && (
+        <InlineNotice tone="info">
+          {pluralize(
+            plan.duplicates,
+            'dia já tinha medição e será ignorado',
+            'dias já tinham medição e serão ignorados',
+          )}
+          .
+        </InlineNotice>
+      )}
+      {plan.skippedRows > 0 && (
+        <InlineNotice tone="warning">
+          {pluralize(
+            plan.skippedRows,
+            'linha sem data ou sem valores foi ignorada',
+            'linhas sem data ou sem valores foram ignoradas',
+          )}
+          .
+        </InlineNotice>
+      )}
+
+      <div className="space-y-2 pt-2">
+        {nothingNew ? (
+          <InlineNotice tone="info">
+            Todas as medições desse arquivo já estão no app.
+          </InlineNotice>
+        ) : (
+          <Button size="lg" block icon={Sparkles} onClick={onImport}>
+            Importar{' '}
+            {pluralize(plan.measurements.length, 'medição', 'medições')}
+          </Button>
+        )}
+        <Button variant="ghost" block onClick={onPickAnother}>
+          Escolher outro arquivo
+        </Button>
+      </div>
+    </div>
   );
 }

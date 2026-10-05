@@ -53,6 +53,11 @@ service cloud.firestore {
       match /custom_exercises/{exerciseId} {
         allow get, list, create, update, delete: if isOwner(userId);
       }
+
+      // Body measurements subcollection
+      match /measurements/{measurementId} {
+        allow get, list, create, update, delete: if isOwner(userId);
+      }
     }
 
     // Default-deny catch-all for any other collection

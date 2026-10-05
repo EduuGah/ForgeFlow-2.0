@@ -11,6 +11,7 @@ import { ConfirmProvider, ToastProvider } from './ui/Overlay';
 import { ActiveWorkoutScreen } from './features/ActiveWorkout';
 import { RestTimerWatcher } from './features/RestTimer';
 import { SyncWatcher } from './features/StatusBits';
+import { LoginErrorWatcher } from './features/GoogleSignIn';
 import { WorkoutSummary } from './features/WorkoutSummary';
 import { tutorial, useTutorialOpen } from './lib/tutorial';
 import { SplashScreen } from './screens/SplashScreen';
@@ -32,6 +33,7 @@ import { ExerciseDetailScreen } from './screens/ExerciseDetailScreen';
 import { WorkoutDetailScreen } from './screens/WorkoutDetailScreen';
 import { RoutineEditorScreen } from './screens/RoutineEditorScreen';
 import { ImportScreen } from './screens/ImportScreen';
+import { MeasurementsScreen } from './screens/MeasurementsScreen';
 
 export default function App() {
   return (
@@ -49,9 +51,16 @@ function AppGate() {
   const { isAuthLoading, currentUser, hasOnboarded } = useAppStore();
   const tutorialOpen = useTutorialOpen();
   if (isAuthLoading) return <SplashScreen />;
-  if (!currentUser && !hasOnboarded) return <WelcomeScreen />;
+  if (!currentUser && !hasOnboarded)
+    return (
+      <>
+        <WelcomeScreen />
+        <LoginErrorWatcher />
+      </>
+    );
   return (
     <>
+      <LoginErrorWatcher />
       <MainShell />
       {tutorialOpen && <TutorialScreen onDone={tutorial.finish} />}
     </>
@@ -78,6 +87,8 @@ function renderRoute(route: Route) {
       return <HistoryScreen />;
     case 'import':
       return <ImportScreen />;
+    case 'measurements':
+      return <MeasurementsScreen />;
     case 'exercise':
       return <ExerciseDetailScreen exerciseId={route.exerciseId} />;
     case 'workout':

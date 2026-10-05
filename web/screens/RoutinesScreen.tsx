@@ -94,6 +94,7 @@ export function RoutinesScreen() {
 
         <section aria-labelledby="routines-title">
           <SectionHeader
+            id="routines-title"
             title={`Suas rotinas (${templates.length})`}
             action={
               <Button
@@ -106,9 +107,6 @@ export function RoutinesScreen() {
               </Button>
             }
           />
-          <h2 id="routines-title" className="sr-only">
-            Suas rotinas
-          </h2>
 
           {templates.length === 0 ? (
             <Card>

@@ -27,11 +27,28 @@ interface ChartProps {
 const PAD = { top: 12, right: 8, bottom: 26 };
 
 /** Left gutter wide enough for the longest y-axis label (≈6.6px per char at 11px). */
-function gutterFor(max: number, formatTick: (v: number) => string): number {
+function gutterFor(
+  max: number,
+  formatTick: (v: number) => string,
+  min = 0,
+): number {
   const longest = Math.max(
-    ...[0, max / 2, max].map((tick) => formatTick(tick).length),
+    ...[min, (min + max) / 2, max].map((tick) => formatTick(tick).length),
   );
   return Math.ceil(Math.max(28, longest * 6.6 + 12));
+}
+
+/**
+ * Range fitted to the data (body weight lives around 75 kg, not 0–80), with
+ * a little room above and below, rounded to whole units.
+ */
+function zoomRange(values: number[]): { min: number; max: number } {
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const pad = Math.max(0.5, (high - low) * 0.25);
+  const min = Math.max(0, Math.floor(low - pad));
+  const max = Math.ceil(high + pad);
+  return { min, max: max > min ? max : min + 1 };
 }
 
 function useWidth() {
@@ -140,6 +157,7 @@ function Axis({
   left,
   plotHeight,
   max,
+  min = 0,
   formatTick,
   empty = false,
 }: {
@@ -147,20 +165,23 @@ function Axis({
   left: number;
   plotHeight: number;
   max: number;
+  min?: number;
   formatTick: (v: number) => string;
   /** No data: keep the grid but drop labels that would invent a scale. */
   empty?: boolean;
 }) {
   // The midline is dropped when it would repeat a label (e.g. 0 / 1 / 1).
-  const middle = formatTick(max / 2);
+  const mid = (min + max) / 2;
+  const middle = formatTick(mid);
   const ticks =
-    middle === formatTick(0) || middle === formatTick(max)
-      ? [0, max]
-      : [0, max / 2, max];
+    middle === formatTick(min) || middle === formatTick(max)
+      ? [min, max]
+      : [min, mid, max];
   return (
     <g aria-hidden="true">
       {ticks.map((tick) => {
-        const y = PAD.top + plotHeight - (tick / max) * plotHeight;
+        const y =
+          PAD.top + plotHeight - ((tick - min) / (max - min)) * plotHeight;
         return (
           <g key={tick}>
             <line
@@ -349,13 +370,24 @@ export function LineChart({
   formatTick = formatValue,
   height = 190,
   emptyMessage = 'Sem registros ainda',
-}: ChartProps) {
+  zoom = false,
+}: ChartProps & {
+  /** Fit the y-axis to the data instead of starting at 0. */
+  zoom?: boolean;
+}) {
   const [ref, width] = useWidth();
   const { active, setActive, onKeyDown } = useActiveIndex(data.length);
   const titleId = useId();
   const gradientId = useId();
-  const max = niceMax(Math.max(...data.map((datum) => datum.value), 0));
-  const left = gutterFor(max, formatTick);
+  const range =
+    zoom && data.length > 0
+      ? zoomRange(data.map((datum) => datum.value))
+      : {
+          min: 0,
+          max: niceMax(Math.max(...data.map((datum) => datum.value), 0)),
+        };
+  const { min, max } = range;
+  const left = gutterFor(max, formatTick, min);
   const plotWidth = Math.max(0, width - left - PAD.right - 8);
   const plotHeight = height - PAD.top - PAD.bottom;
   const baseline = PAD.top + plotHeight;
@@ -363,7 +395,9 @@ export function LineChart({
   const xs = data.map((_, i) =>
     data.length === 1 ? left + plotWidth / 2 : left + 4 + step * i,
   );
-  const ys = data.map((datum) => baseline - (datum.value / max) * plotHeight);
+  const ys = data.map(
+    (datum) => baseline - ((datum.value - min) / (max - min)) * plotHeight,
+  );
   const line = xs
     .map((x, i) => `${i === 0 ? 'M' : 'L'}${x},${ys[i]}`)
     .join(' ');
@@ -424,6 +458,7 @@ export function LineChart({
             left={left}
             plotHeight={plotHeight}
             max={max}
+            min={min}
             formatTick={formatTick}
             empty={data.length === 0}
           />

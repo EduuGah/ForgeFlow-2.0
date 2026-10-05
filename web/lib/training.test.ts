@@ -230,6 +230,32 @@ describe('history helpers', () => {
     });
   });
 
+  it('ignores failed attempts and cardio entries as "previous"', () => {
+    const base = buildCompletedWorkout(
+      activeWorkout(),
+      new Date('2026-09-21T21:30:00.000Z'),
+      'hist-1',
+    );
+    const workout = {
+      ...base,
+      exercises: base.exercises.map((exercise) => ({
+        ...exercise,
+        sets: [
+          {
+            type: 'working' as const,
+            weightKg: 140,
+            repetitions: 0,
+            tag: 'failure' as const,
+          },
+          ...(exercise.sets ?? []),
+        ],
+      })),
+    };
+    const previous = previousSetsFor([workout], BENCH, 'Supino reto com barra');
+    expect(previous?.every((set) => set.repetitions > 0)).toBe(true);
+    expect(previous?.[0].weightKg).not.toBe(140);
+  });
+
   it('pairs previous sets by type and position', () => {
     const previous = [
       { type: 'warmup' as const, weightKg: 40, repetitions: 10 },
