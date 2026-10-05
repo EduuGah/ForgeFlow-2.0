@@ -1,5 +1,15 @@
 import { useMemo, useState } from 'react';
-import { ChevronRight, History, Plus, Search, Star } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronRight,
+  History,
+  Lightbulb,
+  Plus,
+  Search,
+  Star,
+  Wind,
+  type LucideIcon,
+} from 'lucide-react';
 import { actions, findExercise, useAppStore } from '../store';
 import {
   formatDateTime,
@@ -17,6 +27,9 @@ import {
 } from '../lib/training';
 import type { PersonalRecordType } from '../lib/types';
 import { useNavigation } from '../navigation/Navigator';
+import { exerciseGuide } from '../data/guides';
+import { exerciseMedia } from '../data/exerciseMedia';
+import { ExerciseAnimation } from '../features/ExerciseAnimation';
 import { Button, IconButton } from '../ui/Button';
 import { LineChart } from '../ui/Charts';
 import { EmptyState, ExerciseThumb, Medal } from '../ui/Feedback';
@@ -126,6 +139,7 @@ export function ExerciseDetailView({
     .map((step) => step.trim())
     .filter(Boolean);
   const focus = steps[0]?.startsWith('Foco:') ? steps.shift() : undefined;
+  const guide = exerciseGuide(exercise.id);
 
   return (
     <div className={cx(!embedded && 'app-column')}>
@@ -156,8 +170,15 @@ export function ExerciseDetailView({
           aria-labelledby="tab-summary"
           className="animate-fade-in px-4 pt-5 pb-6"
         >
+          <ExerciseAnimation
+            exerciseId={exercise.id}
+            name={exercise.name}
+            className="mb-4"
+          />
           <div className="flex items-center gap-4">
-            <ExerciseThumb muscle={exercise.primaryMuscleGroup} size={64} />
+            {!exerciseMedia(exercise.id) && (
+              <ExerciseThumb muscle={exercise.primaryMuscleGroup} size={64} />
+            )}
             <div className="min-w-0">
               <h2 className="text-title font-bold">{exercise.name}</h2>
               <p className="text-callout text-ink-2">
@@ -308,22 +329,59 @@ export function ExerciseDetailView({
           className="animate-fade-in px-4 pt-5 pb-6"
         >
           <h2 className="text-title font-bold">{exercise.name}</h2>
-          {focus && <p className="text-callout mt-1 text-brand-ink">{focus}</p>}
-          {steps.length === 0 ? (
-            <p className="text-body mt-4 text-ink-2">
-              Este exercício ainda não tem instruções.
-            </p>
+          {guide ? (
+            <>
+              <p className="text-callout mt-1 text-ink-2">{guide.muscles}</p>
+              <ExerciseAnimation
+                exerciseId={exercise.id}
+                name={exercise.name}
+                className="mt-4"
+              />
+              <GuideList title="Preparação" items={guide.setup} />
+              <GuideList title="Execução" items={guide.steps} numbered />
+              <GuideNote
+                icon={Wind}
+                title="Respiração"
+                text={guide.breathing}
+              />
+              <GuideList
+                title="Dicas"
+                items={guide.tips}
+                icon={Lightbulb}
+                tone="success"
+              />
+              <GuideList
+                title="Erros comuns"
+                items={guide.mistakes}
+                icon={AlertTriangle}
+                tone="danger"
+              />
+              <p className="text-caption mt-6 text-ink-3">
+                Fotos: Free Exercise DB (domínio público).
+              </p>
+            </>
           ) : (
-            <ol className="mt-4 space-y-4">
-              {steps.map((step, index) => (
-                <li key={index} className="text-body flex gap-4">
-                  <span className="w-5 shrink-0 font-bold tabular">
-                    {index + 1}.
-                  </span>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
+            <>
+              {focus && (
+                <p className="text-callout mt-1 text-brand-ink">{focus}</p>
+              )}
+              {steps.length === 0 ? (
+                <p className="text-body mt-4 text-ink-2">
+                  Este exercício ainda não tem instruções.
+                </p>
+              ) : (
+                <ol className="mt-4 space-y-4">
+                  {steps.map((step, index) => (
+                    <li key={index} className="text-body flex gap-4">
+                      <span className="w-5 shrink-0 font-bold tabular">
+                        {index + 1}.
+                      </span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </>
           )}
         </div>
       )}
@@ -415,5 +473,84 @@ function SessionBlock({
         </p>
       )}
     </li>
+  );
+}
+
+function GuideList({
+  title,
+  items,
+  numbered = false,
+  icon: Icon,
+  tone,
+}: {
+  title: string;
+  items: string[];
+  numbered?: boolean;
+  icon?: LucideIcon;
+  tone?: 'success' | 'danger';
+}) {
+  return (
+    <section className="mt-6">
+      <h3 className="text-headline flex items-center gap-2 font-semibold">
+        {Icon && (
+          <Icon
+            size={18}
+            className={
+              tone === 'danger' ? 'text-danger-ink' : 'text-success-ink'
+            }
+            aria-hidden="true"
+          />
+        )}
+        {title}
+      </h3>
+      {numbered ? (
+        <ol className="mt-3 space-y-3">
+          {items.map((item, index) => (
+            <li key={item} className="text-body flex gap-3">
+              <span className="text-callout grid size-6 shrink-0 place-items-center rounded-full bg-brand-soft font-bold text-brand-ink">
+                {index + 1}
+              </span>
+              <span className="pt-0.5">{item}</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <ul className="mt-2.5 space-y-2" role="list">
+          {items.map((item) => (
+            <li key={item} className="text-body flex gap-3 text-ink-2">
+              <span
+                className="mt-2.5 size-1.5 shrink-0 rounded-full bg-ink-3"
+                aria-hidden="true"
+              />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function GuideNote({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon: LucideIcon;
+  title: string;
+  text: string;
+}) {
+  return (
+    <section className="mt-6 flex gap-3 rounded-lg bg-raised p-3.5">
+      <Icon
+        size={20}
+        className="mt-0.5 shrink-0 text-water"
+        aria-hidden="true"
+      />
+      <div>
+        <h3 className="text-callout font-semibold">{title}</h3>
+        <p className="text-callout mt-0.5 text-ink-2">{text}</p>
+      </div>
+    </section>
   );
 }

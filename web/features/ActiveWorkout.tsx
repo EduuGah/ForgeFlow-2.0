@@ -542,7 +542,11 @@ function ExerciseBlock({
       aria-label={exercise.exerciseName}
     >
       <div className="flex items-center gap-3 px-3 pt-3">
-        <ExerciseThumb muscle={exercise.primaryMuscleGroup} size={40} />
+        <ExerciseThumb
+          muscle={exercise.primaryMuscleGroup}
+          exerciseId={exercise.exerciseId}
+          size={40}
+        />
         <button
           type="button"
           onClick={onShowInfo}

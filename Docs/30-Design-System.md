@@ -152,6 +152,27 @@ as reconhece (por id, nome e alvos de séries/reps/carga/descanso — ids e nome
 exercícios mudaram entre versões) e as remove ao abrir o app e após sincronizar,
 inclusive na nuvem, **só se nunca foram editadas nem usadas** em um treino.
 
+## Exercícios: animações e instruções
+
+- **Animação:** cada um dos 130 exercícios tem duas fotos (início e fim do
+  movimento) do [Free Exercise DB](https://github.com/yuhonas/free-exercise-db)
+  (domínio público), convertidas para WebP de 480 px (~14 KB cada, 3,4 MB no
+  total) em `public/exercises/<pasta>/{0,1}.webp`. `ExerciseAnimation` alterna
+  as duas com um cross-fade CSS (`ex-swap`, 2,6 s) e tem botão de pausar; com
+  `prefers-reduced-motion` fica parada na posição inicial. O mapa id → pasta
+  está em `web/data/exerciseMedia.ts`.
+- **Miniaturas:** `ExerciseThumb` recebe `exerciseId` e mostra a foto inicial
+  (biblioteca, seletor, treino ativo, detalhe de treino, editor de rotina e
+  metas); exercícios personalizados ou sem foto continuam com o código do grupo.
+- **Instruções:** `web/data/guides/` tem, por exercício, músculos trabalhados,
+  preparação, execução numerada, respiração, dicas e erros comuns, em
+  português simples. A aba Instruções mostra a animação e esses blocos; o
+  texto antigo continua como fallback.
+- **Offline:** `Configurações › Seus dados › Fotos dos exercícios offline` baixa
+  as 250 fotos de uma vez para o cache do service worker (`public/sw.js`, que só
+  guarda `/exercises/*`). Fotos abertas no uso normal também ficam em cache.
+  `web/data/exerciseContent.test.ts` garante que todo exercício tem fotos e guia.
+
 ## Medidas corporais
 
 `Perfil › Saúde › Medidas corporais` registra peso, gordura corporal e as 14

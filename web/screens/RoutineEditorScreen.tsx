@@ -253,7 +253,7 @@ function RoutineExerciseCard({
   return (
     <li className="animate-rise rounded-lg bg-surface p-4">
       <div className="flex items-center gap-3">
-        <ExerciseThumb muscle={muscle} size={40} />
+        <ExerciseThumb muscle={muscle} exerciseId={item.exerciseId} size={40} />
         <p className="text-headline min-w-0 flex-1 truncate font-semibold">
           {item.exerciseName}
         </p>

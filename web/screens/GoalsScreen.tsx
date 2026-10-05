@@ -431,6 +431,7 @@ function GoalFormSheet({
                 {exercise ? (
                   <ExerciseThumb
                     muscle={exercise.primaryMuscleGroup}
+                    exerciseId={exercise.id}
                     size={36}
                   />
                 ) : null}

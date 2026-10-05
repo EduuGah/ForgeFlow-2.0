@@ -170,11 +170,12 @@ function Axis({
   /** No data: keep the grid but drop labels that would invent a scale. */
   empty?: boolean;
 }) {
-  // The midline is dropped when it would repeat a label (e.g. 0 / 1 / 1).
+  // The midline is dropped when it would repeat a label (e.g. 0 / 1 / 1)
+  // or cross the empty-state message.
   const mid = (min + max) / 2;
   const middle = formatTick(mid);
   const ticks =
-    middle === formatTick(min) || middle === formatTick(max)
+    empty || middle === formatTick(min) || middle === formatTick(max)
       ? [min, max]
       : [min, mid, max];
   return (

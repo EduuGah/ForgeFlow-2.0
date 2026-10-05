@@ -127,7 +127,11 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
                   }
                   className="flex w-full items-center gap-3 p-3 text-left active:bg-raised disabled:cursor-default disabled:active:bg-transparent"
                 >
-                  <ExerciseThumb muscle={muscle} size={40} />
+                  <ExerciseThumb
+                    muscle={muscle}
+                    exerciseId={catalog?.id}
+                    size={40}
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="text-headline block truncate font-semibold">
                       {exercise.exerciseName}

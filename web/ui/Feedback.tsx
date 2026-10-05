@@ -1,8 +1,9 @@
-import { useId, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { AlertTriangle, CloudOff, Info, type LucideIcon } from 'lucide-react';
 import { cx } from './core';
 import { initials } from '../lib/format';
 import { muscleCode, muscleLabel } from '../lib/training';
+import { exerciseMedia } from '../data/exerciseMedia';
 
 /* ------------------------------------------------------------------ */
 /* Empty / loading / error                                             */
@@ -281,11 +282,37 @@ export function Avatar({
  */
 export function ExerciseThumb({
   muscle,
+  exerciseId,
   size = 44,
 }: {
   muscle?: string | null;
+  /** Catalog exercises show their start photo instead of the muscle tag. */
+  exerciseId?: string | null;
   size?: number;
 }) {
+  const [failed, setFailed] = useState(false);
+  const photo = exerciseId ? exerciseMedia(exerciseId)?.start : undefined;
+
+  if (photo && !failed) {
+    return (
+      <span
+        role="img"
+        aria-label={muscleLabel(muscle)}
+        className="relative block shrink-0 overflow-hidden rounded-[30%] bg-white ring-1 ring-line-strong"
+        style={{ width: size, height: size }}
+      >
+        <img
+          src={photo}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+          className="size-full object-cover"
+        />
+      </span>
+    );
+  }
+
   return (
     <span
       role="img"

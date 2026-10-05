@@ -118,7 +118,11 @@ export function ExerciseRow({
         )}
       >
         <span className="relative">
-          <ExerciseThumb muscle={exercise.primaryMuscleGroup} size={44} />
+          <ExerciseThumb
+            muscle={exercise.primaryMuscleGroup}
+            exerciseId={exercise.id}
+            size={44}
+          />
           {selected && (
             <span className="absolute -right-1 -bottom-1 grid size-5 animate-pop place-items-center rounded-full bg-brand text-on-brand ring-2 ring-surface">
               <Check size={12} strokeWidth={3} aria-hidden="true" />

@@ -37,7 +37,12 @@ export const MUSCLE_GROUPS = [
 ];
 
 const MUSCLE_LABELS: Record<string, string> = {
+  Abdomen: 'Abdômen',
+  Antebracos: 'Antebraços',
   Biceps: 'Bíceps',
+  Gluteos: 'Glúteos',
+  Quadriceps: 'Quadríceps',
+  Trapezio: 'Trapézio',
   Triceps: 'Tríceps',
 };
 
