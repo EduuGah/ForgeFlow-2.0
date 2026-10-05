@@ -150,22 +150,14 @@ export function HomeScreen() {
               <EmptyState
                 icon={Dumbbell}
                 title="Seu diário começa hoje"
-                message="Conclua um treino — ou importe seu histórico de outro app — para ver tudo aqui."
+                message="Conclua seu primeiro treino para vê-lo aqui. Vindo de outro app? Importe seu histórico em Configurações."
                 action={
-                  <div className="flex flex-wrap justify-center gap-2">
-                    <Button
-                      variant="secondary"
-                      onClick={() => selectTab('routines')}
-                    >
-                      Ver rotinas
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => push({ name: 'import' })}
-                    >
-                      Importar histórico
-                    </Button>
-                  </div>
+                  <Button
+                    variant="secondary"
+                    onClick={() => selectTab('routines')}
+                  >
+                    Ver rotinas
+                  </Button>
                 }
               />
             </Card>

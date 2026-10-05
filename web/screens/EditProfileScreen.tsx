@@ -32,7 +32,10 @@ type Draft = Pick<
 function withCurrent(options: string[], current: string) {
   const list =
     current && !options.includes(current) ? [current, ...options] : options;
-  return list.map((value) => ({ value, label: value }));
+  return [
+    { value: '', label: 'Não informado' },
+    ...list.map((value) => ({ value, label: value })),
+  ];
 }
 
 export function EditProfileScreen() {
@@ -181,6 +184,8 @@ export function EditProfileScreen() {
             suffix="kg"
             decimal
             value={draft.weightKg}
+            zeroAsEmpty
+            placeholder="—"
             max={400}
             onValueChange={(value) => set('weightKg', value)}
           />
@@ -188,6 +193,8 @@ export function EditProfileScreen() {
             label="Altura"
             suffix="cm"
             value={draft.heightCm}
+            zeroAsEmpty
+            placeholder="—"
             max={260}
             onValueChange={(value) => set('heightCm', value)}
           />

@@ -95,8 +95,8 @@ aberto sobre grafite. Gerados a partir delas: `assets/icon.png`,
 - Dock flutuante: **Hoje**, **Rotinas**, **Treinar** (centro), **Evolução**, **Perfil**.
   "Treinar" abre a folha de início (treino livre, sugestão do dia, rotinas) ou
   retoma o treino em andamento, mostrando o tempo e o anel do descanso.
-- Perfil em grupos: Treino (diário, exercícios, metas), Saúde, Comunidade, Dados
-  (importar, backup) e App (configurações, tutorial).
+- Perfil em grupos: Treino (diário, exercícios, metas), Saúde, Comunidade
+  e App (configurações — tema, conta, importar e backup — e tutorial).
 - Telas secundárias entram pela direita e preservam a rolagem da aba.
 - **Botão voltar do Android/navegador:** cada tela, folha ou diálogo aberto ocupa
   uma entrada do histórico. As entradas são reconciliadas em série com o número de
@@ -116,7 +116,8 @@ aberto sobre grafite. Gerados a partir delas: `assets/icon.png`,
 
 ## Importar histórico (CSV)
 
-`Perfil › Importar histórico` (também em Rotinas, Diário e Configurações) aceita o
+`Configurações › Seus dados › Importar histórico (CSV)` (único ponto de entrada,
+além do atalho no fim do tutorial) aceita o
 CSV exportado pelo **Hevy** e pelo **Strong**. A lógica pura está em
 `web/lib/importCsv.ts` (testada em `importCsv.test.ts`):
 
@@ -134,6 +135,15 @@ CSV exportado pelo **Hevy** e pelo **Strong**. A lógica pura está em
 - Fluxo: escolher/arrastar arquivo → prévia (treinos novos, séries, período,
   exercícios reconhecidos e novos) → confirmação → resultado com **Desfazer
   importação**.
+
+## Dados iniciais
+
+Toda conta começa **vazia**: sem rotinas, metas, favoritos ou desafios de exemplo,
+e o perfil sem experiência, objetivo, peso ou altura presumidos ("Não informado").
+Versões anteriores criavam 3 rotinas e 4 metas de exemplo; `web/lib/samples.ts`
+as reconhece (por id, nome e alvos de séries/reps/carga/descanso — ids e nomes de
+exercícios mudaram entre versões) e as remove ao abrir o app e após sincronizar,
+inclusive na nuvem, **só se nunca foram editadas nem usadas** em um treino.
 
 ## Estados
 

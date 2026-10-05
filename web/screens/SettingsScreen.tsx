@@ -172,27 +172,6 @@ export function SettingsScreen() {
           )}
         </ListGroup>
 
-        <GroupLabel>Preferências</GroupLabel>
-        <ListGroup>
-          <ListRow
-            icon={Bell}
-            title="Notificações"
-            onClick={() => setSheet('notifications')}
-          />
-          <ListRow
-            icon={Droplet}
-            title="Meta de água"
-            value={`${formatNumber(hydrationTargetMl / 1000)} L`}
-            onClick={() => setSheet('hydration')}
-          />
-          <ListRow
-            icon={Utensils}
-            title="Metas de nutrição"
-            value={`${formatNumber(nutritionTargetKcal, 0)} kcal`}
-            onClick={() => setSheet('nutrition')}
-          />
-        </ListGroup>
-
         <GroupLabel>Seus dados</GroupLabel>
         <ListGroup>
           <ListRow
@@ -211,6 +190,27 @@ export function SettingsScreen() {
             title="Exportar backup (JSON)"
             subtitle="Treinos, rotinas, recordes, metas e diário"
             onClick={exportBackup}
+          />
+        </ListGroup>
+
+        <GroupLabel>Preferências</GroupLabel>
+        <ListGroup>
+          <ListRow
+            icon={Bell}
+            title="Notificações"
+            onClick={() => setSheet('notifications')}
+          />
+          <ListRow
+            icon={Droplet}
+            title="Meta de água"
+            value={`${formatNumber(hydrationTargetMl / 1000)} L`}
+            onClick={() => setSheet('hydration')}
+          />
+          <ListRow
+            icon={Utensils}
+            title="Metas de nutrição"
+            value={`${formatNumber(nutritionTargetKcal, 0)} kcal`}
+            onClick={() => setSheet('nutrition')}
           />
         </ListGroup>
 

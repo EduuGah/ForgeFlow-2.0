@@ -3,7 +3,6 @@ import {
   ArrowRight,
   ClipboardList,
   Copy,
-  FileUp,
   History,
   MoreHorizontal,
   Pencil,
@@ -155,12 +154,6 @@ export function RoutinesScreen() {
             title="Diário de treinos"
             value={history.length > 0 ? String(history.length) : undefined}
             onClick={() => push({ name: 'history' })}
-          />
-          <ListRow
-            icon={FileUp}
-            title="Importar histórico"
-            subtitle="Arquivo CSV exportado de outro app"
-            onClick={() => push({ name: 'import' })}
           />
         </ListGroup>
       </div>

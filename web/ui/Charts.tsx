@@ -141,14 +141,22 @@ function Axis({
   plotHeight,
   max,
   formatTick,
+  empty = false,
 }: {
   width: number;
   left: number;
   plotHeight: number;
   max: number;
   formatTick: (v: number) => string;
+  /** No data: keep the grid but drop labels that would invent a scale. */
+  empty?: boolean;
 }) {
-  const ticks = [0, max / 2, max];
+  // The midline is dropped when it would repeat a label (e.g. 0 / 1 / 1).
+  const middle = formatTick(max / 2);
+  const ticks =
+    middle === formatTick(0) || middle === formatTick(max)
+      ? [0, max]
+      : [0, max / 2, max];
   return (
     <g aria-hidden="true">
       {ticks.map((tick) => {
@@ -172,7 +180,7 @@ function Axis({
               fontSize={11}
               className="tabular"
             >
-              {formatTick(tick)}
+              {empty ? '' : formatTick(tick)}
             </text>
           </g>
         );
@@ -276,6 +284,7 @@ export function BarChart({
             plotHeight={plotHeight}
             max={max}
             formatTick={formatTick}
+            empty={isEmpty}
           />
           {data.map((datum, i) => {
             if (datum.value <= 0) return null;
@@ -416,6 +425,7 @@ export function LineChart({
             plotHeight={plotHeight}
             max={max}
             formatTick={formatTick}
+            empty={data.length === 0}
           />
           {area && <path d={area} fill={`url(#${gradientId})`} />}
           {data.length > 1 && (

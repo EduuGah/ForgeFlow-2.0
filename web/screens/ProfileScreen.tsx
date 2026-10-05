@@ -1,10 +1,8 @@
 import {
   BookOpen,
   CloudCog,
-  Download,
   Droplet,
   Dumbbell,
-  FileUp,
   History,
   Pencil,
   Settings,
@@ -18,7 +16,7 @@ import { tutorial } from '../lib/tutorial';
 import { useNavigation } from '../navigation/Navigator';
 import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
 import { SyncBadge } from '../features/StatusBits';
-import { Button, IconButton } from '../ui/Button';
+import { IconButton } from '../ui/Button';
 import { Avatar } from '../ui/Feedback';
 import { Card, GroupLabel, ListGroup, ListRow, TabHeader } from '../ui/Layout';
 
@@ -56,7 +54,8 @@ export function ProfileScreen() {
                 {userProfile.name}
               </h2>
               <p className="text-footnote truncate text-ink-2">
-                @{userProfile.username} · {userProfile.experience}
+                @{userProfile.username}
+                {userProfile.experience && ` · ${userProfile.experience}`}
               </p>
               {currentUser && <SyncBadge className="mt-1.5" />}
             </div>
@@ -181,27 +180,12 @@ export function ProfileScreen() {
           />
         </ListGroup>
 
-        <GroupLabel>Dados</GroupLabel>
-        <ListGroup>
-          <ListRow
-            icon={FileUp}
-            title="Importar histórico"
-            subtitle="CSV exportado de outro app de treino"
-            onClick={() => push({ name: 'import' })}
-          />
-          <ListRow
-            icon={Download}
-            title="Backup e relatório"
-            onClick={() => push({ name: 'settings' })}
-          />
-        </ListGroup>
-
         <GroupLabel>App</GroupLabel>
         <ListGroup>
           <ListRow
             icon={Settings}
             title="Configurações"
-            subtitle="Tema, notificações e conta"
+            subtitle="Tema, conta, importar e backup"
             onClick={() => push({ name: 'settings' })}
           />
           <ListRow
@@ -210,19 +194,6 @@ export function ProfileScreen() {
             onClick={tutorial.show}
           />
         </ListGroup>
-
-        {history.length === 0 && (
-          <div className="px-4 pt-6">
-            <Button
-              variant="secondary"
-              block
-              icon={FileUp}
-              onClick={() => push({ name: 'import' })}
-            >
-              Trazer treinos de outro app
-            </Button>
-          </div>
-        )}
       </div>
     </>
   );

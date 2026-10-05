@@ -38,6 +38,7 @@ import {
   replayRecords,
   sortByCompletedDesc,
 } from './lib/training';
+import { removeUntouchedSamples } from './lib/samples';
 import type { ImportPlan } from './lib/importCsv';
 import type {
   ActiveExerciseSession,
@@ -68,200 +69,6 @@ export type {
   SetEntry,
   WorkoutTemplateItem,
 } from './lib/types';
-
-/* ------------------------------------------------------------------ */
-/* Seeds                                                               */
-/* ------------------------------------------------------------------ */
-
-export const initialTemplates: WorkoutTemplateItem[] = [
-  {
-    id: 'tmpl-1',
-    name: 'Treino A - Peito, Ombros e Tríceps',
-    description:
-      'Foco em força no supino e hipertrofia de deltoides e tríceps.',
-    exercises: [
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001037',
-        exerciseName: 'Supino reto com barra',
-        targetSets: 4,
-        targetReps: 8,
-        targetWeightKg: 80,
-        restSeconds: 90,
-      },
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001041',
-        exerciseName: 'Supino inclinado com halteres',
-        targetSets: 3,
-        targetReps: 10,
-        targetWeightKg: 28,
-        restSeconds: 60,
-      },
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001098',
-        exerciseName: 'Desenvolvimento com barra',
-        targetSets: 3,
-        targetReps: 8,
-        targetWeightKg: 45,
-        restSeconds: 75,
-      },
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001101',
-        exerciseName: 'Elevacao lateral com halteres',
-        targetSets: 4,
-        targetReps: 12,
-        targetWeightKg: 12,
-        restSeconds: 45,
-      },
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001116',
-        exerciseName: 'Triceps corda',
-        targetSets: 4,
-        targetReps: 12,
-        targetWeightKg: 25,
-        restSeconds: 45,
-      },
-    ],
-  },
-  {
-    id: 'tmpl-2',
-    name: 'Treino B - Costas e Bíceps',
-    description:
-      'Puxadas pesadas para espessura e largura de dorsais com finalização de bíceps.',
-    exercises: [
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001001',
-        exerciseName: 'Barra fixa',
-        targetSets: 4,
-        targetReps: 10,
-        targetWeightKg: 0,
-        restSeconds: 90,
-      },
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001006',
-        exerciseName: 'Remada curvada com barra',
-        targetSets: 4,
-        targetReps: 8,
-        targetWeightKg: 70,
-        restSeconds: 90,
-      },
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001003',
-        exerciseName: 'Puxada alta',
-        targetSets: 3,
-        targetReps: 10,
-        targetWeightKg: 65,
-        restSeconds: 60,
-      },
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001021',
-        exerciseName: 'Rosca direta com barra',
-        targetSets: 3,
-        targetReps: 10,
-        targetWeightKg: 30,
-        restSeconds: 60,
-      },
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001025',
-        exerciseName: 'Rosca martelo',
-        targetSets: 3,
-        targetReps: 12,
-        targetWeightKg: 14,
-        restSeconds: 45,
-      },
-    ],
-  },
-  {
-    id: 'tmpl-3',
-    name: 'Treino C - Pernas e Abdômen',
-    description:
-      'Quadríceps, posteriores, panturrilhas e estabilização de core.',
-    exercises: [
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001076',
-        exerciseName: 'Agachamento com barra',
-        targetSets: 4,
-        targetReps: 8,
-        targetWeightKg: 100,
-        restSeconds: 120,
-      },
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001078',
-        exerciseName: 'Leg press',
-        targetSets: 4,
-        targetReps: 10,
-        targetWeightKg: 200,
-        restSeconds: 90,
-      },
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001079',
-        exerciseName: 'Cadeira extensora',
-        targetSets: 3,
-        targetReps: 12,
-        targetWeightKg: 50,
-        restSeconds: 60,
-      },
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001080',
-        exerciseName: 'Mesa flexora',
-        targetSets: 3,
-        targetReps: 12,
-        targetWeightKg: 40,
-        restSeconds: 60,
-      },
-      {
-        exerciseId: '00000000-0000-4000-8000-000000001063',
-        exerciseName: 'Prancha',
-        targetSets: 3,
-        targetReps: 60,
-        targetWeightKg: 0,
-        restSeconds: 45,
-      },
-    ],
-  },
-];
-
-export const initialGoals: GoalItem[] = [
-  {
-    id: 'goal-1',
-    title: 'Treinar 4 vezes por semana',
-    type: 'frequency',
-    currentValue: 0,
-    targetValue: 4,
-    unit: 'treinos/sem',
-    status: 'active',
-  },
-  {
-    id: 'goal-2',
-    title: 'Supino reto com 100 kg',
-    type: 'exercise_weight',
-    currentValue: 0,
-    targetValue: 100,
-    unit: 'kg',
-    deadline: '2026-12-31',
-    status: 'active',
-    exerciseId: '00000000-0000-4000-8000-000000001037',
-  },
-  {
-    id: 'goal-3',
-    title: 'Beber 2,5 L de água por dia',
-    type: 'custom',
-    currentValue: 0,
-    targetValue: 2500,
-    unit: 'ml/dia',
-    status: 'active',
-  },
-  {
-    id: 'goal-4',
-    title: 'Agachamento com 120 kg',
-    type: 'exercise_weight',
-    currentValue: 0,
-    targetValue: 120,
-    unit: 'kg',
-    deadline: '2026-11-15',
-    status: 'active',
-    exerciseId: '00000000-0000-4000-8000-000000001076',
-  },
-];
 
 const DEFAULT_REST_SECONDS = 90;
 
@@ -297,8 +104,6 @@ interface PersistedData {
   notificationPrefs: NotificationPrefs;
   restTimer: RestTimerState;
   social: { joinedChallenges: string[]; acceptedFriends: string[] };
-  /** Starter routines/goals were created for this account. */
-  seeded: boolean;
   /** Deletions not yet confirmed by the server; keeps sync from resurrecting them. */
   pendingDeletes: string[];
   lastSyncedAt: string | null;
@@ -327,23 +132,22 @@ function defaultProfile(user: User | null): UserProfile {
     username: user?.email ? user.email.split('@')[0] : 'atleta',
     email: user?.email || '',
     bio: '',
-    experience: 'Intermediário',
-    weightKg: 75,
-    heightCm: 175,
-    mainGoal: 'Hipertrofia e força',
+    // Unknown until the person fills them in (0 / '' = not informed).
+    experience: '',
+    weightKg: 0,
+    heightCm: 0,
+    mainGoal: '',
     streakWeeks: 0,
   };
 }
 
 function defaultData(user: User | null): PersistedData {
-  const isGuest = !user;
   return {
-    // Signed-in accounts start empty and are seeded only if the cloud has no
-    // routines yet, so a routine deleted on another device is not recreated.
-    templates: isGuest ? initialTemplates : [],
+    // Every account starts empty: no sample routines, goals or favorites.
+    templates: [],
     history: [],
     prs: [],
-    goals: isGuest ? initialGoals : [],
+    goals: [],
     hydrationTargetMl: 2500,
     hydrationLogs: [],
     nutritionTargetKcal: 2300,
@@ -352,11 +156,7 @@ function defaultData(user: User | null): PersistedData {
     nutritionTargetFat: 70,
     meals: [],
     activeWorkout: null,
-    favorites: [
-      '00000000-0000-4000-8000-000000001001',
-      '00000000-0000-4000-8000-000000001037',
-      '00000000-0000-4000-8000-000000001076',
-    ],
+    favorites: [],
     customExercises: [],
     userProfile: defaultProfile(user),
     notificationPrefs: {
@@ -366,8 +166,7 @@ function defaultData(user: User | null): PersistedData {
       weeklyReport: true,
     },
     restTimer: IDLE_REST_TIMER,
-    social: { joinedChallenges: ['ch-volume'], acceptedFriends: [] },
-    seeded: isGuest,
+    social: { joinedChallenges: [], acceptedFriends: [] },
     pendingDeletes: [],
     lastSyncedAt: null,
   };
@@ -406,7 +205,6 @@ function loadData(user: User | null): PersistedData {
   }
   if (!raw) return defaults;
 
-  const goals = asArray<GoalItem>(raw.goals, defaults.goals);
   const social =
     (raw.social as PersistedData['social'] | undefined) ?? defaults.social;
   const customExercises = asArray<Exercise>(raw.customExercises, []);
@@ -415,12 +213,22 @@ function loadData(user: User | null): PersistedData {
     asArray<PersonalRecordItem>(raw.prs, []),
     catalogLookup(customExercises),
   );
-  const templates = repaired.templates;
+  const history = sortByCompletedDesc(
+    asArray<CompletedWorkout>(raw.history, []),
+  );
+  const activeWorkout =
+    (raw.activeWorkout as ActiveWorkoutState | null) ?? null;
+  const { templates, goals } = removeUntouchedSamples(
+    repaired.templates,
+    asArray<GoalItem>(raw.goals, defaults.goals),
+    history,
+    activeWorkout?.templateId,
+  );
 
   return {
     ...defaults,
     templates,
-    history: sortByCompletedDesc(asArray<CompletedWorkout>(raw.history, [])),
+    history,
     prs: dedupeRecords(repaired.records),
     goals,
     hydrationTargetMl:
@@ -438,7 +246,7 @@ function loadData(user: User | null): PersistedData {
     nutritionTargetFat:
       Number(raw.nutritionTargetFat) || defaults.nutritionTargetFat,
     meals: byDateDesc(asArray<MealItem>(raw.meals, []), mealDate),
-    activeWorkout: (raw.activeWorkout as ActiveWorkoutState | null) ?? null,
+    activeWorkout,
     favorites: asArray<string>(raw.favorites, defaults.favorites),
     customExercises,
     userProfile: {
@@ -454,11 +262,6 @@ function loadData(user: User | null): PersistedData {
       joinedChallenges: asArray<string>(social.joinedChallenges, []),
       acceptedFriends: asArray<string>(social.acceptedFriends, []),
     },
-    // Data saved before this flag existed already went through seeding.
-    seeded:
-      typeof raw.seeded === 'boolean'
-        ? raw.seeded
-        : templates.length > 0 || goals.length > 0,
     pendingDeletes: asArray<string>(raw.pendingDeletes, []),
     lastSyncedAt:
       typeof raw.lastSyncedAt === 'string' ? raw.lastSyncedAt : null,
@@ -485,7 +288,6 @@ function pickPersisted(source: AppState): PersistedData {
     notificationPrefs: source.notificationPrefs,
     restTimer: source.restTimer,
     social: source.social,
-    seeded: source.seeded,
     pendingDeletes: source.pendingDeletes,
     lastSyncedAt: source.lastSyncedAt,
   };
@@ -649,6 +451,27 @@ async function fetchCollection<T>(
 
 let syncInFlight: Promise<void> | null = null;
 
+/**
+ * Removes sample routines and goals created by earlier versions while they
+ * are still untouched, here and in the cloud (a sync would bring them back).
+ */
+function dropUntouchedSamples() {
+  const cleanup = removeUntouchedSamples(
+    state.templates,
+    state.goals,
+    state.history,
+    state.activeWorkout?.templateId,
+  );
+  if (
+    cleanup.removedTemplateIds.length === 0 &&
+    cleanup.removedGoalIds.length === 0
+  )
+    return;
+  setState({ templates: cleanup.templates, goals: cleanup.goals });
+  cleanup.removedTemplateIds.forEach((id) => remoteDelete('templates', id));
+  cleanup.removedGoalIds.forEach((id) => remoteDelete('goals', id));
+}
+
 function syncFromFirestore(user: User): Promise<void> {
   if (!syncInFlight) {
     syncInFlight = runSync(user).finally(() => {
@@ -772,17 +595,7 @@ async function runSync(user: User) {
     );
   }
 
-  if (!failed && !state.seeded) {
-    // First sync of a brand-new account: create the starter routines and goals.
-    const templates =
-      state.templates.length === 0 ? initialTemplates : state.templates;
-    const goals = state.goals.length === 0 ? initialGoals : state.goals;
-    if (state.templates.length === 0)
-      templates.forEach((t) => remoteSet(['templates', t.id], t));
-    if (state.goals.length === 0)
-      goals.forEach((g) => remoteSet(['goals', g.id], g));
-    setState({ templates, goals, seeded: true });
-  }
+  if (!failed) dropUntouchedSamples();
 
   setState({
     isSyncingWithFirestore: false,

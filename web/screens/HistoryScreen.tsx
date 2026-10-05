@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
-import { FileUp, History } from 'lucide-react';
+import { History } from 'lucide-react';
 import { useAppStore } from '../store';
 import type { CompletedWorkout } from '../lib/types';
 import { formatDurationMinutes, formatWeight, pluralize } from '../lib/format';
 import { useNavigation } from '../navigation/Navigator';
 import { WorkoutCard } from '../features/WorkoutCard';
-import { Button, IconButton } from '../ui/Button';
+import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/Feedback';
 import { StackHeader } from '../ui/Layout';
 
@@ -41,36 +41,15 @@ export function HistoryScreen() {
 
   return (
     <>
-      <StackHeader
-        title="Diário de treinos"
-        onBack={pop}
-        right={
-          <IconButton
-            icon={FileUp}
-            label="Importar histórico"
-            onClick={() => push({ name: 'import' })}
-          />
-        }
-      />
+      <StackHeader title="Diário de treinos" onBack={pop} />
       <div className="app-column">
         {history.length === 0 ? (
           <EmptyState
             icon={History}
             title="Nenhum treino concluído"
-            message="Seus treinos aparecem aqui assim que você concluir o primeiro — ou importe o histórico de outro app."
+            message="Seus treinos aparecem aqui assim que você concluir o primeiro. Para trazer treinos de outro app, use Configurações › Importar histórico."
             action={
-              <div className="flex flex-col gap-2">
-                <Button onClick={() => selectTab('routines')}>
-                  Ver rotinas
-                </Button>
-                <Button
-                  variant="ghost"
-                  icon={FileUp}
-                  onClick={() => push({ name: 'import' })}
-                >
-                  Importar histórico
-                </Button>
-              </div>
+              <Button onClick={() => selectTab('routines')}>Ver rotinas</Button>
             }
             className="pt-20"
           />
