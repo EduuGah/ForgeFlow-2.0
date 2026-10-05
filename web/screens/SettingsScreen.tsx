@@ -111,6 +111,7 @@ export function SettingsScreen() {
       profile: store.userProfile,
       history: store.history,
       templates: store.templates,
+      folders: store.folders,
       prs: store.prs,
       goals: store.goals,
       hydrationLogs: store.hydrationLogs,

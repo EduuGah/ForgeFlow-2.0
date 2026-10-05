@@ -24,7 +24,7 @@ export type Route =
   | { name: 'history' }
   | { name: 'exercise'; exerciseId: string }
   | { name: 'workout'; workoutId: string }
-  | { name: 'routine'; templateId?: string }
+  | { name: 'routine'; templateId?: string; folderId?: string }
   | { name: 'import' }
   | { name: 'measurements' };
 

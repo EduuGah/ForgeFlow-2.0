@@ -90,6 +90,17 @@ export interface WorkoutTemplateItem {
   name: string;
   description: string;
   exercises: TemplateExercise[];
+  /** Folder the routine lives in; none = "Outras rotinas". */
+  folderId?: string;
+}
+
+/** A named group of routines, e.g. one per gym or training phase. */
+export interface RoutineFolder {
+  id: string;
+  name: string;
+  /** Position on the Routines tab, ascending. */
+  order: number;
+  createdAt: string;
 }
 
 export type PersonalRecordType =

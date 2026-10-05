@@ -173,6 +173,24 @@ inclusive na nuvem, **só se nunca foram editadas nem usadas** em um treino.
   guarda `/exercises/*`). Fotos abertas no uso normal também ficam em cache.
   `web/data/exerciseContent.test.ts` garante que todo exercício tem fotos e guia.
 
+## Pastas de rotinas
+
+Rotinas podem ficar em **pastas** (ex.: uma por academia). Sem nenhuma pasta, a
+aba Rotinas continua uma lista simples.
+
+- **Criar:** botão "Pasta" ao lado de "Nova" (ou "Criar pasta" no estado vazio),
+  "Nova pasta…" ao mover uma rotina.
+- **Pasta:** cabeçalho recolhível (lembrado neste aparelho), contagem de rotinas
+  e menu com Nova rotina nesta pasta, Renomear, Mover para cima/baixo e Excluir.
+  Excluir pergunta se as rotinas vão para "Sem pasta" ou se são apagadas junto
+  (com confirmação); o diário de treinos nunca é afetado.
+- **Rotina:** "Mover para pasta" no menu ⋯ e o campo **Pasta** no editor.
+- **Começar treino:** as rotinas aparecem agrupadas por pasta.
+- Dados: `RoutineFolder { id, name, order, createdAt }` e `folderId` opcional na
+  rotina (`web/lib/folders.ts`). Coleção sincronizada `users/{uid}/folders`
+  (regra em `firestore.rules`). Rotinas cuja pasta foi apagada em outro aparelho
+  aparecem em "Sem pasta".
+
 ## Recordes por série
 
 Um recorde (maior peso, melhor 1RM estimado, melhor série em volume) pertence a

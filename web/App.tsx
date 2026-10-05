@@ -94,7 +94,12 @@ function renderRoute(route: Route) {
     case 'workout':
       return <WorkoutDetailScreen workoutId={route.workoutId} />;
     case 'routine':
-      return <RoutineEditorScreen templateId={route.templateId} />;
+      return (
+        <RoutineEditorScreen
+          templateId={route.templateId}
+          folderId={route.folderId}
+        />
+      );
   }
 }
 

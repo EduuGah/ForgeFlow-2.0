@@ -41,6 +41,7 @@ import {
   sortByCompletedDesc,
 } from './lib/training';
 import { removeUntouchedSamples } from './lib/samples';
+import { moveFolder, nextFolderOrder, sortFolders } from './lib/folders';
 import type { ImportPlan, MeasurementPlan } from './lib/importCsv';
 import type {
   ActiveExerciseSession,
@@ -53,6 +54,7 @@ import type {
   NotificationPrefs,
   PersonalRecordItem,
   RestTimerState,
+  RoutineFolder,
   SetEntry,
   SetType,
   SyncStatus,
@@ -87,10 +89,13 @@ type RemoteCollection =
   | 'hydration'
   | 'meals'
   | 'custom_exercises'
-  | 'measurements';
+  | 'measurements'
+  | 'folders';
 
 interface PersistedData {
   templates: WorkoutTemplateItem[];
+  /** Routine folders, in display order. */
+  folders: RoutineFolder[];
   history: CompletedWorkout[];
   prs: PersonalRecordItem[];
   goals: GoalItem[];
@@ -155,6 +160,7 @@ function defaultData(user: User | null): PersistedData {
   return {
     // Every account starts empty: no sample routines, goals or favorites.
     templates: [],
+    folders: [],
     history: [],
     prs: [],
     goals: [],
@@ -244,6 +250,7 @@ function loadData(user: User | null): PersistedData {
   return {
     ...defaults,
     templates,
+    folders: sortFolders(asArray<RoutineFolder>(raw.folders, [])),
     history,
     prs: dedupeRecords(repaired.records),
     goals,
@@ -291,6 +298,7 @@ function loadData(user: User | null): PersistedData {
 function pickPersisted(source: AppState): PersistedData {
   return {
     templates: source.templates,
+    folders: source.folders,
     history: source.history,
     prs: source.prs,
     goals: source.goals,
@@ -558,6 +566,11 @@ async function runSync(user: User) {
     }
   }
 
+  await syncList<RoutineFolder>(
+    'folders',
+    () => state.folders,
+    (items) => ({ folders: sortFolders(items) }),
+  );
   await syncList<WorkoutTemplateItem>(
     'templates',
     () => state.templates,
@@ -1137,11 +1150,68 @@ export const actions = {
   updateTemplate: (id: string, updates: Partial<WorkoutTemplateItem>) => {
     const existing = state.templates.find((t) => t.id === id);
     if (!existing) return;
-    const updated = { ...existing, ...updates, id };
+    const updated: WorkoutTemplateItem = { ...existing, ...updates, id };
+    // `folderId: undefined` means "no folder": drop the key so the full
+    // write below also clears it in the cloud (a merge would keep it).
+    if (!updated.folderId) delete updated.folderId;
     setState({
       templates: state.templates.map((t) => (t.id === id ? updated : t)),
     });
-    remoteSet(['templates', id], updated, true);
+    remoteSet(['templates', id], updated);
+  },
+
+  moveTemplateToFolder: (id: string, folderId: string | null) => {
+    actions.updateTemplate(id, { folderId: folderId ?? undefined });
+  },
+
+  /* Routine folders */
+  createFolder: (name: string): string => {
+    const folder: RoutineFolder = {
+      id: uid('folder'),
+      name: name.trim(),
+      order: nextFolderOrder(state.folders),
+      createdAt: new Date().toISOString(),
+    };
+    setState({ folders: [...state.folders, folder] });
+    remoteSet(['folders', folder.id], folder);
+    return folder.id;
+  },
+
+  renameFolder: (id: string, name: string) => {
+    const existing = state.folders.find((folder) => folder.id === id);
+    const trimmed = name.trim();
+    if (!existing || !trimmed) return;
+    const updated = { ...existing, name: trimmed };
+    setState({
+      folders: state.folders.map((folder) =>
+        folder.id === id ? updated : folder,
+      ),
+    });
+    remoteSet(['folders', id], updated);
+  },
+
+  moveFolder: (id: string, direction: -1 | 1) => {
+    const result = moveFolder(state.folders, id, direction);
+    if (!result) return;
+    setState({ folders: result.folders });
+    result.changed.forEach((folder) =>
+      remoteSet(['folders', folder.id], folder),
+    );
+  },
+
+  /**
+   * Deletes a folder. Its routines are deleted too when `withRoutines`,
+   * otherwise they move out of the folder.
+   */
+  deleteFolder: (id: string, withRoutines: boolean) => {
+    const inside = state.templates.filter((t) => t.folderId === id);
+    setState({ folders: state.folders.filter((folder) => folder.id !== id) });
+    remoteDelete('folders', id);
+    inside.forEach((template) =>
+      withRoutines
+        ? actions.deleteTemplate(template.id)
+        : actions.moveTemplateToFolder(template.id, null),
+    );
   },
 
   deleteTemplate: (id: string) => {

@@ -10,6 +10,7 @@ import {
 import { actions, findExercise, useAppStore } from '../store';
 import type { TemplateExercise } from '../lib/types';
 import { formatRestLabel } from '../lib/format';
+import { sortFolders } from '../lib/folders';
 import { useNavigation } from '../navigation/Navigator';
 import { ExercisePicker } from '../features/ExercisePicker';
 import { Button, IconButton } from '../ui/Button';
@@ -27,8 +28,15 @@ import { useBackGuard } from '../ui/core';
 
 const REST_CHOICES = [0, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300];
 
-export function RoutineEditorScreen({ templateId }: { templateId?: string }) {
-  const { templates } = useAppStore();
+export function RoutineEditorScreen({
+  templateId,
+  folderId: initialFolderId,
+}: {
+  templateId?: string;
+  /** Folder for a new routine created from inside a folder. */
+  folderId?: string;
+}) {
+  const { templates, folders } = useAppStore();
   const existing = templateId
     ? templates.find((template) => template.id === templateId)
     : undefined;
@@ -38,6 +46,10 @@ export function RoutineEditorScreen({ templateId }: { templateId?: string }) {
 
   const [name, setName] = useState(existing?.name ?? '');
   const [description, setDescription] = useState(existing?.description ?? '');
+  const originalFolder = existing ? (existing.folderId ?? '') : '';
+  const [folderId, setFolderId] = useState(
+    existing ? originalFolder : (initialFolderId ?? ''),
+  );
   const [items, setItems] = useState<TemplateExercise[]>(
     existing?.exercises ?? [],
   );
@@ -47,6 +59,7 @@ export function RoutineEditorScreen({ templateId }: { templateId?: string }) {
   const dirty =
     name !== (existing?.name ?? '') ||
     description !== (existing?.description ?? '') ||
+    folderId !== originalFolder ||
     JSON.stringify(items) !== JSON.stringify(existing?.exercises ?? []);
 
   const confirmLeave = () =>
@@ -82,6 +95,9 @@ export function RoutineEditorScreen({ templateId }: { templateId?: string }) {
       name: trimmed,
       description: description.trim(),
       exercises: items,
+      folderId: folders.some((folder) => folder.id === folderId)
+        ? folderId
+        : undefined,
     };
     if (existing) actions.updateTemplate(existing.id, payload);
     else actions.createTemplate(payload);
@@ -156,6 +172,20 @@ export function RoutineEditorScreen({ templateId }: { templateId?: string }) {
           placeholder="Foco, observações, ordem dos dias…"
           onChange={(event) => setDescription(event.target.value)}
         />
+        {folders.length > 0 && (
+          <SelectField
+            label="Pasta"
+            value={folderId}
+            onChange={setFolderId}
+            options={[
+              { value: '', label: 'Sem pasta' },
+              ...sortFolders(folders).map((folder) => ({
+                value: folder.id,
+                label: folder.name,
+              })),
+            ]}
+          />
+        )}
 
         <section aria-labelledby="routine-exercises">
           <SectionHeader
