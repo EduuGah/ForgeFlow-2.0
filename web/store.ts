@@ -248,8 +248,14 @@ function loadData(user: User | null): PersistedData {
   const history = sortByCompletedDesc(
     asArray<CompletedWorkout>(raw.history, []),
   );
-  const activeWorkout =
-    (raw.activeWorkout as ActiveWorkoutState | null) ?? null;
+  const savedWorkout = (raw.activeWorkout as ActiveWorkoutState | null) ?? null;
+  // Sessions saved before exercises had a key get one (drag to reorder).
+  const activeWorkout = savedWorkout && {
+    ...savedWorkout,
+    exercises: savedWorkout.exercises.map((exercise) =>
+      exercise.key ? exercise : { ...exercise, key: uid('ex') },
+    ),
+  };
   const { templates, goals } = removeUntouchedSamples(
     repaired.templates,
     asArray<GoalItem>(raw.goals, defaults.goals),
@@ -805,6 +811,7 @@ function sessionFromExercise(
       )
     : [newSet(1, 'working', 0, 0)];
   return {
+    key: uid('ex'),
     exerciseId: exercise.id,
     exerciseName: exercise.name,
     primaryMuscleGroup: exercise.primaryMuscleGroup,
@@ -924,6 +931,7 @@ export const actions = {
       (item) => {
         const catalog = findExercise(item.exerciseId);
         return {
+          key: uid('ex'),
           exerciseId: item.exerciseId,
           exerciseName: item.exerciseName,
           primaryMuscleGroup: catalog?.primaryMuscleGroup ?? 'Geral',
@@ -991,6 +999,19 @@ export const actions = {
       ...workout,
       exercises: workout.exercises.filter((_, i) => i !== index),
     }));
+  },
+
+  /** Moves an exercise of the session from one position to another (drag). */
+  reorderActiveExercise: (from: number, to: number) => {
+    updateActive((workout) => {
+      const { length } = workout.exercises;
+      if (from === to || from < 0 || to < 0 || from >= length || to >= length)
+        return workout;
+      const exercises = [...workout.exercises];
+      const [moved] = exercises.splice(from, 1);
+      exercises.splice(to, 0, moved);
+      return { ...workout, exercises };
+    });
   },
 
   moveExerciseInActiveWorkout: (index: number, direction: -1 | 1) => {

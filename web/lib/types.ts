@@ -11,6 +11,8 @@ export interface SetEntry {
 }
 
 export interface ActiveExerciseSession {
+  /** Stable identity in the session (drag to reorder). */
+  key?: string;
   exerciseId: string;
   exerciseName: string;
   primaryMuscleGroup: string;

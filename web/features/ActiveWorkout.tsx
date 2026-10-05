@@ -66,6 +66,7 @@ import {
 import { ExercisePicker } from './ExercisePicker';
 import { RestTimerBar } from './RestTimer';
 import { ExerciseDetailView } from '../screens/ExerciseDetailScreen';
+import { DragHandle, SortableList, type DragHandleProps } from '../ui/Sortable';
 
 const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300];
 const SET_GRID =
@@ -103,6 +104,9 @@ export function ActiveWorkoutScreen({
   const [infoExerciseId, setInfoExerciseId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bests = useMemo(() => bestRecordValues(prs), [prs]);
+  const exerciseKeys = (workout?.exercises ?? []).map(
+    (exercise, index) => exercise.key ?? `${exercise.exerciseId}-${index}`,
+  );
 
   // Scroll to exercises added to the session already on screen — not when a
   // new session opens (it must start at the top).
@@ -287,22 +291,42 @@ export function ActiveWorkoutScreen({
               message="Adicione os exercícios que você vai fazer hoje. Carga e repetições do último treino aparecem como referência."
             />
           ) : (
-            workout.exercises.map((exercise, index) => (
-              <ExerciseBlock
-                key={`${exercise.exerciseId}-${index}`}
-                exercise={exercise}
-                index={index}
-                total={workout.exercises.length}
-                current={index === currentIndex}
-                previous={previousSetsFor(
-                  history,
-                  exercise.exerciseId,
-                  exercise.exerciseName,
-                )}
-                bests={bests.get(exercise.exerciseId)}
-                onShowInfo={() => setInfoExerciseId(exercise.exerciseId)}
-              />
-            ))
+            <SortableList
+              label="Exercícios do treino"
+              ids={exerciseKeys}
+              nameOf={(key) =>
+                workout.exercises[exerciseKeys.indexOf(key)]?.exerciseName ?? ''
+              }
+              onMove={actions.reorderActiveExercise}
+              className="space-y-3"
+              renderOverlay={(key) => {
+                const exercise = workout.exercises[exerciseKeys.indexOf(key)];
+                return exercise ? (
+                  <ExercisePreview exercise={exercise} />
+                ) : null;
+              }}
+            >
+              {(key, index, { handle, sorting }) => {
+                const exercise = workout.exercises[index];
+                return (
+                  <ExerciseBlock
+                    exercise={exercise}
+                    index={index}
+                    total={workout.exercises.length}
+                    current={index === currentIndex}
+                    previous={previousSetsFor(
+                      history,
+                      exercise.exerciseId,
+                      exercise.exerciseName,
+                    )}
+                    bests={bests.get(exercise.exerciseId)}
+                    handle={handle}
+                    compact={sorting}
+                    onShowInfo={() => setInfoExerciseId(exercise.exerciseId)}
+                  />
+                );
+              }}
+            </SortableList>
           )}
 
           <div className="pt-2">
@@ -433,6 +457,8 @@ function ExerciseBlock({
   current,
   previous,
   bests,
+  handle,
+  compact,
   onShowInfo,
 }: {
   exercise: ActiveExerciseSession;
@@ -441,6 +467,9 @@ function ExerciseBlock({
   current: boolean;
   previous: CompletedSet[] | null;
   bests: RecordBests | undefined;
+  handle: DragHandleProps;
+  /** Folded to its header while the exercises are being reordered. */
+  compact: boolean;
   onShowInfo: () => void;
 }) {
   const confirm = useConfirm();
@@ -454,7 +483,7 @@ function ExerciseBlock({
   const doneCount = exercise.sets.filter((set) => set.completed).length;
   const allDone =
     exercise.sets.length > 0 && doneCount === exercise.sets.length;
-  const collapsed = allDone && collapsedChoice === true;
+  const collapsed = compact || (allDone && collapsedChoice === true);
   const volume = exercise.sets
     .filter((set) => set.completed && set.setType === 'working')
     .reduce((sum, set) => sum + set.weightKg * set.repetitions, 0);
@@ -547,7 +576,12 @@ function ExerciseBlock({
       )}
       aria-label={exercise.exerciseName}
     >
-      <div className="flex items-center gap-3 px-3 pt-3">
+      <div className="flex items-center gap-2 px-3 pt-3">
+        <DragHandle
+          handle={handle}
+          label={`Arrastar ${exercise.exerciseName} para reordenar`}
+          className="-ml-1.5 w-7"
+        />
         <ExerciseThumb
           muscle={exercise.primaryMuscleGroup}
           exerciseId={exercise.exerciseId}
@@ -582,7 +616,7 @@ function ExerciseBlock({
             )}
           </p>
         </button>
-        {allDone && (
+        {allDone && !compact && (
           <IconButton
             icon={collapsed ? ChevronDown : ChevronUp}
             label={collapsed ? 'Mostrar séries' : 'Recolher séries'}
@@ -710,6 +744,26 @@ function ExerciseBlock({
         }))}
       />
     </section>
+  );
+}
+
+/** Compact copy of an exercise that follows the finger while dragged. */
+function ExercisePreview({ exercise }: { exercise: ActiveExerciseSession }) {
+  const done = exercise.sets.filter((set) => set.completed).length;
+  return (
+    <div className="flex items-center gap-3 rounded-lg bg-surface p-3">
+      <ExerciseThumb
+        muscle={exercise.primaryMuscleGroup}
+        exerciseId={exercise.exerciseId}
+        size={40}
+      />
+      <p className="text-headline min-w-0 flex-1 truncate font-semibold">
+        {exercise.exerciseName}
+      </p>
+      <span className="text-footnote text-ink-2 tabular">
+        {done}/{exercise.sets.length} séries
+      </span>
+    </div>
   );
 }
 

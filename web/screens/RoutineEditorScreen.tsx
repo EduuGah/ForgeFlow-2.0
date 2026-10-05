@@ -24,7 +24,14 @@ import {
 } from '../ui/Form';
 import { Card, SectionHeader, StackHeader } from '../ui/Layout';
 import { ActionSheet, useConfirm, useToast } from '../ui/Overlay';
-import { useBackGuard } from '../ui/core';
+import { cx, useBackGuard } from '../ui/core';
+import { uid } from '../lib/id';
+import {
+  DragHandle,
+  SortableList,
+  arrayMove,
+  type DragHandleProps,
+} from '../ui/Sortable';
 
 const REST_CHOICES = [0, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300];
 
@@ -50,9 +57,11 @@ export function RoutineEditorScreen({
   const [folderId, setFolderId] = useState(
     existing ? originalFolder : (initialFolderId ?? ''),
   );
-  const [items, setItems] = useState<TemplateExercise[]>(
-    existing?.exercises ?? [],
+  // Rows carry a local key so they keep their identity while dragged.
+  const [rows, setRows] = useState(() =>
+    (existing?.exercises ?? []).map((item) => ({ key: uid('row'), item })),
   );
+  const items = rows.map((row) => row.item);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -110,18 +119,16 @@ export function RoutineEditorScreen({
   };
 
   const update = (index: number, patch: Partial<TemplateExercise>) =>
-    setItems((current) =>
-      current.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    setRows((current) =>
+      current.map((row, i) =>
+        i === index ? { ...row, item: { ...row.item, ...patch } } : row,
+      ),
     );
 
-  const move = (index: number, direction: -1 | 1) =>
-    setItems((current) => {
-      const target = index + direction;
-      if (target < 0 || target >= current.length) return current;
-      const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+  const moveTo = (from: number, to: number) =>
+    setRows((current) =>
+      to < 0 || to >= current.length ? current : arrayMove(current, from, to),
+    );
 
   const removeRoutine = async () => {
     if (!existing) return;
@@ -201,21 +208,36 @@ export function RoutineEditorScreen({
               />
             </Card>
           ) : (
-            <ol className="space-y-3">
-              {items.map((item, index) => (
+            <SortableList
+              label="Exercícios da rotina"
+              ids={rows.map((row) => row.key)}
+              nameOf={(key) =>
+                rows.find((row) => row.key === key)?.item.exerciseName ?? ''
+              }
+              onMove={moveTo}
+              className="space-y-3"
+              renderOverlay={(key) => {
+                const row = rows.find((candidate) => candidate.key === key);
+                return row ? <RoutineExercisePreview item={row.item} /> : null;
+              }}
+            >
+              {(key, index, { handle, sorting }) => (
                 <RoutineExerciseCard
-                  key={`${item.exerciseId}-${index}`}
-                  item={item}
+                  item={rows[index].item}
                   index={index}
-                  total={items.length}
+                  total={rows.length}
+                  handle={handle}
+                  compact={sorting}
                   onChange={(patch) => update(index, patch)}
-                  onMove={(direction) => move(index, direction)}
+                  onMove={(direction) => moveTo(index, index + direction)}
                   onRemove={() =>
-                    setItems((current) => current.filter((_, i) => i !== index))
+                    setRows((current) =>
+                      current.filter((row) => row.key !== key),
+                    )
                   }
                 />
-              ))}
-            </ol>
+              )}
+            </SortableList>
           )}
           <Button
             variant="secondary"
@@ -245,15 +267,18 @@ export function RoutineEditorScreen({
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onConfirm={(exercises) =>
-          setItems((current) => [
+          setRows((current) => [
             ...current,
             ...exercises.map((exercise) => ({
-              exerciseId: exercise.id,
-              exerciseName: exercise.name,
-              targetSets: 3,
-              targetReps: 10,
-              targetWeightKg: 0,
-              restSeconds: 90,
+              key: uid('row'),
+              item: {
+                exerciseId: exercise.id,
+                exerciseName: exercise.name,
+                targetSets: 3,
+                targetReps: 10,
+                targetWeightKg: 0,
+                restSeconds: 90,
+              },
             })),
           ])
         }
@@ -262,10 +287,28 @@ export function RoutineEditorScreen({
   );
 }
 
+/** Compact copy of a routine exercise that follows the finger while dragged. */
+function RoutineExercisePreview({ item }: { item: TemplateExercise }) {
+  const muscle = findExercise(item.exerciseId)?.primaryMuscleGroup;
+  return (
+    <div className="flex items-center gap-3 rounded-lg bg-surface p-3">
+      <ExerciseThumb muscle={muscle} exerciseId={item.exerciseId} size={40} />
+      <p className="text-headline min-w-0 flex-1 truncate font-semibold">
+        {item.exerciseName}
+      </p>
+      <span className="text-footnote text-ink-2 tabular">
+        {item.targetSets} × {item.targetReps}
+      </span>
+    </div>
+  );
+}
+
 function RoutineExerciseCard({
   item,
   index,
   total,
+  handle,
+  compact,
   onChange,
   onMove,
   onRemove,
@@ -273,6 +316,9 @@ function RoutineExerciseCard({
   item: TemplateExercise;
   index: number;
   total: number;
+  handle: DragHandleProps;
+  /** Folded to its header while the list is being reordered. */
+  compact: boolean;
   onChange: (patch: Partial<TemplateExercise>) => void;
   onMove: (direction: -1 | 1) => void;
   onRemove: () => void;
@@ -281,54 +327,67 @@ function RoutineExerciseCard({
   const muscle = findExercise(item.exerciseId)?.primaryMuscleGroup;
 
   return (
-    <li className="animate-rise rounded-lg bg-surface p-4">
-      <div className="flex items-center gap-3">
+    <div className={cx('rounded-lg bg-surface', compact ? 'p-3' : 'p-4')}>
+      <div className="flex items-center gap-2">
+        <DragHandle
+          handle={handle}
+          label={`Arrastar ${item.exerciseName} para reordenar`}
+          className="-ml-2"
+        />
         <ExerciseThumb muscle={muscle} exerciseId={item.exerciseId} size={40} />
-        <p className="text-headline min-w-0 flex-1 truncate font-semibold">
+        <p className="text-headline ml-1 min-w-0 flex-1 truncate font-semibold">
           {item.exerciseName}
         </p>
-        <IconButton
-          icon={MoreVertical}
-          label={`Opções de ${item.exerciseName}`}
-          onClick={() => setMenuOpen(true)}
-          className="-mr-2"
-        />
+        {compact ? (
+          <span className="text-footnote text-ink-2 tabular">
+            {item.targetSets} × {item.targetReps}
+          </span>
+        ) : (
+          <IconButton
+            icon={MoreVertical}
+            label={`Opções de ${item.exerciseName}`}
+            onClick={() => setMenuOpen(true)}
+            className="-mr-2"
+          />
+        )}
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <Stepper
-          label="Séries"
-          value={item.targetSets}
-          min={1}
-          max={20}
-          onChange={(targetSets) => onChange({ targetSets })}
-        />
-        <Stepper
-          label="Repetições"
-          value={item.targetReps}
-          min={1}
-          max={100}
-          onChange={(targetReps) => onChange({ targetReps })}
-        />
-        <NumberField
-          label="Carga"
-          suffix="kg"
-          decimal
-          zeroAsEmpty
-          placeholder="0"
-          max={2000}
-          value={item.targetWeightKg ?? 0}
-          onValueChange={(targetWeightKg) => onChange({ targetWeightKg })}
-        />
-        <SelectField
-          label="Descanso"
-          value={String(item.restSeconds)}
-          onChange={(value) => onChange({ restSeconds: Number(value) })}
-          options={REST_CHOICES.map((seconds) => ({
-            value: String(seconds),
-            label: formatRestLabel(seconds),
-          }))}
-        />
-      </div>
+      {!compact && (
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <Stepper
+            label="Séries"
+            value={item.targetSets}
+            min={1}
+            max={20}
+            onChange={(targetSets) => onChange({ targetSets })}
+          />
+          <Stepper
+            label="Repetições"
+            value={item.targetReps}
+            min={1}
+            max={100}
+            onChange={(targetReps) => onChange({ targetReps })}
+          />
+          <NumberField
+            label="Carga"
+            suffix="kg"
+            decimal
+            zeroAsEmpty
+            placeholder="0"
+            max={2000}
+            value={item.targetWeightKg ?? 0}
+            onValueChange={(targetWeightKg) => onChange({ targetWeightKg })}
+          />
+          <SelectField
+            label="Descanso"
+            value={String(item.restSeconds)}
+            onChange={(value) => onChange({ restSeconds: Number(value) })}
+            options={REST_CHOICES.map((seconds) => ({
+              value: String(seconds),
+              label: formatRestLabel(seconds),
+            }))}
+          />
+        </div>
+      )}
       <ActionSheet
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
@@ -360,6 +419,6 @@ function RoutineExerciseCard({
           },
         ]}
       />
-    </li>
+    </div>
   );
 }
