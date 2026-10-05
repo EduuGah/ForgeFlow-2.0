@@ -15,6 +15,7 @@ import {
 import { NumberField, SegmentedControl, TextField } from '../ui/Form';
 import { Card, StackHeader } from '../ui/Layout';
 import { Sheet, useToast } from '../ui/Overlay';
+import { SwipeToDelete } from '../ui/Swipe';
 import { NutritionTargetSheet } from './SettingsScreen';
 
 const MEAL_LABELS: Record<MealType, string> = {
@@ -205,37 +206,42 @@ export function NutritionScreen() {
                       {formatNumber(kcal, 0)} kcal
                     </span>
                   </div>
-                  <Card as="div" className="divide-y divide-line">
+                  <Card
+                    as="div"
+                    className="divide-y divide-line overflow-hidden"
+                  >
                     {items.map((meal) => {
                       const date = mealDate(meal);
                       return (
-                        <div
+                        <SwipeToDelete
                           key={meal.id}
-                          className="flex animate-fade-in items-center gap-3 py-3 pr-2 pl-4"
+                          onDelete={() => remove(meal)}
                         >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-body truncate font-medium">
-                              {meal.name}
-                            </p>
-                            <p className="text-footnote text-ink-2 tabular">
-                              {date
-                                ? formatTime(date.toISOString())
-                                : meal.consumedAt}{' '}
-                              · P {meal.proteinG}g · C {meal.carbsG}g · G{' '}
-                              {meal.fatG}g
-                            </p>
+                          <div className="flex animate-fade-in items-center gap-3 py-3 pr-2 pl-4">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-body truncate font-medium">
+                                {meal.name}
+                              </p>
+                              <p className="text-footnote text-ink-2 tabular">
+                                {date
+                                  ? formatTime(date.toISOString())
+                                  : meal.consumedAt}{' '}
+                                · P {meal.proteinG}g · C {meal.carbsG}g · G{' '}
+                                {meal.fatG}g
+                              </p>
+                            </div>
+                            <span className="text-callout font-semibold tabular">
+                              {formatNumber(meal.kcal, 0)} kcal
+                            </span>
+                            <IconButton
+                              icon={Trash2}
+                              label={`Remover ${meal.name}`}
+                              size="sm"
+                              variant="danger"
+                              onClick={() => remove(meal)}
+                            />
                           </div>
-                          <span className="text-callout font-semibold tabular">
-                            {formatNumber(meal.kcal, 0)} kcal
-                          </span>
-                          <IconButton
-                            icon={Trash2}
-                            label={`Remover ${meal.name}`}
-                            size="sm"
-                            variant="danger"
-                            onClick={() => remove(meal)}
-                          />
-                        </div>
+                        </SwipeToDelete>
                       );
                     })}
                   </Card>

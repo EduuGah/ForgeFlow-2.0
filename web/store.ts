@@ -36,7 +36,13 @@ import {
   sortByCompletedDesc,
 } from './lib/training';
 import { removeUntouchedSamples } from './lib/samples';
-import { moveFolder, nextFolderOrder, sortFolders } from './lib/folders';
+import {
+  moveFolder,
+  nextFolderOrder,
+  placeRoutine,
+  reorderFolder,
+  sortFolders,
+} from './lib/folders';
 import { suggestGymId } from './lib/gyms';
 import type { ImportPlan, MeasurementPlan } from './lib/importCsv';
 import type {
@@ -243,8 +249,14 @@ function loadData(user: AppUser | null): PersistedData {
   const history = sortByCompletedDesc(
     asArray<CompletedWorkout>(raw.history, []),
   );
-  const activeWorkout =
-    (raw.activeWorkout as ActiveWorkoutState | null) ?? null;
+  const savedWorkout = (raw.activeWorkout as ActiveWorkoutState | null) ?? null;
+  // Sessions saved before exercises had a key get one (drag to reorder).
+  const activeWorkout = savedWorkout && {
+    ...savedWorkout,
+    exercises: savedWorkout.exercises.map((exercise) =>
+      exercise.key ? exercise : { ...exercise, key: uid('ex') },
+    ),
+  };
   const { templates, goals } = removeUntouchedSamples(
     repaired.templates,
     asArray<GoalItem>(raw.goals, defaults.goals),
@@ -790,6 +802,7 @@ function sessionFromExercise(
       )
     : [newSet(1, 'working', 0, 0)];
   return {
+    key: uid('ex'),
     exerciseId: exercise.id,
     exerciseName: exercise.name,
     primaryMuscleGroup: exercise.primaryMuscleGroup,
@@ -910,6 +923,7 @@ export const actions = {
       (item) => {
         const catalog = findExercise(item.exerciseId);
         return {
+          key: uid('ex'),
           exerciseId: item.exerciseId,
           exerciseName: item.exerciseName,
           primaryMuscleGroup: catalog?.primaryMuscleGroup ?? 'Geral',
@@ -979,6 +993,19 @@ export const actions = {
     }));
   },
 
+  /** Moves an exercise of the session from one position to another (drag). */
+  reorderActiveExercise: (from: number, to: number) => {
+    updateActive((workout) => {
+      const { length } = workout.exercises;
+      if (from === to || from < 0 || to < 0 || from >= length || to >= length)
+        return workout;
+      const exercises = [...workout.exercises];
+      const [moved] = exercises.splice(from, 1);
+      exercises.splice(to, 0, moved);
+      return { ...workout, exercises };
+    });
+  },
+
   moveExerciseInActiveWorkout: (index: number, direction: -1 | 1) => {
     updateActive((workout) => {
       const target = index + direction;
@@ -1031,6 +1058,24 @@ export const actions = {
     updateExercise(exerciseIndex, (exercise) => ({
       ...exercise,
       sets: renumber(exercise.sets.filter((_, i) => i !== setIndex)),
+    }));
+  },
+
+  /** Puts back a set removed by mistake (undo), found by exercise key. */
+  restoreSetToActiveExercise: (
+    exerciseKey: string,
+    setIndex: number,
+    set: SetEntry,
+  ) => {
+    updateActive((workout) => ({
+      ...workout,
+      exercises: workout.exercises.map((exercise) => {
+        if (exercise.key !== exerciseKey) return exercise;
+        if (exercise.sets.some((item) => item.id === set.id)) return exercise;
+        const sets = [...exercise.sets];
+        sets.splice(Math.min(setIndex, sets.length), 0, set);
+        return { ...exercise, sets: renumber(sets) };
+      }),
     }));
   },
 
@@ -1264,6 +1309,38 @@ export const actions = {
       ),
     });
     remoteSet(['folders', id], updated);
+  },
+
+  /** Drops a routine in a folder (or LOOSE) at a position (drag). */
+  placeRoutine: (routineId: string, groupKey: string, index: number) => {
+    const changed = placeRoutine(
+      state.templates,
+      state.folders,
+      routineId,
+      groupKey,
+      index,
+    );
+    if (changed.length === 0) return;
+    const byId = new Map(changed.map((template) => [template.id, template]));
+    setState({
+      templates: state.templates.map(
+        (template) => byId.get(template.id) ?? template,
+      ),
+    });
+    // Full writes so leaving a folder also clears it in the cloud.
+    changed.forEach((template) =>
+      remoteSet(['templates', template.id], template),
+    );
+  },
+
+  /** Moves a folder to a position (drag). */
+  reorderFolder: (id: string, index: number) => {
+    const result = reorderFolder(state.folders, id, index);
+    if (!result) return;
+    setState({ folders: result.folders });
+    result.changed.forEach((folder) =>
+      remoteSet(['folders', folder.id], folder),
+    );
   },
 
   moveFolder: (id: string, direction: -1 | 1) => {

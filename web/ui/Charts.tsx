@@ -270,7 +270,8 @@ export function BarChart({
   const centers = data.map((_, i) => left + band * i + band / 2);
 
   const pick = (event: ReactPointerEvent<SVGSVGElement>, pin: boolean) => {
-    if (event.pointerType !== 'mouse' && !pin) return;
+    // Touch: tap pins a bar; dragging the finger sideways scrubs across bars.
+    if (event.pointerType !== 'mouse' && !pin && event.buttons === 0) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const index = Math.floor((event.clientX - rect.left - left) / band);
     if (index < 0 || index >= data.length) return;
@@ -409,7 +410,12 @@ export function LineChart({
   const shown = active ?? (data.length > 0 ? data.length - 1 : null);
 
   const pick = (event: ReactPointerEvent<SVGSVGElement>, pin: boolean) => {
-    if (data.length === 0 || (event.pointerType !== 'mouse' && !pin)) return;
+    // Touch: tap shows a point; dragging the finger sideways scrubs the line.
+    if (
+      data.length === 0 ||
+      (event.pointerType !== 'mouse' && !pin && event.buttons === 0)
+    )
+      return;
     const rect = event.currentTarget.getBoundingClientRect();
     const px = event.clientX - rect.left;
     let nearest = 0;

@@ -19,6 +19,7 @@ import { EmptyState } from '../ui/Feedback';
 import { NumberField, SegmentedControl, TextField } from '../ui/Form';
 import { Card, GroupLabel, StackHeader } from '../ui/Layout';
 import { Sheet, useConfirm, useToast } from '../ui/Overlay';
+import { SwipeToDelete } from '../ui/Swipe';
 import { cx } from '../ui/core';
 
 type Period = '3m' | '6m' | '1y' | 'all';
@@ -248,12 +249,16 @@ export function MeasurementsScreen() {
             </ul>
 
             <GroupLabel>Histórico</GroupLabel>
-            <ul
+            <div
               className="mx-4 divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface"
               role="list"
             >
               {measurements.map((item) => (
-                <li key={item.id}>
+                <SwipeToDelete
+                  key={item.id}
+                  role="listitem"
+                  onDelete={() => remove(item)}
+                >
                   <button
                     type="button"
                     onClick={() => setEditing(item)}
@@ -271,9 +276,9 @@ export function MeasurementsScreen() {
                       </span>
                     )}
                   </button>
-                </li>
+                </SwipeToDelete>
               ))}
-            </ul>
+            </div>
           </>
         )}
       </div>

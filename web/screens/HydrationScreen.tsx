@@ -13,6 +13,7 @@ import { EmptyState, ProgressRing } from '../ui/Feedback';
 import { NumericInput } from '../ui/Form';
 import { Card, SectionHeader, StackHeader } from '../ui/Layout';
 import { useToast } from '../ui/Overlay';
+import { SwipeToDelete } from '../ui/Swipe';
 import { HydrationTargetSheet } from './SettingsScreen';
 
 const QUICK = [
@@ -201,33 +202,32 @@ export function HydrationScreen() {
               />
             </Card>
           ) : (
-            <Card as="div" className="divide-y divide-line">
+            <Card as="div" className="divide-y divide-line overflow-hidden">
               {today.map((log) => {
                 const date = hydrationDate(log);
                 return (
-                  <div
-                    key={log.id}
-                    className="flex animate-fade-in items-center gap-3 py-2 pr-2 pl-4"
-                  >
-                    <Droplet
-                      size={18}
-                      className="text-water"
-                      aria-hidden="true"
-                    />
-                    <span className="text-body flex-1 font-medium tabular">
-                      +{formatNumber(log.amountMl, 0)} ml
-                    </span>
-                    <span className="text-footnote text-ink-2 tabular">
-                      {date ? formatTime(date.toISOString()) : log.timestamp}
-                    </span>
-                    <IconButton
-                      icon={Trash2}
-                      label={`Remover ${log.amountMl} ml`}
-                      size="sm"
-                      variant="danger"
-                      onClick={() => remove(log)}
-                    />
-                  </div>
+                  <SwipeToDelete key={log.id} onDelete={() => remove(log)}>
+                    <div className="flex animate-fade-in items-center gap-3 py-2 pr-2 pl-4">
+                      <Droplet
+                        size={18}
+                        className="text-water"
+                        aria-hidden="true"
+                      />
+                      <span className="text-body flex-1 font-medium tabular">
+                        +{formatNumber(log.amountMl, 0)} ml
+                      </span>
+                      <span className="text-footnote text-ink-2 tabular">
+                        {date ? formatTime(date.toISOString()) : log.timestamp}
+                      </span>
+                      <IconButton
+                        icon={Trash2}
+                        label={`Remover ${log.amountMl} ml`}
+                        size="sm"
+                        variant="danger"
+                        onClick={() => remove(log)}
+                      />
+                    </div>
+                  </SwipeToDelete>
                 );
               })}
             </Card>
