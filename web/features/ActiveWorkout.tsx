@@ -71,7 +71,7 @@ import { DragHandle, SortableList, type DragHandleProps } from '../ui/Sortable';
 
 const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300];
 const SET_GRID =
-  'grid grid-cols-[2.5rem_minmax(0,1fr)_4.25rem_3.75rem_2.75rem] items-center gap-2';
+  'grid grid-cols-[2.5rem_minmax(0,1fr)_4.25rem_3.75rem_2.75rem] items-center gap-2 lg:grid-cols-[3rem_minmax(0,1fr)_6rem_5rem_3rem] lg:gap-3';
 
 /* ------------------------------------------------------------------ */
 /* Screen                                                              */
@@ -222,7 +222,7 @@ export function ActiveWorkoutScreen({
         if (event.target === event.currentTarget && closing) onExited();
       }}
       className={cx(
-        'fixed inset-0 z-45 flex flex-col bg-canvas',
+        'fixed inset-y-0 right-0 left-[var(--sidebar-width)] z-45 flex flex-col bg-canvas',
         closing ? 'animate-sheet-out' : 'animate-sheet-in',
       )}
       style={{
@@ -236,7 +236,7 @@ export function ActiveWorkoutScreen({
         className="pt-safe shrink-0 touch-none border-b border-line bg-surface select-none"
       >
         <div
-          className="mx-auto mt-1.5 h-1 w-9 rounded-full bg-line-strong"
+          className="mx-auto mt-1.5 h-1 w-9 rounded-full bg-line-strong lg:invisible"
           aria-hidden="true"
         />
         <div className="app-column flex h-13 items-center gap-1 px-2">

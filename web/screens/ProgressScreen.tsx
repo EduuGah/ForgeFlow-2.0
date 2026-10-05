@@ -37,7 +37,7 @@ import { Button } from '../ui/Button';
 import { EmptyState, Medal, ProgressBar } from '../ui/Feedback';
 import { NumberField, SegmentedControl } from '../ui/Form';
 import { Card, Delta, SectionHeader, Stat, TabHeader } from '../ui/Layout';
-import { cx } from '../ui/core';
+import { cx, useMediaQuery } from '../ui/core';
 
 type PeriodDays = '7' | '30' | '90' | '365';
 
@@ -75,6 +75,7 @@ export function ProgressScreen() {
   const [period, setPeriod] = useState<PeriodDays>('30');
   const [metric, setMetric] = useState<ChartMetric>('volume');
   const [gymFilter, setGymFilter] = useState<GymFilter>('all');
+  const desktop = useMediaQuery('(min-width: 64rem)');
   const days = Number(period);
   // The gym filter scopes the period numbers, chart and muscles; records and
   // achievements stay global. A deleted gym falls back to every workout.
@@ -180,8 +181,8 @@ export function ProgressScreen() {
 
   return (
     <>
-      <TabHeader title="Evolução" />
-      <div className="app-column space-y-6 px-4 pt-2">
+      <TabHeader wide title="Evolução" />
+      <div className="app-wide space-y-6 px-4 pt-2 lg:px-8">
         <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-10 -mx-4 bg-canvas/90 px-4 py-2 backdrop-blur-md">
           <SegmentedControl
             label="Período"
@@ -202,8 +203,7 @@ export function ProgressScreen() {
             />
           )}
         </div>
-
-        <Card className="grid grid-cols-2 gap-x-4 gap-y-5 p-4">
+        <Card className="grid grid-cols-2 gap-x-4 gap-y-5 p-4 lg:grid-cols-4">
           <div>
             <Stat label="Treinos" value={formatNumber(current.workouts, 0)} />
             <Delta
@@ -242,173 +242,347 @@ export function ProgressScreen() {
               suffix=""
             />
           </div>
-          <p className="text-caption col-span-2 -mt-2 text-ink-3">
+          <p className="text-caption col-span-2 -mt-2 text-ink-3 lg:col-span-4">
             Variação comparada ao período anterior de mesma duração.
           </p>
         </Card>
-
-        <section aria-labelledby="stats-chart">
-          <SectionHeader
-            id="stats-chart"
-            title={`${METRICS.find((item) => item.value === metric)?.label} por ${bucketUnit}`}
-          />
-          <Card className="p-4">
-            <BarChart
-              data={buckets.map((bucket) => ({
-                key: bucket.key,
-                label: bucket.label,
-                value: bucket.value,
-              }))}
-              label={`${METRICS.find((item) => item.value === metric)?.label} de séries de trabalho por ${bucketUnit}`}
-              formatValue={(value) => formatMetric(metric, value)}
-              formatTick={(value) => formatMetricTick(metric, value)}
-              emptyMessage="Sem treinos no período"
-            />
-            <SegmentedControl
-              label="Métrica do gráfico"
-              options={METRICS}
-              value={metric}
-              onChange={setMetric}
-              className="mt-3"
-            />
-          </Card>
-        </section>
-
-        {gyms.length > 0 && (
-          <GymsCard
-            days={days}
-            onOpen={(gymId) => push({ name: 'gym', gymId })}
-            onAll={() => push({ name: 'gyms' })}
-          />
-        )}
-
-        <BodyWeightCard />
-
-        <section aria-labelledby="stats-muscles">
-          <SectionHeader id="stats-muscles" title="Séries por grupo muscular" />
-          <Card className="p-4">
-            {muscles.length === 0 ? (
-              <p className="text-callout py-4 text-center text-ink-3">
-                Nenhuma série de trabalho no período.
-              </p>
-            ) : (
-              <RankedBars
-                label="Séries de trabalho por grupo muscular"
-                data={muscles.map((share) => ({
-                  key: share.group,
-                  label: muscleLabel(share.group),
-                  value: share.sets,
-                }))}
-                formatValue={(value) => `${formatNumber(value, 0)} séries`}
+        {desktop ? (
+          <div className="grid grid-cols-2 items-start gap-6">
+            <div className="space-y-6">
+              <section aria-labelledby="stats-chart">
+                <SectionHeader
+                  id="stats-chart"
+                  title={`${METRICS.find((item) => item.value === metric)?.label} por ${bucketUnit}`}
+                />
+                <Card className="p-4">
+                  <BarChart
+                    data={buckets.map((bucket) => ({
+                      key: bucket.key,
+                      label: bucket.label,
+                      value: bucket.value,
+                    }))}
+                    label={`${METRICS.find((item) => item.value === metric)?.label} de séries de trabalho por ${bucketUnit}`}
+                    formatValue={(value) => formatMetric(metric, value)}
+                    formatTick={(value) => formatMetricTick(metric, value)}
+                    emptyMessage="Sem treinos no período"
+                  />
+                  <SegmentedControl
+                    label="Métrica do gráfico"
+                    options={METRICS}
+                    value={metric}
+                    onChange={setMetric}
+                    className="mt-3"
+                  />
+                </Card>
+              </section>
+              <section aria-labelledby="stats-muscles">
+                <SectionHeader
+                  id="stats-muscles"
+                  title="Séries por grupo muscular"
+                />
+                <Card className="p-4">
+                  {muscles.length === 0 ? (
+                    <p className="text-callout py-4 text-center text-ink-3">
+                      Nenhuma série de trabalho no período.
+                    </p>
+                  ) : (
+                    <RankedBars
+                      label="Séries de trabalho por grupo muscular"
+                      data={muscles.map((share) => ({
+                        key: share.group,
+                        label: muscleLabel(share.group),
+                        value: share.sets,
+                      }))}
+                      formatValue={(value) =>
+                        `${formatNumber(value, 0)} séries`
+                      }
+                    />
+                  )}
+                </Card>
+              </section>
+              <section aria-labelledby="stats-achievements">
+                <SectionHeader id="stats-achievements" title="Conquistas" />
+                <Card as="div" className="divide-y divide-line">
+                  {achievements.map((achievement) => {
+                    const unlocked = achievement.progress >= achievement.target;
+                    return (
+                      <div
+                        key={achievement.title}
+                        className="flex items-center gap-3 px-4 py-3"
+                      >
+                        <span
+                          className={cx(
+                            'grid size-10 shrink-0 place-items-center rounded-full',
+                            unlocked
+                              ? 'bg-record-soft text-record'
+                              : 'bg-raised text-ink-3',
+                          )}
+                        >
+                          {unlocked ? (
+                            <Check
+                              size={20}
+                              strokeWidth={3}
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <Lock size={18} aria-hidden="true" />
+                          )}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-callout font-medium">
+                            {achievement.title}
+                            <span className="sr-only">
+                              {unlocked ? ', desbloqueada' : ', bloqueada'}
+                            </span>
+                          </p>
+                          <p className="text-footnote text-ink-2">
+                            {achievement.description}
+                          </p>
+                          {!unlocked && (
+                            <ProgressBar
+                              value={
+                                (achievement.progress / achievement.target) *
+                                100
+                              }
+                              label={`Progresso de ${achievement.title}`}
+                              thickness="sm"
+                              className="mt-2"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </Card>
+              </section>
+            </div>
+            <div className="space-y-6">
+              {gyms.length > 0 && (
+                <GymsCard
+                  days={days}
+                  onOpen={(gymId) => push({ name: 'gym', gymId })}
+                  onAll={() => push({ name: 'gyms' })}
+                />
+              )}
+              <BodyWeightCard />
+              <section aria-labelledby="stats-records">
+                <SectionHeader id="stats-records" title="Recordes pessoais" />
+                {recordsByExercise.length === 0 ? (
+                  <Card>
+                    <EmptyState
+                      icon={Award}
+                      title="Nenhum recorde ainda"
+                      message="Complete séries de trabalho nos treinos para registrar seus recordes."
+                    />
+                  </Card>
+                ) : (
+                  <Card as="div" className="divide-y divide-line">
+                    {recordsByExercise.map(([exerciseId, entry]) => (
+                      <button
+                        key={exerciseId}
+                        type="button"
+                        onClick={() =>
+                          findExercise(exerciseId) &&
+                          push({ name: 'exercise', exerciseId })
+                        }
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left active:bg-raised"
+                      >
+                        <Medal size={22} className="mt-0.5 shrink-0" />
+                        <span className="min-w-0 flex-1">
+                          <span className="text-callout block truncate font-medium">
+                            {entry.name}
+                          </span>
+                          <span className="text-footnote mt-0.5 flex flex-wrap gap-x-3 text-ink-2">
+                            {(
+                              [
+                                'weight',
+                                'estimated_1rm',
+                                'volume',
+                              ] as PersonalRecordType[]
+                            ).map((type) =>
+                              entry.records[type] ? (
+                                <span key={type}>
+                                  {RECORD_LABELS[type]}:{' '}
+                                  <span className="text-ink tabular">
+                                    {formatWeight(entry.records[type]!.value)}{' '}
+                                    kg
+                                  </span>
+                                </span>
+                              ) : null,
+                            )}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </Card>
+                )}
+              </section>
+              <OneRepMaxCalculator />
+            </div>
+          </div>
+        ) : (
+          <>
+            <section aria-labelledby="stats-chart">
+              <SectionHeader
+                id="stats-chart"
+                title={`${METRICS.find((item) => item.value === metric)?.label} por ${bucketUnit}`}
+              />
+              <Card className="p-4">
+                <BarChart
+                  data={buckets.map((bucket) => ({
+                    key: bucket.key,
+                    label: bucket.label,
+                    value: bucket.value,
+                  }))}
+                  label={`${METRICS.find((item) => item.value === metric)?.label} de séries de trabalho por ${bucketUnit}`}
+                  formatValue={(value) => formatMetric(metric, value)}
+                  formatTick={(value) => formatMetricTick(metric, value)}
+                  emptyMessage="Sem treinos no período"
+                />
+                <SegmentedControl
+                  label="Métrica do gráfico"
+                  options={METRICS}
+                  value={metric}
+                  onChange={setMetric}
+                  className="mt-3"
+                />
+              </Card>
+            </section>
+            {gyms.length > 0 && (
+              <GymsCard
+                days={days}
+                onOpen={(gymId) => push({ name: 'gym', gymId })}
+                onAll={() => push({ name: 'gyms' })}
               />
             )}
-          </Card>
-        </section>
-
-        <section aria-labelledby="stats-records">
-          <SectionHeader id="stats-records" title="Recordes pessoais" />
-          {recordsByExercise.length === 0 ? (
-            <Card>
-              <EmptyState
-                icon={Award}
-                title="Nenhum recorde ainda"
-                message="Complete séries de trabalho nos treinos para registrar seus recordes."
+            <BodyWeightCard />
+            <section aria-labelledby="stats-muscles">
+              <SectionHeader
+                id="stats-muscles"
+                title="Séries por grupo muscular"
               />
-            </Card>
-          ) : (
-            <Card as="div" className="divide-y divide-line">
-              {recordsByExercise.map(([exerciseId, entry]) => (
-                <button
-                  key={exerciseId}
-                  type="button"
-                  onClick={() =>
-                    findExercise(exerciseId) &&
-                    push({ name: 'exercise', exerciseId })
-                  }
-                  className="flex w-full items-start gap-3 px-4 py-3 text-left active:bg-raised"
-                >
-                  <Medal size={22} className="mt-0.5 shrink-0" />
-                  <span className="min-w-0 flex-1">
-                    <span className="text-callout block truncate font-medium">
-                      {entry.name}
-                    </span>
-                    <span className="text-footnote mt-0.5 flex flex-wrap gap-x-3 text-ink-2">
-                      {(
-                        [
-                          'weight',
-                          'estimated_1rm',
-                          'volume',
-                        ] as PersonalRecordType[]
-                      ).map((type) =>
-                        entry.records[type] ? (
-                          <span key={type}>
-                            {RECORD_LABELS[type]}:{' '}
-                            <span className="text-ink tabular">
-                              {formatWeight(entry.records[type]!.value)} kg
-                            </span>
-                          </span>
-                        ) : null,
-                      )}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </Card>
-          )}
-        </section>
-
-        <section aria-labelledby="stats-achievements">
-          <SectionHeader id="stats-achievements" title="Conquistas" />
-          <Card as="div" className="divide-y divide-line">
-            {achievements.map((achievement) => {
-              const unlocked = achievement.progress >= achievement.target;
-              return (
-                <div
-                  key={achievement.title}
-                  className="flex items-center gap-3 px-4 py-3"
-                >
-                  <span
-                    className={cx(
-                      'grid size-10 shrink-0 place-items-center rounded-full',
-                      unlocked
-                        ? 'bg-record-soft text-record'
-                        : 'bg-raised text-ink-3',
-                    )}
-                  >
-                    {unlocked ? (
-                      <Check size={20} strokeWidth={3} aria-hidden="true" />
-                    ) : (
-                      <Lock size={18} aria-hidden="true" />
-                    )}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-callout font-medium">
-                      {achievement.title}
-                      <span className="sr-only">
-                        {unlocked ? ', desbloqueada' : ', bloqueada'}
+              <Card className="p-4">
+                {muscles.length === 0 ? (
+                  <p className="text-callout py-4 text-center text-ink-3">
+                    Nenhuma série de trabalho no período.
+                  </p>
+                ) : (
+                  <RankedBars
+                    label="Séries de trabalho por grupo muscular"
+                    data={muscles.map((share) => ({
+                      key: share.group,
+                      label: muscleLabel(share.group),
+                      value: share.sets,
+                    }))}
+                    formatValue={(value) => `${formatNumber(value, 0)} séries`}
+                  />
+                )}
+              </Card>
+            </section>
+            <section aria-labelledby="stats-records">
+              <SectionHeader id="stats-records" title="Recordes pessoais" />
+              {recordsByExercise.length === 0 ? (
+                <Card>
+                  <EmptyState
+                    icon={Award}
+                    title="Nenhum recorde ainda"
+                    message="Complete séries de trabalho nos treinos para registrar seus recordes."
+                  />
+                </Card>
+              ) : (
+                <Card as="div" className="divide-y divide-line">
+                  {recordsByExercise.map(([exerciseId, entry]) => (
+                    <button
+                      key={exerciseId}
+                      type="button"
+                      onClick={() =>
+                        findExercise(exerciseId) &&
+                        push({ name: 'exercise', exerciseId })
+                      }
+                      className="flex w-full items-start gap-3 px-4 py-3 text-left active:bg-raised"
+                    >
+                      <Medal size={22} className="mt-0.5 shrink-0" />
+                      <span className="min-w-0 flex-1">
+                        <span className="text-callout block truncate font-medium">
+                          {entry.name}
+                        </span>
+                        <span className="text-footnote mt-0.5 flex flex-wrap gap-x-3 text-ink-2">
+                          {(
+                            [
+                              'weight',
+                              'estimated_1rm',
+                              'volume',
+                            ] as PersonalRecordType[]
+                          ).map((type) =>
+                            entry.records[type] ? (
+                              <span key={type}>
+                                {RECORD_LABELS[type]}:{' '}
+                                <span className="text-ink tabular">
+                                  {formatWeight(entry.records[type]!.value)} kg
+                                </span>
+                              </span>
+                            ) : null,
+                          )}
+                        </span>
                       </span>
-                    </p>
-                    <p className="text-footnote text-ink-2">
-                      {achievement.description}
-                    </p>
-                    {!unlocked && (
-                      <ProgressBar
-                        value={
-                          (achievement.progress / achievement.target) * 100
-                        }
-                        label={`Progresso de ${achievement.title}`}
-                        thickness="sm"
-                        className="mt-2"
-                      />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </Card>
-        </section>
-
-        <OneRepMaxCalculator />
+                    </button>
+                  ))}
+                </Card>
+              )}
+            </section>
+            <section aria-labelledby="stats-achievements">
+              <SectionHeader id="stats-achievements" title="Conquistas" />
+              <Card as="div" className="divide-y divide-line">
+                {achievements.map((achievement) => {
+                  const unlocked = achievement.progress >= achievement.target;
+                  return (
+                    <div
+                      key={achievement.title}
+                      className="flex items-center gap-3 px-4 py-3"
+                    >
+                      <span
+                        className={cx(
+                          'grid size-10 shrink-0 place-items-center rounded-full',
+                          unlocked
+                            ? 'bg-record-soft text-record'
+                            : 'bg-raised text-ink-3',
+                        )}
+                      >
+                        {unlocked ? (
+                          <Check size={20} strokeWidth={3} aria-hidden="true" />
+                        ) : (
+                          <Lock size={18} aria-hidden="true" />
+                        )}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-callout font-medium">
+                          {achievement.title}
+                          <span className="sr-only">
+                            {unlocked ? ', desbloqueada' : ', bloqueada'}
+                          </span>
+                        </p>
+                        <p className="text-footnote text-ink-2">
+                          {achievement.description}
+                        </p>
+                        {!unlocked && (
+                          <ProgressBar
+                            value={
+                              (achievement.progress / achievement.target) * 100
+                            }
+                            label={`Progresso de ${achievement.title}`}
+                            thickness="sm"
+                            className="mt-2"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </Card>
+            </section>
+            <OneRepMaxCalculator />
+          </>
+        )}
       </div>
     </>
   );

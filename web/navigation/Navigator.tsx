@@ -256,7 +256,7 @@ function StackScreen({
           if (leaving && event.target === event.currentTarget) onLeft?.();
         }}
         className={cx(
-          'fixed inset-0 overflow-y-auto overscroll-contain bg-canvas',
+          'fixed inset-y-0 right-0 left-[var(--sidebar-width)] overflow-y-auto overscroll-contain bg-canvas',
           leaving ? 'animate-push-out' : 'animate-push-in',
         )}
         style={{ zIndex: 30 + depth, paddingBottom: bottomInset }}
