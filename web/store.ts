@@ -42,6 +42,7 @@ import {
 } from './lib/training';
 import { removeUntouchedSamples } from './lib/samples';
 import { moveFolder, nextFolderOrder, sortFolders } from './lib/folders';
+import { suggestGymId } from './lib/gyms';
 import type { ImportPlan, MeasurementPlan } from './lib/importCsv';
 import type {
   ActiveExerciseSession,
@@ -49,6 +50,7 @@ import type {
   BodyMeasurement,
   CompletedWorkout,
   GoalItem,
+  Gym,
   HydrationLog,
   MealItem,
   NotificationPrefs,
@@ -90,12 +92,15 @@ type RemoteCollection =
   | 'meals'
   | 'custom_exercises'
   | 'measurements'
-  | 'folders';
+  | 'folders'
+  | 'gyms';
 
 interface PersistedData {
   templates: WorkoutTemplateItem[];
   /** Routine folders, in display order. */
   folders: RoutineFolder[];
+  /** Places where the person trains, by name. */
+  gyms: Gym[];
   history: CompletedWorkout[];
   prs: PersonalRecordItem[];
   goals: GoalItem[];
@@ -161,6 +166,7 @@ function defaultData(user: User | null): PersistedData {
     // Every account starts empty: no sample routines, goals or favorites.
     templates: [],
     folders: [],
+    gyms: [],
     history: [],
     prs: [],
     goals: [],
@@ -187,6 +193,10 @@ function defaultData(user: User | null): PersistedData {
     pendingDeletes: [],
     lastSyncedAt: null,
   };
+}
+
+function sortGyms(gyms: Gym[]): Gym[] {
+  return [...gyms].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }
 
 function asArray<T>(value: unknown, fallback: T[]): T[] {
@@ -251,6 +261,7 @@ function loadData(user: User | null): PersistedData {
     ...defaults,
     templates,
     folders: sortFolders(asArray<RoutineFolder>(raw.folders, [])),
+    gyms: sortGyms(asArray<Gym>(raw.gyms, [])),
     history,
     prs: dedupeRecords(repaired.records),
     goals,
@@ -299,6 +310,7 @@ function pickPersisted(source: AppState): PersistedData {
   return {
     templates: source.templates,
     folders: source.folders,
+    gyms: source.gyms,
     history: source.history,
     prs: source.prs,
     goals: source.goals,
@@ -566,6 +578,11 @@ async function runSync(user: User) {
     }
   }
 
+  await syncList<Gym>(
+    'gyms',
+    () => state.gyms,
+    (items) => ({ gyms: sortGyms(items) }),
+  );
   await syncList<RoutineFolder>(
     'folders',
     () => state.folders,
@@ -1064,6 +1081,9 @@ export const actions = {
     const now = new Date();
     const workout = buildCompletedWorkout(active, now, uid('hist'));
     if (workout.exercises.length === 0) return null;
+    // Pre-filled with the usual gym; the summary lets the person change it.
+    const gymId = suggestGymId(state.history, state.gyms, active.templateId);
+    if (gymId) workout.gymId = gymId;
 
     const { records, achieved, replacedIds } = detectPersonalRecords(
       workout,
@@ -1162,6 +1182,76 @@ export const actions = {
 
   moveTemplateToFolder: (id: string, folderId: string | null) => {
     actions.updateTemplate(id, { folderId: folderId ?? undefined });
+  },
+
+  /* Gyms */
+  createGym: (name: string): string => {
+    const gym: Gym = {
+      id: uid('gym'),
+      name: name.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    setState({ gyms: sortGyms([...state.gyms, gym]) });
+    remoteSet(['gyms', gym.id], gym);
+    return gym.id;
+  },
+
+  renameGym: (id: string, name: string) => {
+    const existing = state.gyms.find((gym) => gym.id === id);
+    const trimmed = name.trim();
+    if (!existing || !trimmed) return;
+    const updated = { ...existing, name: trimmed };
+    setState({
+      gyms: sortGyms(state.gyms.map((gym) => (gym.id === id ? updated : gym))),
+    });
+    remoteSet(['gyms', id], updated);
+  },
+
+  /**
+   * Deletes a gym. Workouts keep their (now unknown) `gymId` and simply show
+   * no gym, so deleting never rewrites the whole history.
+   */
+  deleteGym: (id: string) => {
+    setState({ gyms: state.gyms.filter((gym) => gym.id !== id) });
+    remoteDelete('gyms', id);
+  },
+
+  /** Sets (or clears, with `null`) the gym of a finished workout. */
+  setWorkoutGym: (workoutId: string, gymId: string | null) => {
+    const existing = state.history.find((workout) => workout.id === workoutId);
+    if (!existing || (existing.gymId ?? null) === gymId) return;
+    const updated: CompletedWorkout = { ...existing };
+    if (gymId) updated.gymId = gymId;
+    else delete updated.gymId;
+    setState({
+      history: state.history.map((workout) =>
+        workout.id === workoutId ? updated : workout,
+      ),
+    });
+    // Full write so clearing the gym also clears it in the cloud.
+    remoteSet(['history', workoutId], updated);
+  },
+
+  /**
+   * Puts every workout without a (known) gym at `gymId`, e.g. history
+   * imported from another app. Returns how many workouts changed.
+   */
+  assignGymToUnassigned: (gymId: string): number => {
+    const known = new Set(state.gyms.map((gym) => gym.id));
+    if (!known.has(gymId)) return 0;
+    const changed: CompletedWorkout[] = [];
+    const history = state.history.map((workout) => {
+      if (workout.gymId && known.has(workout.gymId)) return workout;
+      const updated = { ...workout, gymId };
+      changed.push(updated);
+      return updated;
+    });
+    if (changed.length === 0) return 0;
+    setState({ history });
+    changed.forEach((workout) =>
+      remoteSet(['history', workout.id], { gymId }, true),
+    );
+    return changed.length;
   },
 
   /* Routine folders */

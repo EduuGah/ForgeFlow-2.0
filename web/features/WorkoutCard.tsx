@@ -1,4 +1,4 @@
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, MapPin } from 'lucide-react';
 import type { CompletedWorkout } from '../lib/types';
 import {
   formatDurationMinutes,
@@ -7,7 +7,8 @@ import {
   pluralize,
 } from '../lib/format';
 import { muscleCode } from '../lib/training';
-import { findExercise } from '../store';
+import { findExercise, useStoreValue } from '../store';
+import { gymOf } from '../lib/gyms';
 import { Medal } from '../ui/Feedback';
 import { cx } from '../ui/core';
 
@@ -55,6 +56,10 @@ export function WorkoutCard({
   const muscles = musclesOf(workout);
   const names = workout.exercises.map((exercise) => exercise.exerciseName);
   const isToday = date.toDateString() === new Date().toDateString();
+  const gym = gymOf(
+    workout,
+    useStoreValue((current) => current.gyms),
+  );
 
   return (
     <button
@@ -95,6 +100,12 @@ export function WorkoutCard({
           <span>{formatWeight(workout.totalVolumeKg)} kg</span>
           <span aria-hidden="true">·</span>
           <span>{pluralize(workout.totalSets, 'série', 'séries')}</span>
+          {gym && (
+            <span className="inline-flex min-w-0 items-center gap-1">
+              <MapPin size={13} className="shrink-0" aria-hidden="true" />
+              <span className="truncate">{gym.name}</span>
+            </span>
+          )}
           {records > 0 && (
             <span className="inline-flex items-center gap-1 font-semibold text-brand-ink">
               <Medal size={14} /> {formatNumber(records, 0)}{' '}

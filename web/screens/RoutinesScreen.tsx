@@ -28,9 +28,9 @@ import { muscleCode } from '../lib/training';
 import { useNavigation } from '../navigation/Navigator';
 import { useWorkoutLauncher } from '../features/useWorkoutLauncher';
 import { OfflineNotice } from '../features/StatusBits';
+import { NameSheet } from '../features/NameSheet';
 import { Button, IconButton } from '../ui/Button';
 import { EmptyState } from '../ui/Feedback';
-import { TextField } from '../ui/Form';
 import {
   Card,
   ListGroup,
@@ -40,7 +40,6 @@ import {
 } from '../ui/Layout';
 import {
   ActionSheet,
-  Sheet,
   useConfirm,
   useToast,
   type SheetAction,
@@ -486,53 +485,23 @@ function FolderNameSheet({
   onClose: () => void;
   onSave: (name: string) => void;
 }) {
-  const open = state !== null;
-  const initial = state?.mode === 'rename' ? state.folder.name : '';
-  const [value, setValue] = useState(initial);
-  const [wasOpen, setWasOpen] = useState(open);
-  if (wasOpen !== open) {
-    setWasOpen(open);
-    if (open) setValue(initial);
-  }
   const renaming = state?.mode === 'rename';
-  const save = () => {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    onClose();
-    onSave(trimmed);
-  };
   return (
-    <Sheet
-      open={open}
+    <NameSheet
+      open={state !== null}
       onClose={onClose}
+      onSave={onSave}
       title={renaming ? 'Renomear pasta' : 'Nova pasta'}
       description={
         renaming
           ? undefined
           : 'Agrupe rotinas por academia, fase do treino ou como preferir.'
       }
-      footer={
-        <Button size="lg" block disabled={!value.trim()} onClick={save}>
-          {renaming ? 'Salvar nome' : 'Criar pasta'}
-        </Button>
-      }
-    >
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          save();
-        }}
-      >
-        <TextField
-          label="Nome da pasta"
-          value={value}
-          maxLength={60}
-          placeholder="Ex.: Academia do centro"
-          autoFocus
-          onChange={(event) => setValue(event.target.value)}
-        />
-      </form>
-    </Sheet>
+      label="Nome da pasta"
+      placeholder="Ex.: Academia do centro"
+      initial={state?.mode === 'rename' ? state.folder.name : ''}
+      saveLabel={renaming ? 'Salvar nome' : 'Criar pasta'}
+    />
   );
 }
 

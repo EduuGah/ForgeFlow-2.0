@@ -1,17 +1,36 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { History } from 'lucide-react';
 import { useAppStore } from '../store';
 import type { CompletedWorkout } from '../lib/types';
 import { formatDurationMinutes, formatWeight, pluralize } from '../lib/format';
+import { filterByGym, type GymFilter } from '../lib/gyms';
 import { useNavigation } from '../navigation/Navigator';
 import { WorkoutCard } from '../features/WorkoutCard';
 import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/Feedback';
+import { SegmentedControl } from '../ui/Form';
 import { StackHeader } from '../ui/Layout';
 
-export function HistoryScreen() {
-  const { history } = useAppStore();
+export function HistoryScreen({
+  gymFilter: initialFilter = 'all',
+}: {
+  gymFilter?: GymFilter;
+}) {
+  const { history, gyms } = useAppStore();
   const { pop, push, selectTab } = useNavigation();
+  const [gymFilter, setGymFilter] = useState<GymFilter>(initialFilter);
+  // Ordinals count the whole diary, also while a gym filter is on.
+  const ordinals = useMemo(
+    () =>
+      new Map(
+        history.map((workout, index) => [workout.id, history.length - index]),
+      ),
+    [history],
+  );
+  const shown = useMemo(
+    () => filterByGym(history, gyms, gymFilter),
+    [history, gyms, gymFilter],
+  );
 
   const months = useMemo(() => {
     const groups: {
@@ -19,7 +38,7 @@ export function HistoryScreen() {
       label: string;
       workouts: { workout: CompletedWorkout; ordinal: number }[];
     }[] = [];
-    history.forEach((workout, index) => {
+    shown.forEach((workout) => {
       const date = new Date(workout.completedAt);
       const key = `${date.getFullYear()}-${date.getMonth()}`;
       let group = groups.at(-1);
@@ -34,15 +53,43 @@ export function HistoryScreen() {
         };
         groups.push(group);
       }
-      group.workouts.push({ workout, ordinal: history.length - index });
+      group.workouts.push({
+        workout,
+        ordinal: ordinals.get(workout.id) ?? 0,
+      });
     });
     return groups;
-  }, [history]);
+  }, [shown, ordinals]);
 
   return (
     <>
       <StackHeader title="Diário de treinos" onBack={pop} />
       <div className="app-column">
+        {gyms.length > 0 && history.length > 0 && (
+          <SegmentedControl
+            label="Filtrar por academia"
+            options={[
+              { value: 'all', label: 'Todas' },
+              ...gyms.map((gym) => ({ value: gym.id, label: gym.name })),
+              { value: 'none', label: 'Sem academia' },
+            ]}
+            value={gymFilter}
+            onChange={setGymFilter}
+            className="px-4 pt-3"
+          />
+        )}
+        {history.length > 0 && shown.length === 0 && (
+          <EmptyState
+            icon={History}
+            title="Nenhum treino aqui"
+            message={
+              gymFilter === 'none'
+                ? 'Todos os treinos já têm academia.'
+                : 'Nenhum treino nesta academia ainda.'
+            }
+            className="pt-16"
+          />
+        )}
         {history.length === 0 ? (
           <EmptyState
             icon={History}

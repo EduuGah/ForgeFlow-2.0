@@ -5,6 +5,7 @@ import {
   Check,
   ChevronRight,
   Lock,
+  MapPin,
   Ruler,
 } from 'lucide-react';
 import { findExercise, useAppStore } from '../store';
@@ -31,6 +32,7 @@ import type { PersonalRecordItem, PersonalRecordType } from '../lib/types';
 import { useNavigation } from '../navigation/Navigator';
 import { BarChart, LineChart, RankedBars } from '../ui/Charts';
 import { measurementSeries } from '../lib/measurements';
+import { filterByGym, type GymFilter } from '../lib/gyms';
 import { Button } from '../ui/Button';
 import { EmptyState, Medal, ProgressBar } from '../ui/Feedback';
 import { NumberField, SegmentedControl } from '../ui/Form';
@@ -68,11 +70,21 @@ function formatMetricTick(metric: ChartMetric, value: number): string {
 
 /** Evolution tab: one period filter above everything it scopes. */
 export function ProgressScreen() {
-  const { history, prs, streakWeeks } = useAppStore();
+  const { history: allHistory, prs, streakWeeks, gyms } = useAppStore();
   const { push } = useNavigation();
   const [period, setPeriod] = useState<PeriodDays>('30');
   const [metric, setMetric] = useState<ChartMetric>('volume');
+  const [gymFilter, setGymFilter] = useState<GymFilter>('all');
   const days = Number(period);
+  // The gym filter scopes the period numbers, chart and muscles; records and
+  // achievements stay global. A deleted gym falls back to every workout.
+  const activeGym = gyms.some((gym) => gym.id === gymFilter)
+    ? gymFilter
+    : 'all';
+  const history = useMemo(
+    () => filterByGym(allHistory, gyms, activeGym),
+    [allHistory, gyms, activeGym],
+  );
 
   const comparison = useMemo(
     () => comparePeriods(history, days),
@@ -122,7 +134,7 @@ export function ProgressScreen() {
   }, [prs]);
 
   const { current, previous } = comparison;
-  const totalVolume = history.reduce(
+  const totalVolume = allHistory.reduce(
     (total, workout) => total + workout.totalVolumeKg,
     0,
   );
@@ -131,7 +143,7 @@ export function ProgressScreen() {
     {
       title: 'Primeiro treino',
       description: 'Conclua seu primeiro treino.',
-      progress: Math.min(1, history.length),
+      progress: Math.min(1, allHistory.length),
       target: 1,
     },
     {
@@ -149,7 +161,7 @@ export function ProgressScreen() {
     {
       title: '10 treinos',
       description: 'Finalize 10 sessões completas.',
-      progress: Math.min(10, history.length),
+      progress: Math.min(10, allHistory.length),
       target: 10,
     },
     {
@@ -177,6 +189,18 @@ export function ProgressScreen() {
             value={period}
             onChange={setPeriod}
           />
+          {gyms.length > 0 && (
+            <SegmentedControl
+              label="Academia"
+              options={[
+                { value: 'all', label: 'Todas as academias' },
+                ...gyms.map((gym) => ({ value: gym.id, label: gym.name })),
+              ]}
+              value={activeGym}
+              onChange={setGymFilter}
+              className="mt-2"
+            />
+          )}
         </div>
 
         <Card className="grid grid-cols-2 gap-x-4 gap-y-5 p-4">
@@ -249,6 +273,14 @@ export function ProgressScreen() {
             />
           </Card>
         </section>
+
+        {gyms.length > 0 && (
+          <GymsCard
+            days={days}
+            onOpen={(gymId) => push({ name: 'gym', gymId })}
+            onAll={() => push({ name: 'gyms' })}
+          />
+        )}
 
         <BodyWeightCard />
 
@@ -433,6 +465,99 @@ function OneRepMaxCalculator() {
             tone="brand"
           />
         </div>
+      </Card>
+    </section>
+  );
+}
+
+/** Where the period's workouts happened, one row per gym. */
+function GymsCard({
+  days,
+  onOpen,
+  onAll,
+}: {
+  days: number;
+  onOpen: (gymId: string) => void;
+  onAll: () => void;
+}) {
+  const { history, gyms } = useAppStore();
+  const rows = useMemo(() => {
+    const since = addDays(startOfDay(new Date()), -(days - 1)).getTime();
+    const inPeriod = history.filter(
+      (workout) => new Date(workout.completedAt).getTime() >= since,
+    );
+    return gyms
+      .map((gym) => {
+        const visits = inPeriod.filter((workout) => workout.gymId === gym.id);
+        return {
+          gym,
+          workouts: visits.length,
+          minutes: visits.reduce((sum, w) => sum + w.durationMinutes, 0),
+        };
+      })
+      .filter((row) => row.workouts > 0)
+      .sort((a, b) => b.workouts - a.workouts || b.minutes - a.minutes);
+  }, [history, gyms, days]);
+  const max = Math.max(1, ...rows.map((row) => row.workouts));
+
+  return (
+    <section aria-labelledby="stats-gyms">
+      <SectionHeader
+        id="stats-gyms"
+        title="Por academia"
+        action={
+          <Button variant="ghost" size="sm" onClick={onAll}>
+            Academias
+          </Button>
+        }
+      />
+      <Card as="div" className="divide-y divide-line">
+        {rows.length === 0 ? (
+          <p className="text-callout px-4 py-5 text-center text-ink-3">
+            Nenhum treino com academia no período.
+          </p>
+        ) : (
+          rows.map(({ gym, workouts, minutes }) => (
+            <button
+              key={gym.id}
+              type="button"
+              onClick={() => onOpen(gym.id)}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-raised"
+            >
+              <MapPin
+                size={20}
+                className="shrink-0 text-brand-ink"
+                aria-hidden="true"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline justify-between gap-3">
+                  <span className="text-callout truncate font-medium">
+                    {gym.name}
+                  </span>
+                  <span className="text-footnote shrink-0 text-ink-2 tabular">
+                    {formatNumber(workouts, 0)}{' '}
+                    {workouts === 1 ? 'treino' : 'treinos'} ·{' '}
+                    {formatDurationMinutes(minutes)}
+                  </span>
+                </span>
+                <span
+                  className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-raised"
+                  aria-hidden="true"
+                >
+                  <span
+                    className="block h-full rounded-full bg-brand"
+                    style={{ width: `${(workouts / max) * 100}%` }}
+                  />
+                </span>
+              </span>
+              <ChevronRight
+                size={18}
+                className="shrink-0 text-ink-3"
+                aria-hidden="true"
+              />
+            </button>
+          ))
+        )}
       </Card>
     </section>
   );
