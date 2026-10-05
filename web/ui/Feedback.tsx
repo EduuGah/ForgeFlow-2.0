@@ -467,3 +467,32 @@ export function Medal({
     </svg>
   );
 }
+
+/** Inline "PR" chip for a set that set personal records (`labels` names them). */
+export function RecordBadge({
+  labels,
+  large = false,
+  className,
+}: {
+  labels: string[];
+  large?: boolean;
+  className?: string;
+}) {
+  if (labels.length === 0) return null;
+  return (
+    <span
+      className={cx(
+        'inline-flex items-center gap-1 rounded-sm bg-record-soft font-semibold text-ink',
+        large
+          ? 'text-footnote py-1 pr-2 pl-1.5'
+          : 'text-micro py-0.5 pr-1.5 pl-1',
+        className,
+      )}
+      title={labels.join(', ')}
+    >
+      <Medal size={large ? 16 : 13} />
+      <span aria-hidden="true">PR</span>
+      <span className="sr-only">Recorde pessoal: {labels.join(', ')}</span>
+    </span>
+  );
+}

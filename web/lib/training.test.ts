@@ -8,20 +8,26 @@ import {
 } from './rest';
 import {
   alignPreviousSets,
+  beatsRecord,
+  bestRecordValues,
   buildCompletedWorkout,
   computeStreakWeeks,
   dedupeRecords,
+  describeRecord,
   detectPersonalRecords,
   goalCurrentValue,
   hydrationDate,
   itemsOnDay,
   mergeById,
   previousSetsFor,
+  recordOrigin,
+  recordsBySet,
   repairExerciseRefs,
   setLabels,
   suggestNextTemplate,
   summarizeActiveWorkout,
   weekTrainingDays,
+  workoutSetRecords,
 } from './training';
 import type {
   ActiveWorkoutState,
@@ -211,6 +217,94 @@ describe('detectPersonalRecords', () => {
     ]);
     expect(deduped).toHaveLength(1);
     expect(deduped[0].value).toBe(65);
+  });
+});
+
+describe('records per set', () => {
+  const finished = buildCompletedWorkout(
+    activeWorkout(),
+    new Date('2026-09-21T21:30:00.000Z'),
+    'hist-1',
+  );
+  const bench = finished.exercises[0];
+
+  it('puts each record type on the first set reaching the best value', () => {
+    const flags = recordsBySet(
+      [
+        { counts: true, weightKg: 60, repetitions: 8 },
+        { counts: true, weightKg: 62.5, repetitions: 6 },
+        { counts: false, weightKg: 100, repetitions: 5 },
+        { counts: true, weightKg: 62.5, repetitions: 6 },
+      ],
+      () => true,
+    );
+    // 60×8 has the best volume and 1RM; 62,5×6 the heaviest weight; the
+    // pending 100 kg set and the repeated 62,5×6 hold nothing.
+    expect(flags).toEqual([['estimated_1rm', 'volume'], ['weight'], [], []]);
+  });
+
+  it('only flags values that beat the stored best', () => {
+    const bests = bestRecordValues([
+      {
+        id: 'pr-w',
+        exerciseId: BENCH,
+        exerciseName: 'Supino',
+        type: 'weight',
+        value: 62.5,
+        unit: 'kg',
+        date: '2026-09-01T00:00:00.000Z',
+      },
+    ]).get(BENCH);
+    expect(beatsRecord(bests, 'weight', 62.5)).toBe(false);
+    expect(beatsRecord(bests, 'weight', 63)).toBe(true);
+    expect(beatsRecord(bests, 'volume', 1)).toBe(true);
+    expect(beatsRecord(undefined, 'weight', 1)).toBe(true);
+  });
+
+  it('marks the sets behind the records listed on a finished workout', () => {
+    const { achieved } = detectPersonalRecords(finished, []);
+    const withRecords = {
+      ...finished,
+      prsAchieved: achieved
+        .filter((record) => record.type !== 'volume')
+        .map(describeRecord),
+    };
+    expect(workoutSetRecords(withRecords, bench)).toEqual([
+      [],
+      ['estimated_1rm'],
+      ['weight'],
+    ]);
+    expect(workoutSetRecords(finished, bench)).toEqual([[], [], []]);
+  });
+
+  it('finds the workout and set behind a record', () => {
+    const { records } = detectPersonalRecords(finished, []);
+    const volume = records.find((record) => record.type === 'volume')!;
+    expect(recordOrigin(volume, [finished])).toEqual({
+      workoutId: 'hist-1',
+      workoutName: 'Upper A',
+      completedAt: finished.completedAt,
+      set: { type: 'working', weightKg: 60, repetitions: 8 },
+    });
+    expect(recordOrigin(volume, [])).toBeNull();
+  });
+
+  it('matches records without a workout id to the first scoring workout', () => {
+    const legacy: PersonalRecordItem = {
+      id: 'pr-legacy',
+      exerciseId: BENCH,
+      exerciseName: 'Supino',
+      type: 'weight',
+      value: 62.5,
+      unit: 'kg',
+      date: 'Hoje',
+    };
+    const later = {
+      ...finished,
+      id: 'hist-2',
+      completedAt: '2026-09-28T21:30:00.000Z',
+    };
+    expect(recordOrigin(legacy, [later, finished])?.workoutId).toBe('hist-1');
   });
 });
 

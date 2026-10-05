@@ -258,19 +258,10 @@ export function detectPersonalRecords(
     );
     if (working.length === 0) continue;
 
-    const candidates: Record<PersonalRecordType, number> = {
-      weight: Math.max(...working.map((set) => set.weightKg)),
-      estimated_1rm: Math.max(
-        ...working.map((set) =>
-          estimateOneRepMax(set.weightKg, set.repetitions),
-        ),
-      ),
-      volume: Math.max(...working.map(setVolume)),
-      repetitions: 0,
-    };
-
     for (const type of TRACKED_RECORDS) {
-      const value = candidates[type];
+      const value = Math.max(
+        ...working.map((set) => setRecordValue(type, set)),
+      );
       if (!(value > 0)) continue;
       const index = records.findIndex(
         (record) =>
@@ -347,12 +338,168 @@ export function replayRecords(history: CompletedWorkout[]): {
   return { records, achievedByWorkout };
 }
 
-export function describeRecord(record: PersonalRecordItem): string {
+export function describeRecord(
+  record: Pick<PersonalRecordItem, 'exerciseName' | 'type' | 'value'>,
+): string {
   return `${record.exerciseName}: ${RECORD_LABELS[record.type]} ${formatKgPlain(record.value)} kg`;
 }
 
 function formatKgPlain(value: number): string {
   return String(Math.round(value * 10) / 10).replace('.', ',');
+}
+
+/** The value a single set scores for a record type. */
+export function setRecordValue(
+  type: PersonalRecordType,
+  set: { weightKg: number; repetitions: number },
+): number {
+  if (type === 'weight') return set.weightKg;
+  if (type === 'estimated_1rm')
+    return estimateOneRepMax(set.weightKg, set.repetitions);
+  if (type === 'volume') return setVolume(set);
+  return set.repetitions;
+}
+
+function roundRecord(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+export interface RecordSetInput {
+  /** Completed working set (warm-ups and pending sets never hold records). */
+  counts: boolean;
+  weightKg: number;
+  repetitions: number;
+}
+
+/**
+ * Which record types each set of one exercise holds in a session: per type,
+ * the first set reaching the session's best value, when `beats` accepts that
+ * value. Mirrors `detectPersonalRecords`, so the medal lands on the set the
+ * workout summary credits.
+ */
+export function recordsBySet(
+  sets: RecordSetInput[],
+  beats: (type: PersonalRecordType, value: number) => boolean,
+): PersonalRecordType[][] {
+  const result = sets.map((): PersonalRecordType[] => []);
+  for (const type of TRACKED_RECORDS) {
+    let best = 0;
+    let bestIndex = -1;
+    sets.forEach((set, index) => {
+      if (!set.counts || set.repetitions <= 0) return;
+      const value = setRecordValue(type, set);
+      if (value > best) {
+        best = value;
+        bestIndex = index;
+      }
+    });
+    if (bestIndex !== -1 && beats(type, best)) result[bestIndex].push(type);
+  }
+  return result;
+}
+
+export type RecordBests = Partial<Record<PersonalRecordType, number>>;
+
+/** Best stored value per exercise and record type. */
+export function bestRecordValues(
+  records: PersonalRecordItem[],
+): Map<string, RecordBests> {
+  const map = new Map<string, RecordBests>();
+  for (const record of records) {
+    const bests = map.get(record.exerciseId) ?? {};
+    bests[record.type] = Math.max(bests[record.type] ?? 0, record.value);
+    map.set(record.exerciseId, bests);
+  }
+  return map;
+}
+
+/** A value beats the stored best (the first logged value always does). */
+export function beatsRecord(
+  bests: RecordBests | undefined,
+  type: PersonalRecordType,
+  value: number,
+): boolean {
+  const previous = bests?.[type];
+  return previous === undefined || value > previous;
+}
+
+/** Record types each set of a finished exercise set in that workout. */
+export function workoutSetRecords(
+  workout: Pick<CompletedWorkout, 'prsAchieved'>,
+  exercise: Pick<CompletedExercise, 'exerciseName' | 'sets'>,
+): PersonalRecordType[][] {
+  const sets = exercise.sets ?? [];
+  if (workout.prsAchieved.length === 0) return sets.map(() => []);
+  const achieved = new Set(workout.prsAchieved);
+  return recordsBySet(
+    sets.map((set) => ({
+      counts: set.type === 'working',
+      weightKg: set.weightKg,
+      repetitions: set.repetitions,
+    })),
+    (type, value) =>
+      achieved.has(
+        describeRecord({
+          exerciseName: exercise.exerciseName,
+          type,
+          value: roundRecord(value),
+        }),
+      ),
+  );
+}
+
+export interface RecordOrigin {
+  workoutId: string;
+  workoutName: string;
+  completedAt: string;
+  /** The set that scored the record, when the workout kept per-set data. */
+  set?: CompletedSet;
+}
+
+/**
+ * Where a record was set: its workout and the set that scored it. Records
+ * without a workout id (older versions) are matched to the first workout
+ * with a set scoring the same value.
+ */
+export function recordOrigin(
+  record: PersonalRecordItem,
+  history: CompletedWorkout[],
+): RecordOrigin | null {
+  const scoringSet = (workout: CompletedWorkout) => {
+    for (const exercise of workout.exercises) {
+      if (exercise.exerciseId !== record.exerciseId || !exercise.sets) continue;
+      const set = exercise.sets.find(
+        (item) =>
+          item.type === 'working' &&
+          item.repetitions > 0 &&
+          Math.abs(
+            roundRecord(setRecordValue(record.type, item)) - record.value,
+          ) < 0.05,
+      );
+      if (set) return set;
+    }
+    return undefined;
+  };
+  const origin = (workout: CompletedWorkout, set?: CompletedSet) => ({
+    workoutId: workout.id,
+    workoutName: workout.name,
+    completedAt: workout.completedAt,
+    ...(set ? { set } : {}),
+  });
+
+  if (record.workoutId) {
+    const workout = history.find((item) => item.id === record.workoutId);
+    return workout ? origin(workout, scoringSet(workout)) : null;
+  }
+  const ordered = [...history].sort(
+    (a, b) =>
+      new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime(),
+  );
+  for (const workout of ordered) {
+    const set = scoringSet(workout);
+    if (set) return origin(workout, set);
+  }
+  return null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -607,6 +754,8 @@ export interface ExerciseSession {
   completedAt: string;
   notes?: string;
   sets: CompletedSet[] | null;
+  /** Record types each set achieved in that workout (parallel to `sets`). */
+  setRecords: PersonalRecordType[][];
   bestWeightKg: number;
   bestOneRepMax: number;
   volumeKg: number;
@@ -633,6 +782,7 @@ export function exerciseSessions(
       completedAt: workout.completedAt,
       notes: entry.notes,
       sets: entry.sets ?? null,
+      setRecords: workoutSetRecords(workout, entry),
       bestWeightKg: entry.bestWeightKg,
       bestOneRepMax: working.reduce(
         (best, set) =>

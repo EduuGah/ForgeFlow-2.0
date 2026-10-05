@@ -22,17 +22,19 @@ import {
   exerciseSessions,
   muscleLabel,
   recordDate,
+  recordOrigin,
   setLabels,
   type ExerciseSession,
+  type RecordOrigin,
 } from '../lib/training';
-import type { PersonalRecordType } from '../lib/types';
+import type { PersonalRecordItem, PersonalRecordType } from '../lib/types';
 import { useNavigation } from '../navigation/Navigator';
 import { exerciseGuide } from '../data/guides';
 import { exerciseMedia } from '../data/exerciseMedia';
 import { ExerciseAnimation } from '../features/ExerciseAnimation';
 import { Button, IconButton } from '../ui/Button';
 import { LineChart } from '../ui/Charts';
-import { EmptyState, ExerciseThumb, Medal } from '../ui/Feedback';
+import { EmptyState, ExerciseThumb, Medal, RecordBadge } from '../ui/Feedback';
 import { SegmentedControl, Tabs } from '../ui/Form';
 import { StackHeader } from '../ui/Layout';
 import { useToast } from '../ui/Overlay';
@@ -252,31 +254,23 @@ export function ExerciseDetailView({
                 ['weight', 'estimated_1rm', 'volume'] as PersonalRecordType[]
               ).map((type) => {
                 const record = recordOf(type);
-                const date = record ? recordDate(record) : null;
+                const origin = record ? recordOrigin(record, history) : null;
                 return (
-                  <li
+                  <RecordRow
                     key={type}
-                    className="flex items-center justify-between gap-3 py-3.5"
-                  >
-                    <span>
-                      <span className="text-body block">
-                        {RECORD_LABELS[type]}
-                      </span>
-                      {date && (
-                        <span className="text-caption text-ink-3">
-                          {formatShortDate(date.toISOString())}
-                        </span>
-                      )}
-                    </span>
-                    <span
-                      className={cx(
-                        'text-headline font-semibold tabular',
-                        record ? 'text-brand-ink' : 'text-ink-3',
-                      )}
-                    >
-                      {record ? `${formatWeight(record.value)} kg` : '—'}
-                    </span>
-                  </li>
+                    type={type}
+                    record={record}
+                    origin={origin}
+                    onOpen={
+                      origin && !embedded
+                        ? () =>
+                            push({
+                              name: 'workout',
+                              workoutId: origin.workoutId,
+                            })
+                        : undefined
+                    }
+                  />
                 );
               })}
             </ul>
@@ -303,6 +297,7 @@ export function ExerciseDetailView({
                 <SessionBlock
                   key={session.workoutId}
                   session={session}
+                  exerciseId={exercise.id}
                   exerciseName={exercise.name}
                   muscle={exercise.primaryMuscleGroup}
                   onOpen={
@@ -389,13 +384,90 @@ export function ExerciseDetailView({
   );
 }
 
+function RecordRow({
+  type,
+  record,
+  origin,
+  onOpen,
+}: {
+  type: PersonalRecordType;
+  record: PersonalRecordItem | undefined;
+  origin: RecordOrigin | null;
+  onOpen?: () => void;
+}) {
+  const date = origin
+    ? new Date(origin.completedAt)
+    : record
+      ? recordDate(record)
+      : null;
+  // The set behind the number: "100 kg × 5"; 1RM is an estimate from it.
+  const set = origin?.set
+    ? `${type === 'estimated_1rm' ? 'Estimado de ' : ''}${formatSetResult(origin.set)}`
+    : null;
+  const where = [
+    origin?.workoutName,
+    date && formatShortDate(date.toISOString()),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const Row = onOpen ? 'button' : 'div';
+  return (
+    <li>
+      <Row
+        {...(onOpen
+          ? {
+              type: 'button' as const,
+              onClick: onOpen,
+              'aria-label': `${RECORD_LABELS[type]}: ${record ? `${formatWeight(record.value)} kg` : 'sem registro'}${set ? `, ${set}` : ''}${where ? `, ${where}` : ''}. Abrir treino`,
+            }
+          : {})}
+        className={cx(
+          'flex w-full items-center gap-3 py-3.5 text-left',
+          onOpen && '-mx-2 rounded-md px-2 active:bg-raised',
+        )}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="text-body block">{RECORD_LABELS[type]}</span>
+          {set && (
+            <span className="text-callout block font-medium text-ink-2 tabular">
+              {set}
+            </span>
+          )}
+          {where && (
+            <span className="text-caption block truncate text-ink-3">
+              {where}
+            </span>
+          )}
+        </span>
+        <span
+          className={cx(
+            'text-headline shrink-0 font-semibold tabular',
+            record ? 'text-brand-ink' : 'text-ink-3',
+          )}
+        >
+          {record ? `${formatWeight(record.value)} kg` : '—'}
+        </span>
+        {onOpen && (
+          <ChevronRight
+            size={18}
+            className="-mr-1 shrink-0 text-ink-3"
+            aria-hidden="true"
+          />
+        )}
+      </Row>
+    </li>
+  );
+}
+
 function SessionBlock({
   session,
+  exerciseId,
   exerciseName,
   muscle,
   onOpen,
 }: {
   session: ExerciseSession;
+  exerciseId: string;
   exerciseName: string;
   muscle: string;
   onOpen?: () => void;
@@ -423,7 +495,7 @@ function SessionBlock({
         )}
       </Header>
       <div className="mt-3 flex items-center gap-3 px-4">
-        <ExerciseThumb muscle={muscle} size={36} />
+        <ExerciseThumb muscle={muscle} exerciseId={exerciseId} size={36} />
         <span className="text-body font-medium">{exerciseName}</span>
       </div>
       {session.notes && (
@@ -457,9 +529,18 @@ function SessionBlock({
                 </td>
                 <td className="text-body py-3 tabular">
                   {formatSetResult(set)}
-                  {set.tag && (
-                    <span className="text-micro ml-2 rounded-sm bg-danger-soft px-1.5 py-0.5 align-middle font-semibold text-danger-ink">
-                      {set.tag === 'failure' ? 'FALHA' : 'DROP'}
+                  {(set.tag || session.setRecords[index]?.length > 0) && (
+                    <span className="ml-2 inline-flex gap-1 align-middle">
+                      <RecordBadge
+                        labels={(session.setRecords[index] ?? []).map(
+                          (type) => RECORD_LABELS[type],
+                        )}
+                      />
+                      {set.tag && (
+                        <span className="text-micro rounded-sm bg-danger-soft px-1.5 py-0.5 font-semibold text-danger-ink">
+                          {set.tag === 'failure' ? 'FALHA' : 'DROP'}
+                        </span>
+                      )}
                     </span>
                   )}
                 </td>

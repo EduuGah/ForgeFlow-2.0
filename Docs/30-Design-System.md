@@ -173,6 +173,23 @@ inclusive na nuvem, **só se nunca foram editadas nem usadas** em um treino.
   guarda `/exercises/*`). Fotos abertas no uso normal também ficam em cache.
   `web/data/exerciseContent.test.ts` garante que todo exercício tem fotos e guia.
 
+## Recordes por série
+
+Um recorde (maior peso, melhor 1RM estimado, melhor série em volume) pertence a
+uma **série**: a primeira que atinge o melhor valor do treino, se ele supera o
+recorde anterior (`recordsBySet` em `web/lib/training.ts`, mesma regra do resumo
+do treino).
+
+- **Treino em andamento:** ao concluir a série, a coluna "Última vez" vira o
+  selo **PR** com a medalha; superar um recorde existente também mostra um toast
+  ("Maior peso: 100 kg · …"). O primeiro registro de um exercício ganha o selo,
+  mas sem toast.
+- **Detalhe do treino e histórico do exercício:** selo PR na série que fez cada
+  recorde listado no treino.
+- **Detalhe do exercício › Recordes pessoais:** cada recorde mostra a série
+  ("65 kg × 8"; no 1RM, "Estimado de 65 kg × 8"), o treino e a data, e abre o
+  treino ao tocar (`recordOrigin`).
+
 ## Medidas corporais
 
 `Perfil › Saúde › Medidas corporais` registra peso, gordura corporal e as 14

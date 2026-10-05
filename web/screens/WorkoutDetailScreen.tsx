@@ -7,9 +7,14 @@ import {
   formatSetResult,
   formatWeight,
 } from '../lib/format';
-import { estimateOneRepMax, setLabels } from '../lib/training';
+import {
+  RECORD_LABELS,
+  estimateOneRepMax,
+  setLabels,
+  workoutSetRecords,
+} from '../lib/training';
 import { useNavigation } from '../navigation/Navigator';
-import { EmptyState, ExerciseThumb, Medal } from '../ui/Feedback';
+import { EmptyState, ExerciseThumb, Medal, RecordBadge } from '../ui/Feedback';
 import { Stat, StackHeader } from '../ui/Layout';
 import { cx } from '../ui/core';
 
@@ -113,6 +118,7 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
             const labels = exercise.sets
               ? setLabels(exercise.sets.map((set) => ({ setType: set.type })))
               : [];
+            const setRecords = workoutSetRecords(workout, exercise);
             return (
               <li
                 key={`${exercise.exerciseName}-${index}`}
@@ -177,6 +183,9 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
                     <tbody className="divide-y divide-line">
                       {exercise.sets.map((set, setIndex) => {
                         const warmup = set.type === 'warmup';
+                        const records = (setRecords[setIndex] ?? []).map(
+                          (type) => RECORD_LABELS[type],
+                        );
                         return (
                           <tr key={setIndex}>
                             <td className="w-14 py-2 pl-3">
@@ -193,8 +202,9 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
                             </td>
                             <td className="text-body py-2 font-medium tabular">
                               {formatSetResult(set)}
-                              {(set.tag || set.rpe) && (
+                              {(set.tag || set.rpe || records.length > 0) && (
                                 <span className="ml-2 inline-flex gap-1 align-middle">
+                                  <RecordBadge labels={records} />
                                   {set.tag && (
                                     <span className="text-micro rounded-sm bg-danger-soft px-1.5 py-0.5 font-semibold text-danger-ink">
                                       {set.tag === 'failure' ? 'FALHA' : 'DROP'}
