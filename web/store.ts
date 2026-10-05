@@ -1075,6 +1075,24 @@ export const actions = {
     }));
   },
 
+  /** Puts back a set removed by mistake (undo), found by exercise key. */
+  restoreSetToActiveExercise: (
+    exerciseKey: string,
+    setIndex: number,
+    set: SetEntry,
+  ) => {
+    updateActive((workout) => ({
+      ...workout,
+      exercises: workout.exercises.map((exercise) => {
+        if (exercise.key !== exerciseKey) return exercise;
+        if (exercise.sets.some((item) => item.id === set.id)) return exercise;
+        const sets = [...exercise.sets];
+        sets.splice(Math.min(setIndex, sets.length), 0, set);
+        return { ...exercise, sets: renumber(sets) };
+      }),
+    }));
+  },
+
   /** Returns true when the change completed a set. */
   updateSetActiveWorkout: (
     exerciseIndex: number,

@@ -66,6 +66,7 @@ import {
 import { ExercisePicker } from './ExercisePicker';
 import { RestTimerBar } from './RestTimer';
 import { ExerciseDetailView } from '../screens/ExerciseDetailScreen';
+import { SwipeToDelete, usePullDown } from '../ui/Swipe';
 import { DragHandle, SortableList, type DragHandleProps } from '../ui/Sortable';
 
 const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300];
@@ -88,6 +89,13 @@ export function ActiveWorkoutScreen({
 
   const open = workoutOpen && Boolean(activeWorkout);
   const { mounted, closing, onExited } = usePresence(open, 460);
+  // Pull the header down to minimize, like closing a sheet.
+  const pull = usePullDown(closeWorkout);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) pull.reset();
+  }
   useBackLayer(open, closeWorkout);
   useScrollLock(mounted);
 
@@ -217,10 +225,21 @@ export function ActiveWorkoutScreen({
         'fixed inset-0 z-45 flex flex-col bg-canvas',
         closing ? 'animate-sheet-out' : 'animate-sheet-in',
       )}
+      style={{
+        translate: `0 ${pull.offset}px`,
+        transition: pull.pulling ? 'none' : 'translate 240ms var(--ease-sheet)',
+      }}
     >
-      {/* Top bar + session strip */}
-      <header className="pt-safe shrink-0 border-b border-line bg-surface">
-        <div className="app-column flex h-14 items-center gap-1 px-2">
+      {/* Top bar + session strip (pull down to minimize) */}
+      <header
+        {...pull.handlers}
+        className="pt-safe shrink-0 touch-none border-b border-line bg-surface select-none"
+      >
+        <div
+          className="mx-auto mt-1.5 h-1 w-9 rounded-full bg-line-strong"
+          aria-hidden="true"
+        />
+        <div className="app-column flex h-13 items-center gap-1 px-2">
           <IconButton
             icon={ChevronDown}
             label="Minimizar treino"
@@ -701,6 +720,7 @@ function ExerciseBlock({
                 label={labels[setIndex]}
                 previous={previousBySet[setIndex]}
                 exerciseIndex={index}
+                exerciseKey={exercise.key}
                 setIndex={setIndex}
                 exerciseName={exercise.exerciseName}
                 records={setRecords[setIndex]}
@@ -776,6 +796,7 @@ function SetRow({
   label,
   previous,
   exerciseIndex,
+  exerciseKey,
   setIndex,
   exerciseName,
   records,
@@ -787,6 +808,7 @@ function SetRow({
   label: string;
   previous: CompletedSet | null;
   exerciseIndex: number;
+  exerciseKey: string | undefined;
   setIndex: number;
   exerciseName: string;
   /** Record types this set currently holds in the session. */
@@ -846,139 +868,162 @@ function SetRow({
     set.completed ? 'bg-transparent' : 'bg-raised',
   );
 
+  const removeSet = () => {
+    if (!canRemove) return;
+    const removed = set;
+    actions.removeSetFromActiveExercise(exerciseIndex, setIndex);
+    toast({
+      title: `Série ${label === 'A' ? 'de aquecimento' : label} apagada`,
+      description: exerciseName,
+      action: exerciseKey
+        ? {
+            label: 'Desfazer',
+            onPress: () =>
+              actions.restoreSetToActiveExercise(
+                exerciseKey,
+                setIndex,
+                removed,
+              ),
+          }
+        : undefined,
+    });
+  };
+
   return (
-    <div
+    <SwipeToDelete
       role="listitem"
       aria-label={`Série ${label === 'A' ? 'de aquecimento' : label}${set.completed ? ', concluída' : ''}`}
-      className={cx(
-        SET_GRID,
-        'rounded-md px-1 py-1 transition-colors',
-        set.completed && 'strike bg-brand-soft',
-      )}
+      disabled={!canRemove}
+      onDelete={removeSet}
+      className="rounded-md"
     >
-      <button
-        type="button"
-        onClick={() => setMenuOpen(true)}
-        aria-label={`Opções da série ${label}`}
+      <div
         className={cx(
-          'text-body grid h-10 place-items-center rounded-md font-bold',
-          set.completed
-            ? 'bg-transparent'
-            : warmup
-              ? 'bg-warmup-soft'
-              : 'bg-raised',
-          warmup ? 'text-warmup' : 'text-ink',
+          SET_GRID,
+          'rounded-md px-1 py-1 transition-colors',
+          set.completed && 'strike bg-brand-soft',
         )}
       >
-        {label}
-      </button>
-
-      {isRecord ? (
-        // A record set swaps the reference it just beat for the medal.
-        <span className="min-w-0">
-          <RecordBadge
-            large
-            labels={records.map((type) => RECORD_LABELS[type])}
-            className="animate-medal"
-          />
-        </span>
-      ) : (
         <button
           type="button"
-          onClick={copyPrevious}
-          disabled={!previous || set.completed}
-          className="text-footnote truncate text-left text-ink-3 tabular disabled:cursor-default"
-          aria-label={
-            previous
-              ? `Copiar anterior: ${formatWeight(previous.weightKg)} kg por ${previous.repetitions}`
-              : 'Sem registro anterior'
-          }
-        >
-          {previous
-            ? `${formatWeight(previous.weightKg)}kg × ${previous.repetitions}`
-            : '—'}
-        </button>
-      )}
-
-      <NumericInput
-        aria-label={`Carga da série ${label} em kg`}
-        value={set.weightKg}
-        decimal
-        max={2000}
-        zeroAsEmpty
-        placeholder={previous ? formatWeight(previous.weightKg) : '0'}
-        onValueChange={(weightKg) => update({ weightKg })}
-        className={inputClass}
-      />
-      <NumericInput
-        ref={repsRef}
-        aria-label={`Repetições da série ${label}`}
-        value={set.repetitions}
-        max={999}
-        zeroAsEmpty
-        placeholder={previous ? String(previous.repetitions) : '0'}
-        onValueChange={(repetitions) => update({ repetitions })}
-        className={inputClass}
-      />
-
-      <span className="relative grid place-items-center">
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={set.completed}
-          aria-label={
-            set.completed
-              ? `Desmarcar série ${label}`
-              : `Concluir série ${label}`
-          }
-          onClick={toggle}
+          onClick={() => setMenuOpen(true)}
+          aria-label={`Opções da série ${label}`}
           className={cx(
-            'pressable grid size-10 place-items-center rounded-md',
-            set.completed ? 'bg-brand text-on-brand' : 'bg-raised text-ink-3',
+            'text-body grid h-10 place-items-center rounded-md font-bold',
+            set.completed
+              ? 'bg-transparent'
+              : warmup
+                ? 'bg-warmup-soft'
+                : 'bg-raised',
+            warmup ? 'text-warmup' : 'text-ink',
           )}
         >
-          <Check
-            size={20}
-            strokeWidth={3}
-            className={set.completed ? 'animate-pop' : undefined}
-            aria-hidden="true"
-          />
+          {label}
         </button>
-      </span>
 
-      <ActionSheet
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        title={`${exerciseName} · série ${label}`}
-        actions={[
-          warmup
-            ? {
-                label: 'Marcar como série de trabalho',
-                icon: Dumbbell,
-                onSelect: () => update({ setType: 'working' }),
-              }
-            : {
-                label: 'Marcar como aquecimento',
-                icon: Flame,
-                onSelect: () => update({ setType: 'warmup' }),
-              },
-          ...(canRemove
-            ? [
-                {
-                  label: 'Remover série',
-                  icon: Trash2,
-                  tone: 'danger' as const,
-                  onSelect: () =>
-                    actions.removeSetFromActiveExercise(
-                      exerciseIndex,
-                      setIndex,
-                    ),
+        {isRecord ? (
+          // A record set swaps the reference it just beat for the medal.
+          <span className="min-w-0">
+            <RecordBadge
+              large
+              labels={records.map((type) => RECORD_LABELS[type])}
+              className="animate-medal"
+            />
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={copyPrevious}
+            disabled={!previous || set.completed}
+            className="text-footnote truncate text-left text-ink-3 tabular disabled:cursor-default"
+            aria-label={
+              previous
+                ? `Copiar anterior: ${formatWeight(previous.weightKg)} kg por ${previous.repetitions}`
+                : 'Sem registro anterior'
+            }
+          >
+            {previous
+              ? `${formatWeight(previous.weightKg)}kg × ${previous.repetitions}`
+              : '—'}
+          </button>
+        )}
+
+        <NumericInput
+          aria-label={`Carga da série ${label} em kg`}
+          value={set.weightKg}
+          decimal
+          max={2000}
+          zeroAsEmpty
+          placeholder={previous ? formatWeight(previous.weightKg) : '0'}
+          onValueChange={(weightKg) => update({ weightKg })}
+          className={inputClass}
+        />
+        <NumericInput
+          ref={repsRef}
+          aria-label={`Repetições da série ${label}`}
+          value={set.repetitions}
+          max={999}
+          zeroAsEmpty
+          placeholder={previous ? String(previous.repetitions) : '0'}
+          onValueChange={(repetitions) => update({ repetitions })}
+          className={inputClass}
+        />
+
+        <span className="relative grid place-items-center">
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={set.completed}
+            aria-label={
+              set.completed
+                ? `Desmarcar série ${label}`
+                : `Concluir série ${label}`
+            }
+            onClick={toggle}
+            className={cx(
+              'pressable grid size-10 place-items-center rounded-md',
+              set.completed ? 'bg-brand text-on-brand' : 'bg-raised text-ink-3',
+            )}
+          >
+            <Check
+              size={20}
+              strokeWidth={3}
+              className={set.completed ? 'animate-pop' : undefined}
+              aria-hidden="true"
+            />
+          </button>
+        </span>
+
+        <ActionSheet
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          title={`${exerciseName} · série ${label}`}
+          actions={[
+            warmup
+              ? {
+                  label: 'Marcar como série de trabalho',
+                  icon: Dumbbell,
+                  onSelect: () => update({ setType: 'working' }),
+                }
+              : {
+                  label: 'Marcar como aquecimento',
+                  icon: Flame,
+                  onSelect: () => update({ setType: 'warmup' }),
                 },
-              ]
-            : []),
-        ]}
-      />
-    </div>
+            ...(canRemove
+              ? [
+                  {
+                    label: 'Remover série',
+                    icon: Trash2,
+                    tone: 'danger' as const,
+                    onSelect: removeSet,
+                  },
+                ]
+              : []),
+          ]}
+        />
+      </div>
+    </SwipeToDelete>
   );
 }
 

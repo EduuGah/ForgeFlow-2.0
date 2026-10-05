@@ -213,6 +213,32 @@ Cada treino pode guardar **onde foi feito** (`gymId` em `CompletedWorkout`;
 - Coleção sincronizada `users/{uid}/gyms` (regra em `firestore.rules`); as
   academias entram no backup JSON.
 
+## Arrastar e gestos
+
+Listas reordenáveis usam `@dnd-kit` com o componente `SortableList`
+(`web/ui/Sortable.tsx`): alça ⋮⋮ (`DragHandle`) que funciona com toque, mouse e
+teclado (espaço para pegar, setas para mover, espaço para soltar, Esc cancela),
+anúncios em português para leitores de tela e uma cópia compacta que segue o
+dedo. Durante o arraste as linhas se recolhem ao cabeçalho;
+`useFoldWhileDragging` segura a altura da lista e corrige a posição do dedo
+para a linha recolhida.
+
+- **Editor de rotina e treino em andamento:** arrastar exercícios para mudar a
+  ordem (os itens "Mover para cima/baixo" continuam nos menus).
+- **Aba Rotinas:** arrastar uma rotina para mudar a ordem, para outra pasta
+  (sobre as rotinas dela ou sobre o título, mesmo fechada) ou para "Sem pasta";
+  arrastar uma pasta pela alça para reordenar as pastas. A ordem fica em
+  `order` na rotina e na pasta.
+- **Deslizar para apagar** (`SwipeToDelete`, `web/ui/Swipe.tsx`): séries do
+  treino, registros de água, refeições e medições; puxar para a esquerda revela
+  "Apagar" e soltar depois do ponto apaga, com **Desfazer** no aviso. Arrastes
+  verticais continuam rolando a tela, e cada linha mantém um botão/menu para
+  apagar sem gesto.
+- **Puxar para baixo** o topo do treino em andamento minimiza o treino
+  (`usePullDown`), como já acontece com as folhas inferiores.
+- **Gráficos:** além de tocar, arrastar o dedo para os lados percorre os
+  valores.
+
 ## Recordes por série
 
 Um recorde (maior peso, melhor 1RM estimado, melhor série em volume) pertence a
