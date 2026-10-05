@@ -2,21 +2,16 @@ import { useSyncExternalStore } from 'react';
 import { systemExercises } from '../src/data/seeds/systemExercises';
 import type { Exercise } from '../src/domain/training/entities';
 import {
-  auth,
-  db,
   loginWithGoogle,
-  finishRedirectLogin,
-  isLoginDismissed,
-  logoutFirebase,
+  logoutSupabase,
   onAuthStateChanged,
-  doc,
-  setDoc,
-  getDoc,
-  collection,
-  getDocs,
-  deleteDoc,
-  type User,
-} from './firebase';
+  supabaseSetDocument,
+  supabaseDeleteDocument,
+  supabaseFetchCollection,
+  supabaseSetProfile,
+  supabaseGetProfile,
+  type AppUser,
+} from './supabase';
 import { uid } from './lib/id';
 import {
   IDLE_REST_TIMER,
@@ -126,7 +121,7 @@ interface PersistedData {
 }
 
 interface RuntimeState {
-  currentUser: User | null;
+  currentUser: AppUser | null;
   isAuthLoading: boolean;
   isSyncingWithFirestore: boolean;
   syncStatus: SyncStatus;
@@ -144,7 +139,7 @@ function storageKey(userId: string | null | undefined): string {
   return userId ? `forgeflow_v2_user_${userId}` : 'forgeflow_v2_guest';
 }
 
-function defaultProfile(user: User | null): UserProfile {
+function defaultProfile(user: AppUser | null): UserProfile {
   return {
     name: user?.displayName || (user ? 'Atleta ForgeFlow' : 'Atleta'),
     username: user?.email ? user.email.split('@')[0] : 'atleta',
@@ -161,7 +156,7 @@ function defaultProfile(user: User | null): UserProfile {
   };
 }
 
-function defaultData(user: User | null): PersistedData {
+function defaultData(user: AppUser | null): PersistedData {
   return {
     // Every account starts empty: no sample routines, goals or favorites.
     templates: [],
@@ -226,7 +221,7 @@ function catalogLookup(customExercises: Exercise[]) {
 }
 
 /** Reads and migrates data saved by any previous version of the app. */
-function loadData(user: User | null): PersistedData {
+function loadData(user: AppUser | null): PersistedData {
   const defaults = defaultData(user);
   let raw: Record<string, unknown> | null = null;
   try {
@@ -418,7 +413,7 @@ export function getState(): AppState {
 }
 
 /* ------------------------------------------------------------------ */
-/* Cloud sync (Firestore)                                              */
+/* Cloud sync (Supabase)                                               */
 /* ------------------------------------------------------------------ */
 
 function cleanData<T>(value: T): T {
@@ -449,30 +444,27 @@ function markSyncError(error: unknown) {
 function remoteSet(
   path: [RemoteCollection, string] | [],
   data: object,
-  merge = false,
+  _merge = false,
 ) {
   const user = state.currentUser;
   if (!user) return;
-  const ref =
-    path.length === 0
-      ? doc(db, 'users', user.uid)
-      : doc(db, 'users', user.uid, path[0], path[1]);
   const payload = cleanData({
     ...data,
     userId: user.uid,
     updatedAt: new Date().toISOString(),
   });
-  const write = merge
-    ? setDoc(ref, payload, { merge: true })
-    : setDoc(ref, payload);
-  write.catch(markSyncError);
+  if (path.length === 0) {
+    supabaseSetProfile(user.uid, payload).catch(markSyncError);
+  } else {
+    supabaseSetDocument(path[0], path[1], user.uid, payload).catch(markSyncError);
+  }
 }
 
 function remoteDelete(collectionName: RemoteCollection, id: string) {
   const user = state.currentUser;
   if (!user) return;
   setState({ pendingDeletes: [...state.pendingDeletes, id] });
-  deleteDoc(doc(db, 'users', user.uid, collectionName, id))
+  supabaseDeleteDocument(collectionName, id, user.uid)
     .then(() => {
       setState({
         pendingDeletes: state.pendingDeletes.filter(
@@ -484,11 +476,10 @@ function remoteDelete(collectionName: RemoteCollection, id: string) {
 }
 
 async function fetchCollection<T>(
-  user: User,
+  user: AppUser,
   name: RemoteCollection,
 ): Promise<T[]> {
-  const snapshot = await getDocs(collection(db, 'users', user.uid, name));
-  return snapshot.docs.map((snap) => snap.data() as T);
+  return supabaseFetchCollection<T>(name, user.uid);
 }
 
 let syncInFlight: Promise<void> | null = null;
@@ -514,7 +505,7 @@ function dropUntouchedSamples() {
   cleanup.removedGoalIds.forEach((id) => remoteDelete('goals', id));
 }
 
-function syncFromFirestore(user: User): Promise<void> {
+function syncFromSupabase(user: AppUser): Promise<void> {
   if (!syncInFlight) {
     syncInFlight = runSync(user).finally(() => {
       syncInFlight = null;
@@ -523,7 +514,9 @@ function syncFromFirestore(user: User): Promise<void> {
   return syncInFlight;
 }
 
-async function runSync(user: User) {
+const syncFromFirestore = syncFromSupabase;
+
+async function runSync(user: AppUser) {
   const stillCurrent = () => state.currentUser?.uid === user.uid;
   if (!stillCurrent()) return;
   setState(
@@ -533,19 +526,17 @@ async function runSync(user: User) {
   let failed = false;
 
   try {
-    const profileRef = doc(db, 'users', user.uid);
-    const snapshot = await getDoc(profileRef);
+    const profile = await supabaseGetProfile(user.uid);
     if (!stillCurrent()) return;
-    if (snapshot.exists()) {
-      const data = snapshot.data() as Partial<UserProfile>;
+    if (profile) {
       setState({
         userProfile: {
           ...state.userProfile,
           ...Object.fromEntries(
-            Object.entries(data).filter(([key]) => key in state.userProfile),
+            Object.entries(profile).filter(([key]) => key in state.userProfile),
           ),
-          name: data.name || user.displayName || state.userProfile.name,
-          email: data.email || user.email || state.userProfile.email,
+          name: (profile.name as string) || user.displayName || state.userProfile.name,
+          email: (profile.email as string) || user.email || state.userProfile.email,
         },
       });
     } else {
@@ -665,7 +656,7 @@ async function runSync(user: User) {
 /* Auth lifecycle                                                      */
 /* ------------------------------------------------------------------ */
 
-function switchUser(user: User | null) {
+function switchUser(user: AppUser | null) {
   persistNow();
   state = {
     ...loadData(user),
@@ -693,13 +684,7 @@ function initAuth() {
       setState({ isAuthLoading: false }, { persist: false });
   }, 5000);
 
-  // Finishes a sign-in that fell back to a full-page redirect.
-  finishRedirectLogin().catch((error: unknown) => {
-    if (!isLoginDismissed(error))
-      setState({ loginError: error }, { persist: false });
-  });
-
-  onAuthStateChanged(auth, (user) => {
+  onAuthStateChanged((user) => {
     clearTimeout(fallback);
     const previousUid = state.currentUser?.uid ?? null;
     const nextUid = user?.uid ?? null;
@@ -708,7 +693,7 @@ function initAuth() {
     } else if (state.isAuthLoading) {
       setState({ isAuthLoading: false, currentUser: user }, { persist: false });
     }
-    if (user) void syncFromFirestore(user);
+    if (user) void syncFromSupabase(user);
   });
 
   window.addEventListener('online', () => {
@@ -900,7 +885,8 @@ export const actions = {
     persistNow();
     writeOnboarded(false);
     setState({ hasOnboarded: false }, { persist: false });
-    await logoutFirebase();
+    await logoutSupabase();
+    switchUser(null);
   },
 
   completeOnboarding: () => {

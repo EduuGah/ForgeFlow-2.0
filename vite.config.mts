@@ -24,8 +24,8 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             {
-              name: 'firebase',
-              test: /node_modules[\\/](@firebase|firebase)[\\/]/,
+              name: 'supabase',
+              test: /node_modules[\\/]@supabase[\\/]/,
             },
             {
               name: 'react',

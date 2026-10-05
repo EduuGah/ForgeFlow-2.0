@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { actions, useStoreValue } from '../store';
-import { describeLoginError, isLoginDismissed } from '../firebase';
+import { describeLoginError, isLoginDismissed } from '../supabase';
 import { Spinner } from '../ui/Button';
 import { cx } from '../ui/core';
 import { useToast } from '../ui/Overlay';
