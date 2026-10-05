@@ -132,6 +132,65 @@ export function DragHandle({
   );
 }
 
+/**
+ * Rows may fold to a compact form while something is dragged. This keeps
+ * the page steady and the finger on the folded row:
+ * - holds the container's height, so the page does not shrink and the
+ *   scroll position does not jump;
+ * - measures how far the dragged row moved when the rows above it folded,
+ *   and shifts the pointer by the same amount for the collision check.
+ * Rows are found by their `data-sortable-id`.
+ */
+export function useFoldWhileDragging(activeId: string | null) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [heldHeight, setHeldHeight] = useState<number | null>(null);
+  const startTop = useRef<number | null>(null);
+  const shift = useRef(0);
+
+  const rowOf = (id: string) =>
+    [
+      ...(containerRef.current?.querySelectorAll<HTMLElement>(
+        '[data-sortable-id]',
+      ) ?? []),
+    ].find((element) => element.dataset.sortableId === id);
+
+  useLayoutEffect(() => {
+    if (!activeId || startTop.current === null) return;
+    const row = rowOf(activeId);
+    if (row) shift.current = row.getBoundingClientRect().top - startTop.current;
+  }, [activeId]);
+
+  return {
+    containerRef,
+    style: heldHeight ? { minHeight: heldHeight } : undefined,
+    /** Call on drag start, before the rows fold. */
+    begin: (id: string) => {
+      startTop.current = rowOf(id)?.getBoundingClientRect().top ?? null;
+      shift.current = 0;
+      setHeldHeight(containerRef.current?.offsetHeight ?? null);
+    },
+    end: () => {
+      startTop.current = null;
+      shift.current = 0;
+      setHeldHeight(null);
+    },
+    detect:
+      (base: CollisionDetection): CollisionDetection =>
+      (args) =>
+        base(
+          args.pointerCoordinates
+            ? {
+                ...args,
+                pointerCoordinates: {
+                  x: args.pointerCoordinates.x,
+                  y: args.pointerCoordinates.y + shift.current,
+                },
+              }
+            : args,
+        ),
+  };
+}
+
 export interface SortableRenderState {
   handle: DragHandleProps;
   /** This row is the one being dragged (its place in the list). */
@@ -169,45 +228,14 @@ export function SortableList({
 }) {
   const sensors = useDragSensors();
   const [activeId, setActiveId] = useState<string | null>(null);
-  // Rows may fold while dragging; holding the list's height keeps the page
-  // from shrinking and the scroll position from jumping under the finger.
-  const listRef = useRef<HTMLDivElement>(null);
-  const [heldHeight, setHeldHeight] = useState<number | null>(null);
-  // When rows fold, the dragged row moves up away from the finger; the
-  // collision check reads the pointer shifted by the same amount so the
-  // finger keeps pointing at the folded row.
-  const startTop = useRef<number | null>(null);
-  const shift = useRef(0);
-  const release = () => {
-    setActiveId(null);
-    setHeldHeight(null);
-    startTop.current = null;
-    shift.current = 0;
-  };
-
-  const rowOf = (id: string) =>
-    [...(listRef.current?.children ?? [])].find(
-      (element) => (element as HTMLElement).dataset.sortableId === id,
-    );
-
-  useLayoutEffect(() => {
-    if (!activeId || startTop.current === null) return;
-    const row = rowOf(activeId);
-    if (row) shift.current = row.getBoundingClientRect().top - startTop.current;
-  }, [activeId]);
-
-  const collisionDetection: CollisionDetection = (args) =>
-    pointerFirst(
-      args.pointerCoordinates
-        ? {
-            ...args,
-            pointerCoordinates: {
-              x: args.pointerCoordinates.x,
-              y: args.pointerCoordinates.y + shift.current,
-            },
-          }
-        : args,
-    );
+  const {
+    containerRef,
+    style: foldStyle,
+    begin,
+    end,
+    detect,
+  } = useFoldWhileDragging(activeId);
+  const collisionDetection = detect(pointerFirst);
 
   return (
     <DndContext
@@ -223,17 +251,17 @@ export function SortableList({
         screenReaderInstructions: SCREEN_READER_INSTRUCTIONS,
       }}
       onDragStart={({ active }) => {
-        // Measured before the rows fold (the fold happens on this update).
-        startTop.current =
-          rowOf(String(active.id))?.getBoundingClientRect().top ?? null;
-        shift.current = 0;
-        setHeldHeight(listRef.current?.offsetHeight ?? null);
+        begin(String(active.id));
         setActiveId(String(active.id));
         haptic('tap');
       }}
-      onDragCancel={release}
+      onDragCancel={() => {
+        end();
+        setActiveId(null);
+      }}
       onDragEnd={({ active, over }) => {
-        release();
+        end();
+        setActiveId(null);
         if (!over || active.id === over.id) return;
         const from = ids.indexOf(String(active.id));
         const to = ids.indexOf(String(over.id));
@@ -244,11 +272,11 @@ export function SortableList({
     >
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         <div
-          ref={listRef}
+          ref={containerRef}
           role="list"
           aria-label={label}
           className={className}
-          style={heldHeight ? { minHeight: heldHeight } : undefined}
+          style={foldStyle}
         >
           {ids.map((id, index) => (
             <SortableRow key={id} id={id} sorting={activeId !== null}>
@@ -274,7 +302,8 @@ export function SortableList({
   );
 }
 
-function SortableRow({
+/** One draggable row; `id` must be unique inside its DndContext. */
+export function SortableRow({
   id,
   sorting,
   children,

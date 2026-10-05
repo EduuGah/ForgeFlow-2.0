@@ -23,7 +23,12 @@ import {
 import { actions, findExercise, useAppStore } from '../store';
 import type { RoutineFolder, WorkoutTemplateItem } from '../lib/types';
 import { formatRelativeDay, pluralize } from '../lib/format';
-import { groupRoutines, sortFolders } from '../lib/folders';
+import {
+  LOOSE,
+  groupRoutines,
+  sortFolders,
+  type RoutineGroup,
+} from '../lib/folders';
 import { muscleCode } from '../lib/training';
 import { useNavigation } from '../navigation/Navigator';
 import { useWorkoutLauncher } from '../features/useWorkoutLauncher';
@@ -45,6 +50,30 @@ import {
   type SheetAction,
 } from '../ui/Overlay';
 import { cx } from '../ui/core';
+import {
+  DragHandle,
+  SCREEN_READER_INSTRUCTIONS,
+  SortableRow,
+  lockToVerticalAxis,
+  moveAnnouncements,
+  pointerFirst,
+  useDragSensors,
+  useFoldWhileDragging,
+  type DragHandleProps,
+} from '../ui/Sortable';
+import { haptic } from '../lib/haptics';
+import {
+  DndContext,
+  DragOverlay,
+  MeasuringStrategy,
+  useDroppable,
+  type CollisionDetection,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { createPortal } from 'react-dom';
 
 const COLLAPSED_KEY = 'forgeflow_v2_collapsed_folders';
 
@@ -99,26 +128,20 @@ export function RoutinesScreen() {
         workout.templateId === template.id || workout.name === template.name,
     )?.completedAt;
 
-  const renderCards = (items: WorkoutTemplateItem[]) => (
-    <ul className="space-y-3" role="list">
-      {items.map((template, index) => (
-        <li
-          key={template.id}
-          className="animate-rise"
-          style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
-        >
-          <RoutineCard
-            template={template}
-            folders={folders}
-            lastDoneAt={lastDoneAt(template)}
-            onStart={() => launcher.startRoutine(template.id)}
-            onNewFolder={() =>
-              setFolderSheet({ mode: 'create', templateId: template.id })
-            }
-          />
-        </li>
-      ))}
-    </ul>
+  const renderCard = (
+    template: WorkoutTemplateItem,
+    handle?: DragHandleProps,
+  ) => (
+    <RoutineCard
+      template={template}
+      folders={folders}
+      handle={handle}
+      lastDoneAt={lastDoneAt(template)}
+      onStart={() => launcher.startRoutine(template.id)}
+      onNewFolder={() =>
+        setFolderSheet({ mode: 'create', templateId: template.id })
+      }
+    />
   );
 
   const saveFolder = (name: string) => {
@@ -246,52 +269,15 @@ export function RoutinesScreen() {
                 }
               />
             </Card>
-          ) : !hasFolders ? (
-            renderCards(templates)
           ) : (
-            <div className="space-y-4">
-              {groups.map((group) =>
-                group.folder ? (
-                  <FolderSection
-                    key={group.folder.id}
-                    folder={group.folder}
-                    count={group.templates.length}
-                    position={sortFolders(folders).findIndex(
-                      (folder) => folder.id === group.folder?.id,
-                    )}
-                    total={folders.length}
-                    collapsed={collapsed.includes(group.folder.id)}
-                    onToggle={() => group.folder && toggle(group.folder.id)}
-                    onRename={() =>
-                      group.folder &&
-                      setFolderSheet({ mode: 'rename', folder: group.folder })
-                    }
-                  >
-                    {group.templates.length > 0 ? (
-                      renderCards(group.templates)
-                    ) : (
-                      <p className="text-callout rounded-lg border border-dashed border-line-strong px-4 py-5 text-center text-ink-2">
-                        Pasta vazia. Crie uma rotina aqui ou use{' '}
-                        <span className="font-semibold">Mover para pasta</span>{' '}
-                        no menu de uma rotina.
-                      </p>
-                    )}
-                  </FolderSection>
-                ) : (
-                  group.templates.length > 0 && (
-                    <section key="loose" aria-labelledby="loose-routines">
-                      <h3
-                        id="loose-routines"
-                        className="text-micro mb-2 px-1 font-semibold tracking-wider text-ink-3 uppercase"
-                      >
-                        Sem pasta
-                      </h3>
-                      {renderCards(group.templates)}
-                    </section>
-                  )
-                ),
-              )}
-            </div>
+            <RoutineBoard
+              groups={groups}
+              folders={folders}
+              collapsed={collapsed}
+              onToggle={toggle}
+              onRename={(folder) => setFolderSheet({ mode: 'rename', folder })}
+              renderCard={renderCard}
+            />
           )}
         </section>
 
@@ -314,12 +300,363 @@ export function RoutinesScreen() {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Drag & drop board: routines between folders, folders in order       */
+/* ------------------------------------------------------------------ */
+
+const ROUTINE = 'routine:';
+const FOLDER = 'folder:';
+const GROUP = 'group:';
+
+/** `group:<key>` (folder header) or `group:<key>:empty` (empty drop zone). */
+function groupOfDrop(id: string): string | null {
+  return id.startsWith(GROUP) ? id.slice(GROUP.length).split(':')[0] : null;
+}
+
+/** Routines may only land on routines or groups; folders only on folders. */
+const typedCollision: CollisionDetection = (args) => {
+  const folderDrag = String(args.active.id).startsWith(FOLDER);
+  return pointerFirst({
+    ...args,
+    droppableContainers: args.droppableContainers.filter(
+      (container) => String(container.id).startsWith(FOLDER) === folderDrag,
+    ),
+  });
+};
+
+function RoutineBoard({
+  groups,
+  folders,
+  collapsed,
+  onToggle,
+  onRename,
+  renderCard,
+}: {
+  groups: RoutineGroup[];
+  folders: RoutineFolder[];
+  collapsed: string[];
+  onToggle: (folderId: string) => void;
+  onRename: (folder: RoutineFolder) => void;
+  renderCard: (
+    template: WorkoutTemplateItem,
+    handle?: DragHandleProps,
+  ) => ReactNode;
+}) {
+  const sensors = useDragSensors();
+  const [activeId, setActiveId] = useState<string | null>(null);
+  // While a routine is dragged, its group may change before it is dropped.
+  const [draft, setDraft] = useState<Record<string, string[]> | null>(null);
+  const {
+    containerRef,
+    style: foldStyle,
+    begin,
+    end,
+    detect,
+  } = useFoldWhileDragging(activeId?.startsWith(FOLDER) ? activeId : null);
+
+  const hasFolders = folders.length > 0;
+  const templatesById = new Map(
+    groups.flatMap((group) => group.templates).map((t) => [t.id, t]),
+  );
+  const base: Record<string, string[]> = Object.fromEntries(
+    groups.map((group) => [
+      group.folder?.id ?? LOOSE,
+      group.templates.map((t) => t.id),
+    ]),
+  );
+  base[LOOSE] ??= [];
+  const layout = draft ?? base;
+  const folderIds = groups
+    .filter((group) => group.folder)
+    .map((group) => FOLDER + group.folder!.id);
+  const draggingRoutine = activeId?.startsWith(ROUTINE) ?? false;
+  const draggingFolder = activeId?.startsWith(FOLDER) ?? false;
+
+  const groupOfRoutine = (lists: Record<string, string[]>, id: string) =>
+    Object.keys(lists).find((key) => lists[key].includes(id)) ?? LOOSE;
+
+  const nameOf = (id: string) => {
+    if (id.startsWith(FOLDER))
+      return folders.find((f) => FOLDER + f.id === id)?.name ?? '';
+    if (id.startsWith(ROUTINE))
+      return templatesById.get(id.slice(ROUTINE.length))?.name ?? '';
+    const key = groupOfDrop(id);
+    return key === LOOSE
+      ? 'Sem pasta'
+      : `pasta ${folders.find((f) => f.id === key)?.name ?? ''}`;
+  };
+  const positionOf = (id: string) => {
+    if (id.startsWith(FOLDER)) return folderIds.indexOf(id);
+    if (id.startsWith(ROUTINE)) {
+      const key = id.slice(ROUTINE.length);
+      return layout[groupOfRoutine(layout, key)]?.indexOf(key) ?? 0;
+    }
+    return 0;
+  };
+
+  const finish = () => {
+    end();
+    setActiveId(null);
+    setDraft(null);
+  };
+
+  const renderRoutines = (groupKey: string) => {
+    const ids = layout[groupKey] ?? [];
+    return (
+      <SortableContext
+        items={ids.map((id) => ROUTINE + id)}
+        strategy={verticalListSortingStrategy}
+      >
+        {ids.length > 0 ? (
+          <div className="space-y-3">
+            {ids.map((id) => {
+              const template = templatesById.get(id);
+              if (!template) return null;
+              return (
+                <SortableRow
+                  key={id}
+                  id={ROUTINE + id}
+                  sorting={draggingRoutine}
+                >
+                  {({ handle }) => renderCard(template, handle)}
+                </SortableRow>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyDropZone groupKey={groupKey} />
+        )}
+      </SortableContext>
+    );
+  };
+
+  const looseIds = layout[LOOSE] ?? [];
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={detect(typedCollision)}
+      modifiers={[lockToVerticalAxis]}
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+      accessibility={{
+        announcements: moveAnnouncements(
+          (id) => nameOf(String(id)),
+          (id) => positionOf(String(id)),
+        ),
+        screenReaderInstructions: SCREEN_READER_INSTRUCTIONS,
+      }}
+      onDragStart={({ active }) => {
+        const id = String(active.id);
+        if (id.startsWith(FOLDER)) begin(id);
+        else setDraft(base);
+        setActiveId(id);
+        haptic('tap');
+      }}
+      onDragOver={({ active, over }) => {
+        const id = String(active.id);
+        if (!over || !id.startsWith(ROUTINE) || !draft) return;
+        const routineId = id.slice(ROUTINE.length);
+        const overId = String(over.id);
+        const source = groupOfRoutine(draft, routineId);
+        const target = overId.startsWith(ROUTINE)
+          ? groupOfRoutine(draft, overId.slice(ROUTINE.length))
+          : groupOfDrop(overId);
+        if (!target || target === source) return;
+        const index = overId.startsWith(ROUTINE)
+          ? draft[target].indexOf(overId.slice(ROUTINE.length))
+          : 0;
+        const next = { ...draft };
+        next[source] = next[source].filter((item) => item !== routineId);
+        next[target] = [...(next[target] ?? [])];
+        next[target].splice(Math.max(0, index), 0, routineId);
+        setDraft(next);
+      }}
+      onDragCancel={finish}
+      onDragEnd={({ active, over }) => {
+        const id = String(active.id);
+        const current = draft;
+        finish();
+        if (!over) return;
+        const overId = String(over.id);
+        if (id.startsWith(FOLDER)) {
+          const to = folderIds.indexOf(overId);
+          if (to !== -1 && overId !== id) {
+            actions.reorderFolder(id.slice(FOLDER.length), to);
+            haptic('success');
+          }
+          return;
+        }
+        if (!current) return;
+        const routineId = id.slice(ROUTINE.length);
+        const group = groupOfRoutine(current, routineId);
+        let index = current[group].indexOf(routineId);
+        if (overId.startsWith(ROUTINE)) {
+          const overIndex = current[group].indexOf(
+            overId.slice(ROUTINE.length),
+          );
+          if (overIndex !== -1) index = overIndex;
+        }
+        actions.placeRoutine(routineId, group, index);
+        haptic('success');
+      }}
+    >
+      <div ref={containerRef} style={foldStyle} className="space-y-4">
+        {hasFolders ? (
+          <SortableContext
+            items={folderIds}
+            strategy={verticalListSortingStrategy}
+          >
+            {groups.map((group) => {
+              const folder = group.folder;
+              if (!folder) return null;
+              const count = (layout[folder.id] ?? []).length;
+              return (
+                <SortableRow
+                  key={folder.id}
+                  id={FOLDER + folder.id}
+                  sorting={draggingFolder}
+                >
+                  {({ handle }) => (
+                    <FolderSection
+                      folder={folder}
+                      count={count}
+                      position={folderIds.indexOf(FOLDER + folder.id)}
+                      total={folderIds.length}
+                      collapsed={collapsed.includes(folder.id)}
+                      folded={draggingFolder}
+                      handle={handle}
+                      onToggle={() => onToggle(folder.id)}
+                      onRename={() => onRename(folder)}
+                    >
+                      {renderRoutines(folder.id)}
+                    </FolderSection>
+                  )}
+                </SortableRow>
+              );
+            })}
+          </SortableContext>
+        ) : (
+          renderRoutines(LOOSE)
+        )}
+
+        {hasFolders && (looseIds.length > 0 || draggingRoutine) && (
+          <section aria-labelledby="loose-routines">
+            <LooseHeader />
+            {renderRoutines(LOOSE)}
+          </section>
+        )}
+      </div>
+
+      {createPortal(
+        <DragOverlay dropAnimation={{ duration: 180 }} zIndex={80}>
+          {activeId ? (
+            <div className="rounded-lg shadow-sheet ring-2 ring-brand">
+              {activeId.startsWith(FOLDER) ? (
+                <FolderPreview
+                  name={nameOf(activeId)}
+                  count={(layout[activeId.slice(FOLDER.length)] ?? []).length}
+                />
+              ) : (
+                <RoutinePreview
+                  template={templatesById.get(activeId.slice(ROUTINE.length))}
+                />
+              )}
+            </div>
+          ) : null}
+        </DragOverlay>,
+        document.body,
+      )}
+    </DndContext>
+  );
+}
+
+/** "Sem pasta" title; also a drop target to take a routine out of a folder. */
+function LooseHeader() {
+  const { setNodeRef, isOver, active } = useDroppable({
+    id: `${GROUP}${LOOSE}`,
+  });
+  const highlight = isOver && String(active?.id).startsWith(ROUTINE);
+  return (
+    <h3
+      ref={setNodeRef}
+      id="loose-routines"
+      className={cx(
+        'text-micro mb-2 rounded-md px-1 py-1 font-semibold tracking-wider text-ink-3 uppercase transition-colors',
+        highlight && 'bg-brand-soft text-brand-ink',
+      )}
+    >
+      Sem pasta
+    </h3>
+  );
+}
+
+/** Placeholder of an empty group that accepts dropped routines. */
+function EmptyDropZone({ groupKey }: { groupKey: string }) {
+  const { setNodeRef, isOver, active } = useDroppable({
+    id: `${GROUP}${groupKey}:empty`,
+  });
+  const dragging = String(active?.id ?? '').startsWith(ROUTINE);
+  return (
+    <p
+      ref={setNodeRef}
+      className={cx(
+        'text-callout rounded-lg border border-dashed px-4 py-5 text-center transition-colors',
+        isOver && dragging
+          ? 'border-brand bg-brand-soft text-brand-ink'
+          : 'border-line-strong text-ink-2',
+      )}
+    >
+      {dragging ? (
+        'Solte aqui'
+      ) : groupKey === LOOSE ? (
+        'Nenhuma rotina sem pasta.'
+      ) : (
+        <>Pasta vazia. Crie uma rotina aqui ou arraste uma rotina para cá.</>
+      )}
+    </p>
+  );
+}
+
+function RoutinePreview({
+  template,
+}: {
+  template: WorkoutTemplateItem | undefined;
+}) {
+  if (!template) return null;
+  return (
+    <div className="flex items-center gap-3 rounded-lg bg-surface px-4 py-3">
+      <ClipboardList size={20} className="text-brand-ink" aria-hidden="true" />
+      <span className="text-headline min-w-0 flex-1 truncate font-semibold">
+        {template.name}
+      </span>
+      <span className="text-footnote text-ink-2">
+        {pluralize(template.exercises.length, 'exercício', 'exercícios')}
+      </span>
+    </div>
+  );
+}
+
+function FolderPreview({ name, count }: { name: string; count: number }) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-lg bg-surface px-4 py-3">
+      <Folder size={20} className="text-brand-ink" aria-hidden="true" />
+      <span className="text-headline min-w-0 flex-1 truncate font-semibold">
+        {name}
+      </span>
+      <span className="text-footnote text-ink-2">
+        {pluralize(count, 'rotina', 'rotinas')}
+      </span>
+    </div>
+  );
+}
+
 function FolderSection({
   folder,
   count,
   position,
   total,
   collapsed,
+  folded,
+  handle,
   onToggle,
   onRename,
   children,
@@ -329,10 +666,20 @@ function FolderSection({
   position: number;
   total: number;
   collapsed: boolean;
+  /** Shown as a header only while folders are being reordered. */
+  folded: boolean;
+  handle: DragHandleProps;
   onToggle: () => void;
   onRename: () => void;
   children: ReactNode;
 }) {
+  // The header takes routines dropped on it (also when the folder is closed).
+  const {
+    setNodeRef: bindDrop,
+    isOver,
+    active,
+  } = useDroppable({ id: `${GROUP}${folder.id}` });
+  const dropHere = isOver && String(active?.id ?? '').startsWith(ROUTINE);
   const { push } = useNavigation();
   const confirm = useConfirm();
   const toast = useToast();
@@ -386,7 +733,19 @@ function FolderSection({
 
   return (
     <section aria-labelledby={titleId}>
-      <div className="flex items-center gap-1">
+      <div
+        ref={bindDrop}
+        className={cx(
+          'flex items-center gap-1 rounded-lg transition-colors',
+          dropHere && 'bg-brand-soft ring-2 ring-brand',
+          folded && 'bg-surface px-1',
+        )}
+      >
+        <DragHandle
+          handle={handle}
+          label={`Arrastar a pasta ${folder.name} para reordenar`}
+          className="-ml-1 w-7"
+        />
         <button
           type="button"
           onClick={onToggle}
@@ -422,7 +781,7 @@ function FolderSection({
           onClick={() => setMenuOpen(true)}
         />
       </div>
-      {!collapsed && (
+      {!collapsed && !folded && (
         <div id={listId} className="mt-2">
           {children}
         </div>
@@ -548,12 +907,14 @@ function QuickTile({
 function RoutineCard({
   template,
   folders,
+  handle,
   lastDoneAt,
   onStart,
   onNewFolder,
 }: {
   template: WorkoutTemplateItem;
   folders: RoutineFolder[];
+  handle?: DragHandleProps;
   lastDoneAt?: string;
   onStart: () => void;
   /** Creates a folder and moves this routine into it. */
@@ -627,6 +988,13 @@ function RoutineCard({
         </span>
       </button>
       <div className="flex items-center gap-2 border-t border-line px-4 py-2.5">
+        {handle && (
+          <DragHandle
+            handle={handle}
+            label={`Arrastar ${template.name} para reordenar ou mudar de pasta`}
+            className="-ml-2.5 w-7"
+          />
+        )}
         <div
           className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"
           aria-label="Grupos musculares"

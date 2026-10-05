@@ -101,8 +101,10 @@ export interface WorkoutTemplateItem {
   name: string;
   description: string;
   exercises: TemplateExercise[];
-  /** Folder the routine lives in; none = "Outras rotinas". */
+  /** Folder the routine lives in; none = "Sem pasta". */
   folderId?: string;
+  /** Position inside its folder (set when the person drags routines). */
+  order?: number;
 }
 
 /** A named group of routines, e.g. one per gym or training phase. */

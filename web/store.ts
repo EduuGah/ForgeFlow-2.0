@@ -41,7 +41,13 @@ import {
   sortByCompletedDesc,
 } from './lib/training';
 import { removeUntouchedSamples } from './lib/samples';
-import { moveFolder, nextFolderOrder, sortFolders } from './lib/folders';
+import {
+  moveFolder,
+  nextFolderOrder,
+  placeRoutine,
+  reorderFolder,
+  sortFolders,
+} from './lib/folders';
 import { suggestGymId } from './lib/gyms';
 import type { ImportPlan, MeasurementPlan } from './lib/importCsv';
 import type {
@@ -1299,6 +1305,38 @@ export const actions = {
       ),
     });
     remoteSet(['folders', id], updated);
+  },
+
+  /** Drops a routine in a folder (or LOOSE) at a position (drag). */
+  placeRoutine: (routineId: string, groupKey: string, index: number) => {
+    const changed = placeRoutine(
+      state.templates,
+      state.folders,
+      routineId,
+      groupKey,
+      index,
+    );
+    if (changed.length === 0) return;
+    const byId = new Map(changed.map((template) => [template.id, template]));
+    setState({
+      templates: state.templates.map(
+        (template) => byId.get(template.id) ?? template,
+      ),
+    });
+    // Full writes so leaving a folder also clears it in the cloud.
+    changed.forEach((template) =>
+      remoteSet(['templates', template.id], template),
+    );
+  },
+
+  /** Moves a folder to a position (drag). */
+  reorderFolder: (id: string, index: number) => {
+    const result = reorderFolder(state.folders, id, index);
+    if (!result) return;
+    setState({ folders: result.folders });
+    result.changed.forEach((folder) =>
+      remoteSet(['folders', folder.id], folder),
+    );
   },
 
   moveFolder: (id: string, direction: -1 | 1) => {
