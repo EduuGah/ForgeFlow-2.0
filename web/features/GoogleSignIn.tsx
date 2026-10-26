@@ -5,8 +5,12 @@ import { Spinner } from '../ui/Button';
 import { cx } from '../ui/core';
 import { useToast } from '../ui/Overlay';
 
-/** Runs the Google popup and reports failures; a closed popup is not an error. */
-export function useGoogleSignIn(onSignedIn?: () => void) {
+/**
+ * Starts the Google sign-in, which leaves the page (redirect): success is only
+ * known after coming back, so the spinner stays until then. Failures to even
+ * start are reported here; the ones Google sends back, by LoginErrorWatcher.
+ */
+export function useGoogleSignIn() {
   const toast = useToast();
   const [signingIn, setSigningIn] = useState(false);
 
@@ -14,12 +18,10 @@ export function useGoogleSignIn(onSignedIn?: () => void) {
     setSigningIn(true);
     try {
       await actions.login();
-      onSignedIn?.();
     } catch (error) {
+      setSigningIn(false);
       if (!isLoginDismissed(error))
         toast({ tone: 'error', ...describeLoginError(error) });
-    } finally {
-      setSigningIn(false);
     }
   };
 

@@ -7,9 +7,10 @@ import {
   onAuthStateChanged,
   supabaseSetDocument,
   supabaseDeleteDocument,
-  supabaseFetchCollection,
+  supabaseFetchRows,
   supabaseSetProfile,
   supabaseGetProfile,
+  takeRedirectLoginError,
   type AppUser,
 } from './supabase';
 import { uid } from './lib/id';
@@ -29,12 +30,12 @@ import {
   goalCurrentValue,
   hydrationDate,
   mealDate,
-  mergeById,
   previousSetsFor,
   repairExerciseRefs,
   replayRecords,
   sortByCompletedDesc,
 } from './lib/training';
+import { reconcileCollection } from './lib/sync';
 import { removeUntouchedSamples } from './lib/samples';
 import {
   moveFolder,
@@ -123,6 +124,11 @@ interface PersistedData {
   social: { joinedChallenges: string[]; acceptedFriends: string[] };
   /** Deletions not yet confirmed by the server; keeps sync from resurrecting them. */
   pendingDeletes: string[];
+  /**
+   * Writes not yet confirmed by the server (`collection/id`, or `profile`);
+   * the local copy wins the next sync and is sent again.
+   */
+  pendingWrites: string[];
   lastSyncedAt: string | null;
 }
 
@@ -192,6 +198,7 @@ function defaultData(user: AppUser | null): PersistedData {
     restTimer: IDLE_REST_TIMER,
     social: { joinedChallenges: [], acceptedFriends: [] },
     pendingDeletes: [],
+    pendingWrites: [],
     lastSyncedAt: null,
   };
 }
@@ -308,9 +315,68 @@ function loadData(user: AppUser | null): PersistedData {
       acceptedFriends: asArray<string>(social.acceptedFriends, []),
     },
     pendingDeletes: asArray<string>(raw.pendingDeletes, []),
+    pendingWrites: asArray<string>(raw.pendingWrites, []),
     lastSyncedAt:
       typeof raw.lastSyncedAt === 'string' ? raw.lastSyncedAt : null,
   };
+}
+
+const GUEST_LISTS = [
+  'templates',
+  'folders',
+  'gyms',
+  'history',
+  'prs',
+  'goals',
+  'hydrationLogs',
+  'meals',
+  'measurements',
+  'customExercises',
+] as const;
+
+/**
+ * What someone recorded before signing in joins their account the first time
+ * they sign in on this device; the next sync uploads it.
+ */
+function adoptGuestData(user: AppUser) {
+  try {
+    const saved = localStorage.getItem(storageKey(null));
+    if (!saved || localStorage.getItem(storageKey(user.uid))) return;
+    const guest = JSON.parse(saved) as Record<string, unknown>;
+    const hasContent =
+      Boolean(guest.activeWorkout) ||
+      GUEST_LISTS.some((key) => asArray(guest[key], []).length > 0);
+    if (!hasContent) return;
+
+    const placeholder = defaultProfile(null);
+    const account = defaultProfile(user);
+    const profile: UserProfile = {
+      ...placeholder,
+      ...((guest.userProfile as Partial<UserProfile>) ?? {}),
+    };
+    localStorage.setItem(
+      storageKey(user.uid),
+      JSON.stringify({
+        ...guest,
+        // The guest placeholders give way to the account's name and e-mail.
+        userProfile: {
+          ...profile,
+          name: profile.name === placeholder.name ? account.name : profile.name,
+          username:
+            profile.username === placeholder.username
+              ? account.username
+              : profile.username,
+          email: account.email,
+        },
+        pendingDeletes: [],
+        pendingWrites: [],
+        lastSyncedAt: null,
+      }),
+    );
+    localStorage.removeItem(storageKey(null));
+  } catch {
+    // Storage unavailable: the guest data simply stays on the guest side.
+  }
 }
 
 function pickPersisted(source: AppState): PersistedData {
@@ -337,6 +403,7 @@ function pickPersisted(source: AppState): PersistedData {
     restTimer: source.restTimer,
     social: source.social,
     pendingDeletes: source.pendingDeletes,
+    pendingWrites: source.pendingWrites,
     lastSyncedAt: source.lastSyncedAt,
   };
 }
@@ -452,32 +519,58 @@ function markSyncError(error: unknown) {
     setState({ syncStatus: 'error' }, { persist: false });
 }
 
-/** Fire-and-forget cloud write; the local state is already the source of truth. */
-function remoteSet(
-  path: [RemoteCollection, string] | [],
-  data: object,
-  _merge = false,
-) {
+const PROFILE_WRITE = 'profile';
+
+/** Latest write per document, so an older write's success can't clear a newer one. */
+const writeSeq = new Map<string, number>();
+
+/** Sync bookkeeping: nothing renders it, so it persists without re-rendering. */
+function setPendingWrites(pendingWrites: string[]) {
+  state = { ...state, pendingWrites };
+  schedulePersist();
+}
+
+/**
+ * Fire-and-forget cloud write; the local state is already the source of
+ * truth. Collection documents are always written whole: Supabase replaces
+ * `data`, so a partial object would erase the rest of the document. Profile
+ * writes go column by column, so a partial profile is fine.
+ */
+function remoteSet(path: [RemoteCollection, string] | [], data: object) {
   const user = state.currentUser;
   if (!user) return;
+  const key = path.length === 0 ? PROFILE_WRITE : `${path[0]}/${path[1]}`;
+  const seq = (writeSeq.get(key) ?? 0) + 1;
+  writeSeq.set(key, seq);
+  if (!state.pendingWrites.includes(key))
+    setPendingWrites([...state.pendingWrites, key]);
+
   const payload = cleanData({
     ...data,
     userId: user.uid,
     updatedAt: new Date().toISOString(),
   });
-  if (path.length === 0) {
-    supabaseSetProfile(user.uid, payload).catch(markSyncError);
-  } else {
-    supabaseSetDocument(path[0], path[1], user.uid, payload).catch(markSyncError);
-  }
+  const write =
+    path.length === 0
+      ? supabaseSetProfile(user.uid, payload)
+      : supabaseSetDocument(path[0], path[1], user.uid, payload);
+  write
+    .then(() => {
+      if (writeSeq.get(key) !== seq || state.currentUser?.uid !== user.uid)
+        return;
+      setPendingWrites(state.pendingWrites.filter((item) => item !== key));
+    })
+    .catch(markSyncError);
 }
 
-function remoteDelete(collectionName: RemoteCollection, id: string) {
-  const user = state.currentUser;
-  if (!user) return;
-  setState({ pendingDeletes: [...state.pendingDeletes, id] });
+function sendDelete(
+  collectionName: RemoteCollection,
+  id: string,
+  user: AppUser,
+) {
   supabaseDeleteDocument(collectionName, id, user.uid)
     .then(() => {
+      if (state.currentUser?.uid !== user.uid) return;
       setState({
         pendingDeletes: state.pendingDeletes.filter(
           (pending) => pending !== id,
@@ -487,11 +580,19 @@ function remoteDelete(collectionName: RemoteCollection, id: string) {
     .catch(markSyncError);
 }
 
-async function fetchCollection<T>(
-  user: AppUser,
-  name: RemoteCollection,
-): Promise<T[]> {
-  return supabaseFetchCollection<T>(name, user.uid);
+function remoteDelete(collectionName: RemoteCollection, id: string) {
+  const user = state.currentUser;
+  if (!user) return;
+  const key = `${collectionName}/${id}`;
+  // A write still in flight must not clear anything once it lands.
+  writeSeq.set(key, (writeSeq.get(key) ?? 0) + 1);
+  setState({
+    pendingWrites: state.pendingWrites.filter((item) => item !== key),
+    pendingDeletes: state.pendingDeletes.includes(id)
+      ? state.pendingDeletes
+      : [...state.pendingDeletes, id],
+  });
+  sendDelete(collectionName, id, user);
 }
 
 let syncInFlight: Promise<void> | null = null;
@@ -526,8 +627,6 @@ function syncFromSupabase(user: AppUser): Promise<void> {
   return syncInFlight;
 }
 
-const syncFromFirestore = syncFromSupabase;
-
 async function runSync(user: AppUser) {
   const stillCurrent = () => state.currentUser?.uid === user.uid;
   if (!stillCurrent()) return;
@@ -536,33 +635,38 @@ async function runSync(user: AppUser) {
     { persist: false },
   );
   let failed = false;
+  const deletesAtStart = new Set(state.pendingDeletes);
+  const stillOnServer = new Set<string>();
 
   try {
     const profile = await supabaseGetProfile(user.uid);
     if (!stillCurrent()) return;
-    if (profile) {
+    if (profile && !state.pendingWrites.includes(PROFILE_WRITE)) {
+      // Empty columns keep the local value instead of turning it into null.
+      const known = Object.entries(profile).filter(
+        ([key, value]) =>
+          key in state.userProfile && value !== null && value !== undefined,
+      );
       setState({
         userProfile: {
           ...state.userProfile,
-          ...Object.fromEntries(
-            Object.entries(profile).filter(([key]) => key in state.userProfile),
-          ),
-          name: (profile.name as string) || user.displayName || state.userProfile.name,
-          email: (profile.email as string) || user.email || state.userProfile.email,
+          ...Object.fromEntries(known),
+          name:
+            (profile.name as string) ||
+            user.displayName ||
+            state.userProfile.name,
+          email:
+            (profile.email as string) || user.email || state.userProfile.email,
         },
       });
     } else {
-      remoteSet([], {
-        ...state.userProfile,
-        createdAt: new Date().toISOString(),
-      });
+      // New account, or local changes the server never got.
+      remoteSet([], state.userProfile);
     }
   } catch (error) {
     failed = true;
     markSyncError(error);
   }
-
-  const deleted = new Set(state.pendingDeletes);
 
   async function syncList<T extends { id: string }>(
     name: RemoteCollection,
@@ -570,11 +674,27 @@ async function runSync(user: AppUser) {
     write: (items: T[]) => Partial<AppState>,
   ) {
     try {
-      const remote = await fetchCollection<T>(user, name);
+      const rows = await supabaseFetchRows(name, user.uid);
       if (!stillCurrent()) return;
-      const { merged, localOnly } = mergeById(read(), remote, deleted);
+      // Read after the fetch: edits made meanwhile are newer than `rows`.
+      const prefix = `${name}/`;
+      const unsent = new Set(
+        state.pendingWrites
+          .filter((key) => key.startsWith(prefix))
+          .map((key) => key.slice(prefix.length)),
+      );
+      const { merged, upload, deleteAgain } = reconcileCollection(
+        rows,
+        read(),
+        new Set(state.pendingDeletes),
+        unsent,
+      );
       setState(write(merged));
-      localOnly.forEach((item) => remoteSet([name, item.id], item));
+      upload.forEach((item) => remoteSet([name, item.id], item));
+      deleteAgain.forEach((id) => {
+        stillOnServer.add(id);
+        sendDelete(name, id, user);
+      });
     } catch (error) {
       failed = true;
       markSyncError(error);
@@ -655,7 +775,15 @@ async function runSync(user: AppUser) {
     );
   }
 
-  if (!failed) dropUntouchedSamples();
+  if (!failed) {
+    dropUntouchedSamples();
+    // Every collection was read: a delete the server no longer has is done.
+    setState({
+      pendingDeletes: state.pendingDeletes.filter(
+        (id) => !deletesAtStart.has(id) || stillOnServer.has(id),
+      ),
+    });
+  }
 
   setState({
     isSyncingWithFirestore: false,
@@ -670,6 +798,7 @@ async function runSync(user: AppUser) {
 
 function switchUser(user: AppUser | null) {
   persistNow();
+  if (user && !state.currentUser) adoptGuestData(user);
   state = {
     ...loadData(user),
     currentUser: user,
@@ -684,6 +813,22 @@ function switchUser(user: AppUser | null) {
   emit();
 }
 
+/** Coming back after this long (other devices may have written) re-syncs. */
+const RESYNC_AFTER_MS = 5 * 60 * 1000;
+
+function resyncIfNeeded() {
+  const user = state.currentUser;
+  if (!user || !state.isOnline) return;
+  const last = state.lastSyncedAt ? Date.parse(state.lastSyncedAt) : 0;
+  if (
+    state.syncStatus === 'error' ||
+    state.pendingWrites.length > 0 ||
+    state.pendingDeletes.length > 0 ||
+    Date.now() - last > RESYNC_AFTER_MS
+  )
+    void syncFromSupabase(user);
+}
+
 let authInitialized = false;
 
 function initAuth() {
@@ -696,22 +841,28 @@ function initAuth() {
       setState({ isAuthLoading: false }, { persist: false });
   }, 5000);
 
+  void takeRedirectLoginError().then((error) => {
+    if (error) setState({ loginError: error }, { persist: false });
+  });
+
   onAuthStateChanged((user) => {
     clearTimeout(fallback);
     const previousUid = state.currentUser?.uid ?? null;
     const nextUid = user?.uid ?? null;
+    const firstAnswer = state.isAuthLoading;
     if (previousUid !== nextUid) {
       switchUser(user);
-    } else if (state.isAuthLoading) {
+    } else if (firstAnswer) {
       setState({ isAuthLoading: false, currentUser: user }, { persist: false });
     }
-    if (user) void syncFromSupabase(user);
+    // Hourly token refreshes land here too; only a new session needs a sync.
+    if (user && (previousUid !== nextUid || firstAnswer))
+      void syncFromSupabase(user);
   });
 
   window.addEventListener('online', () => {
     setState({ isOnline: true }, { persist: false });
-    if (state.currentUser && state.syncStatus === 'error')
-      void syncFromFirestore(state.currentUser);
+    resyncIfNeeded();
   });
   window.addEventListener('offline', () =>
     setState({ isOnline: false }, { persist: false }),
@@ -719,6 +870,7 @@ function initAuth() {
   window.addEventListener('pagehide', persistNow);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') persistNow();
+    else resyncIfNeeded();
   });
 }
 
@@ -864,7 +1016,7 @@ function commitHistory(
     if (createdIds.has(workout.id))
       remoteSet(['history', workout.id], { ...workout, createdAt: now });
     else if (previousWorkouts.get(workout.id) !== workout)
-      remoteSet(['history', workout.id], workout, true);
+      remoteSet(['history', workout.id], workout);
   });
   prs.forEach((record) => {
     const previous = previousRecords.get(record.id);
@@ -912,7 +1064,7 @@ export const actions = {
   },
 
   retrySync: () => {
-    if (state.currentUser) void syncFromFirestore(state.currentUser);
+    if (state.currentUser) void syncFromSupabase(state.currentUser);
   },
 
   /* Active workout */
@@ -1151,7 +1303,7 @@ export const actions = {
     });
     achieved.forEach((record) => remoteSet(['prs', record.id], record));
     replacedIds.forEach((id) => remoteDelete('prs', id));
-    goalsReached.forEach((goal) => remoteSet(['goals', goal.id], goal, true));
+    goalsReached.forEach((goal) => remoteSet(['goals', goal.id], goal));
 
     return {
       workout,
@@ -1279,9 +1431,7 @@ export const actions = {
     });
     if (changed.length === 0) return 0;
     setState({ history });
-    changed.forEach((workout) =>
-      remoteSet(['history', workout.id], { gymId }, true),
-    );
+    changed.forEach((workout) => remoteSet(['history', workout.id], workout));
     return changed.length;
   },
 
@@ -1661,7 +1811,7 @@ export const actions = {
     updated.status =
       updated.currentValue >= updated.targetValue ? 'completed' : 'active';
     setState({ goals: state.goals.map((g) => (g.id === id ? updated : g)) });
-    remoteSet(['goals', id], updated, true);
+    remoteSet(['goals', id], updated);
   },
 
   updateGoalProgress: (id: string, currentValue: number) => {
@@ -1673,11 +1823,7 @@ export const actions = {
       status: currentValue >= goal.targetValue ? 'completed' : 'active',
     };
     setState({ goals: state.goals.map((g) => (g.id === id ? updated : g)) });
-    remoteSet(
-      ['goals', id],
-      { currentValue: updated.currentValue, status: updated.status },
-      true,
-    );
+    remoteSet(['goals', id], updated);
   },
 
   deleteGoal: (id: string) => {
@@ -1688,7 +1834,7 @@ export const actions = {
   /* Profile & preferences */
   updateProfile: (updates: Partial<UserProfile>) => {
     setState({ userProfile: { ...state.userProfile, ...updates } });
-    remoteSet([], updates, true);
+    remoteSet([], updates);
   },
 
   updateNotificationPrefs: (updates: Partial<NotificationPrefs>) => {

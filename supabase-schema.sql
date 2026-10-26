@@ -5,9 +5,12 @@
 -- 1. Abra o painel do seu projeto no Supabase (https://supabase.com/dashboard)
 -- 2. No menu lateral esquerdo, clique em "SQL Editor"
 -- 3. Clique em "New Query", cole todo este código e clique em "Run" (ou Ctrl+Enter)
+--
+-- Pode ser executado de novo a qualquer momento: cria o que falta e atualiza
+-- bancos criados por versões anteriores deste arquivo sem apagar dados.
 -- ============================================================
 
--- 1. Tabela de Perfil do Atleta
+-- 1. Tabela de Perfil do Atleta (uma linha por usuário: id = user_id)
 CREATE TABLE IF NOT EXISTS public.profiles (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -25,116 +28,135 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2. Tabela de Academias
+-- 2. Tabelas de documentos (o app guarda cada item inteiro em "data").
+--    A chave é (user_id, id): ids como "pr-<exercício>-<tipo>" se repetem
+--    entre usuários e não podem colidir.
 CREATE TABLE IF NOT EXISTS public.gyms (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   data JSONB NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  PRIMARY KEY (user_id, id)
 );
 
--- 3. Tabela de Pastas de Rotinas
 CREATE TABLE IF NOT EXISTS public.folders (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   data JSONB NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  PRIMARY KEY (user_id, id)
 );
 
--- 4. Tabela de Fichas / Rotinas (Templates)
 CREATE TABLE IF NOT EXISTS public.templates (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   data JSONB NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  PRIMARY KEY (user_id, id)
 );
 
--- 5. Tabela de Histórico de Treinos Concluídos
 CREATE TABLE IF NOT EXISTS public.history (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   data JSONB NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  PRIMARY KEY (user_id, id)
 );
 
--- 6. Tabela de Recordes Pessoais (PRs)
 CREATE TABLE IF NOT EXISTS public.prs (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   data JSONB NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  PRIMARY KEY (user_id, id)
 );
 
--- 7. Tabela de Metas
 CREATE TABLE IF NOT EXISTS public.goals (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   data JSONB NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  PRIMARY KEY (user_id, id)
 );
 
--- 8. Tabela de Registros de Hidratação
 CREATE TABLE IF NOT EXISTS public.hydration (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   data JSONB NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  PRIMARY KEY (user_id, id)
 );
 
--- 9. Tabela de Refeições / Nutrição
 CREATE TABLE IF NOT EXISTS public.meals (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   data JSONB NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  PRIMARY KEY (user_id, id)
 );
 
--- 10. Tabela de Exercícios Customizados
 CREATE TABLE IF NOT EXISTS public.custom_exercises (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   data JSONB NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  PRIMARY KEY (user_id, id)
 );
 
--- 11. Tabela de Medidas Corporais
 CREATE TABLE IF NOT EXISTS public.measurements (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   data JSONB NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  PRIMARY KEY (user_id, id)
 );
 
 -- ============================================================
--- Índices para busca ultra-rápida por usuário
+-- Atualização de bancos antigos: a chave primária era só "id", então dois
+-- usuários com o mesmo id (ex.: recorde no mesmo exercício) colidiam e a
+-- sincronização do segundo falhava para sempre.
 -- ============================================================
-CREATE INDEX IF NOT EXISTS idx_gyms_user_id ON public.gyms(user_id);
-CREATE INDEX IF NOT EXISTS idx_folders_user_id ON public.folders(user_id);
-CREATE INDEX IF NOT EXISTS idx_templates_user_id ON public.templates(user_id);
-CREATE INDEX IF NOT EXISTS idx_history_user_id ON public.history(user_id);
-CREATE INDEX IF NOT EXISTS idx_prs_user_id ON public.prs(user_id);
-CREATE INDEX IF NOT EXISTS idx_goals_user_id ON public.goals(user_id);
-CREATE INDEX IF NOT EXISTS idx_hydration_user_id ON public.hydration(user_id);
-CREATE INDEX IF NOT EXISTS idx_meals_user_id ON public.meals(user_id);
-CREATE INDEX IF NOT EXISTS idx_custom_exercises_user_id ON public.custom_exercises(user_id);
-CREATE INDEX IF NOT EXISTS idx_measurements_user_id ON public.measurements(user_id);
+DO $$
+DECLARE
+  tbl text;
+BEGIN
+  FOR tbl IN SELECT unnest(ARRAY[
+    'gyms', 'folders', 'templates', 'history', 'prs',
+    'goals', 'hydration', 'meals', 'custom_exercises', 'measurements'
+  ])
+  LOOP
+    IF EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conrelid = format('public.%I', tbl)::regclass
+        AND contype = 'p'
+        AND array_length(conkey, 1) = 1
+    ) THEN
+      EXECUTE format('ALTER TABLE public.%I DROP CONSTRAINT %I', tbl, tbl || '_pkey');
+      EXECUTE format('ALTER TABLE public.%I ADD PRIMARY KEY (user_id, id)', tbl);
+    END IF;
+  END LOOP;
+END $$;
+
+-- O perfil só pode usar o próprio id do usuário (impede "reservar" o id de outro).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'profiles_id_is_user_id'
+  ) THEN
+    ALTER TABLE public.profiles
+      ADD CONSTRAINT profiles_id_is_user_id CHECK (id = user_id);
+  END IF;
+END $$;
 
 -- ============================================================
 -- Políticas de Segurança (Row Level Security - RLS)
--- Garante que cada usuário acesse exclusivamente seus dados
+-- Só usuários logados, e cada um exclusivamente com os próprios dados.
+--
+-- A versão anterior usava "user_id = coalesce(auth.uid()::text, user_id)":
+-- sem login, auth.uid() é nulo e a condição vira "user_id = user_id", ou seja,
+-- qualquer pessoa com a chave pública (que vai no app) lia e apagava os
+-- dados de TODOS os usuários. Rodar este arquivo substitui essa política.
 -- ============================================================
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.gyms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.folders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.templates ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.prs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.hydration ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.meals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.custom_exercises ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.measurements ENABLE ROW LEVEL SECURITY;
-
 DO $$
 DECLARE
   tbl text;
@@ -144,10 +166,41 @@ BEGIN
     'prs', 'goals', 'hydration', 'meals', 'custom_exercises', 'measurements'
   ])
   LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
     EXECUTE format('DROP POLICY IF EXISTS "Usuários acessam apenas seus dados" ON public.%I', tbl);
     EXECUTE format(
-      'CREATE POLICY "Usuários acessam apenas seus dados" ON public.%I FOR ALL USING (user_id = auth.uid()::text OR user_id = coalesce(auth.uid()::text, user_id)) WITH CHECK (user_id = auth.uid()::text OR user_id = coalesce(auth.uid()::text, user_id))',
+      'CREATE POLICY "Usuários acessam apenas seus dados" ON public.%I FOR ALL TO authenticated USING (user_id = (select auth.uid())::text) WITH CHECK (user_id = (select auth.uid())::text)',
       tbl
     );
   END LOOP;
 END $$;
+
+-- ============================================================
+-- Keep-alive: o plano gratuito pausa o projeto após ~7 dias sem atividade.
+-- O GitHub Action (.github/workflows/supabase-keepalive.yml) e o próprio app
+-- chamam keep_alive() todo dia, que grava um horário no banco — atividade
+-- real no Postgres, não só uma consulta de configuração.
+-- A tabela não tem políticas: ninguém lê ou escreve nela diretamente.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.keep_alive (
+  id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  pinged_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  source TEXT
+);
+ALTER TABLE public.keep_alive ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.keep_alive(p_source TEXT DEFAULT 'unknown')
+RETURNS TIMESTAMPTZ
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  INSERT INTO public.keep_alive (id, pinged_at, source)
+  VALUES (1, now(), left(p_source, 40))
+  ON CONFLICT (id) DO UPDATE
+    SET pinged_at = excluded.pinged_at, source = excluded.source
+  RETURNING pinged_at;
+$$;
+
+REVOKE ALL ON FUNCTION public.keep_alive(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.keep_alive(TEXT) TO anon, authenticated;

@@ -46,13 +46,18 @@ Never implement unrelated future work just because it is technically convenient.
 
 ## App foundation
 
-The current app shell is an Expo + React Native + TypeScript project for issue `FF-001`.
+O app em produção é o **web app em `web/`** (Vite + React + Tailwind CSS 4),
+com login Google e sincronização na nuvem pelo **Supabase**
+(`web/supabase.ts`, `web/store.ts`). A pasta `src/` é a base Expo/React Native
+das issues FF-001 a FF-044: o web app ainda reaproveita dela o catálogo de
+exercícios e os tipos de domínio, e os testes dela continuam rodando.
 
 ### Local setup
 
 ```bash
-npm install
-npm run web
+npm install        # ou bun install
+npm run dev        # http://localhost:3000
+npm run build      # gera dist/
 ```
 
 Useful checks:
@@ -66,7 +71,33 @@ npm run format:check
 
 ### Environment
 
-Copy `.env.example` to `.env.local` for local-only values. Only `EXPO_PUBLIC_*` values are visible to the client bundle; do not put secrets there.
+`VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (chave publicável) vão para o
+bundle do navegador, por isso estão em `.env`: não são segredos. A proteção
+dos dados vem das políticas RLS do banco. Nunca coloque a chave `service_role`
+/ secreta em variáveis `VITE_*`. Valores só locais vão em `.env.local`.
+
+### Supabase
+
+1. No painel do Supabase, abra **SQL Editor**, cole todo o
+   [`supabase-schema.sql`](supabase-schema.sql) e rode. Ele pode ser rodado de
+   novo sempre que mudar: atualiza bancos antigos sem apagar dados.
+2. Em **Authentication › Providers**, ative o Google; em **URL Configuration**,
+   inclua a URL do app (e `http://localhost:3000` para desenvolvimento) nas
+   _Redirect URLs_.
+
+Sincronização: o aparelho é a fonte da verdade e cada mudança é enviada na
+hora. Gravações e exclusões que falham (offline) ficam pendentes, vencem a
+próxima sincronização e são reenviadas quando a conexão volta ou o app volta
+ao primeiro plano. Quem usa sem conta e depois entra com o Google leva os
+dados do aparelho para a conta.
+
+Keep-alive: o plano gratuito pausa projetos após ~7 dias sem atividade. O
+workflow [`supabase-keepalive.yml`](.github/workflows/supabase-keepalive.yml)
+chama a função `keep_alive()` do banco duas vezes por dia (usa os secrets
+`SUPABASE_URL`/`SUPABASE_ANON_KEY` se existirem, senão os valores públicos do
+`.env`) e o app faz o mesmo uma vez por dia em cada aparelho. Se o projeto já
+estiver pausado, o workflow falha e o GitHub avisa por e-mail; aí é preciso
+clicar em **Restore project** no painel.
 
 ### Native local persistence (FF-044)
 

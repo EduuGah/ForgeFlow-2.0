@@ -82,9 +82,7 @@ export function SettingsScreen() {
   const [sheet, setSheet] = useState<
     'notifications' | 'hydration' | 'nutrition' | 'report' | null
   >(null);
-  const { signIn, signingIn } = useGoogleSignIn(() =>
-    toast({ tone: 'success', title: 'Conta conectada' }),
-  );
+  const { signIn, signingIn } = useGoogleSignIn();
 
   const signOut = async () => {
     const ok = await confirm({

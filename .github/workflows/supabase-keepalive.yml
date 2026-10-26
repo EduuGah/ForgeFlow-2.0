@@ -1,28 +1,71 @@
 name: Supabase Keep-Alive
 
+# The free plan pauses a project after ~7 days without activity. This pings
+# the database twice a day; a failed run (e.g. the project is already paused)
+# fails the job, so GitHub e-mails the repository owner.
 on:
   schedule:
-    # Runs everyday at 12:00 UTC (9:00 AM BRT)
+    # 09:00 and 21:00 BRT. Two runs a day, since GitHub may skip scheduled
+    # runs when it is under load.
     - cron: '0 12 * * *'
+    - cron: '0 0 * * *'
   workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+
+permissions:
+  contents: read
+  actions: write
 
 jobs:
   ping:
     name: Ping Supabase Project
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase API
+      - name: Read the public Supabase settings
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .env
+          sparse-checkout-cone-mode: false
+
+      - name: Ping Supabase database
         env:
+          # Optional: secrets win; otherwise the public values from .env
+          # (the publishable key already ships inside the web app).
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
+          set -euo pipefail
+          read_env() { grep -E "^$1=" .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r"' || true; }
+          SUPABASE_URL="${SUPABASE_URL:-$(read_env VITE_SUPABASE_URL)}"
+          SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-$(read_env VITE_SUPABASE_ANON_KEY)}"
           if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
-            echo "Secrets SUPABASE_URL or SUPABASE_ANON_KEY are not set. Skipping ping."
-            exit 0
+            echo "::error::Supabase URL/key not found (set the SUPABASE_URL and SUPABASE_ANON_KEY secrets or VITE_* in .env)."
+            exit 1
           fi
-          echo "Sending keep-alive ping to Supabase..."
-          curl -f -s -o /dev/null -w "HTTP status: %{http_code}\n" \
+
+          # keep_alive() (supabase-schema.sql) writes a timestamp: real activity.
+          status=$(curl -s -o response.txt -w '%{http_code}' -X POST \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
-            "$SUPABASE_URL/auth/v1/settings"
-          echo "Supabase keep-alive ping completed successfully!"
+            -H "Content-Type: application/json" \
+            -d '{"p_source":"github"}' \
+            "$SUPABASE_URL/rest/v1/rpc/keep_alive" || true)
+          if [ "$status" = "200" ]; then
+            echo "keep_alive() OK at $(cat response.txt)"
+            exit 0
+          fi
+          echo "::warning::keep_alive() answered HTTP $status ($(cat response.txt 2>/dev/null)). Run supabase-schema.sql in the SQL Editor; falling back to a plain query."
+
+          curl -fsS -o /dev/null -w "Query HTTP status: %{http_code}\n" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/profiles?select=id&limit=1"
+
+      - name: Keep this schedule from being disabled
+        # GitHub turns scheduled workflows off after 60 days without commits
+        # in a public repository; enabling it through the API on every run
+        # keeps it on.
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/supabase-keepalive.yml/enable"

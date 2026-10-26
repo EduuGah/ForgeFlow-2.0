@@ -56,7 +56,33 @@ export function toAppUser(
 
 export function isLoginDismissed(error: unknown): boolean {
   const msg = (error as { message?: string })?.message?.toLowerCase() || '';
-  return msg.includes('user cancelled') || msg.includes('popup closed');
+  // "Cancel" on Google's consent screen comes back as error=access_denied.
+  const code = (error as { details?: { error?: string } })?.details?.error;
+  return (
+    code === 'access_denied' ||
+    msg.includes('user cancelled') ||
+    msg.includes('popup closed')
+  );
+}
+
+/**
+ * The error of a Google sign-in that came back through the redirect (the URL
+ * carries it), or null. Also strips the error from the address bar.
+ */
+export async function takeRedirectLoginError(): Promise<unknown> {
+  const { error } = await supabase.auth.initialize();
+  if (!error) return null;
+  try {
+    const url = new URL(window.location.href);
+    ['error', 'error_code', 'error_description'].forEach((key) =>
+      url.searchParams.delete(key),
+    );
+    url.hash = '';
+    window.history.replaceState(window.history.state, '', url.toString());
+  } catch {
+    // Cosmetic only.
+  }
+  return error;
 }
 
 export function describeLoginError(error: unknown): {
@@ -87,7 +113,8 @@ export async function loginWithGoogle(): Promise<void> {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+      redirectTo:
+        typeof window !== 'undefined' ? window.location.origin : undefined,
     },
   });
   if (error) throw error;
@@ -100,11 +127,8 @@ export async function logoutSupabase(): Promise<void> {
 export function onAuthStateChanged(
   callback: (user: AppUser | null) => void,
 ): () => void {
-  // Check initial session
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    callback(toAppUser(session?.user));
-  });
-
+  // Subscribing emits INITIAL_SESSION with the stored session, so there is
+  // no separate getSession() call (it made every start answer twice).
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -120,6 +144,10 @@ export function onAuthStateChanged(
 /* Supabase Data Sync Helpers                                         */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Replaces the whole document (`data` is never merged). The conflict target
+ * is the primary key, `(user_id, id)` once supabase-schema.sql has run.
+ */
 export async function supabaseSetDocument(
   table: string,
   id: string,
@@ -154,20 +182,27 @@ export async function supabaseDeleteDocument(
   }
 }
 
-export async function supabaseFetchCollection<T>(
+export interface DocumentRow {
+  id: string;
+  data: Record<string, unknown>;
+}
+
+export async function supabaseFetchRows(
   table: string,
   userId: string,
-): Promise<T[]> {
+): Promise<DocumentRow[]> {
   const { data, error } = await supabase
     .from(table)
-    .select('data')
+    .select('id, data')
     .eq('user_id', userId);
   if (error) {
     console.warn(`[Supabase] Erro ao buscar ${table}:`, error.message);
     throw error;
   }
   if (!data) return [];
-  return data.map((row: { data: unknown }) => row.data as T);
+  return (data as { id: string; data: unknown }[])
+    .filter((row) => row.data !== null && typeof row.data === 'object')
+    .map((row) => ({ id: row.id, data: row.data as Record<string, unknown> }));
 }
 
 export async function supabaseSetProfile(
@@ -203,9 +238,11 @@ export async function supabaseGetProfile(
     .select('*')
     .eq('id', userId)
     .maybeSingle();
+  // Thrown, not null: "no profile" makes the sync upload the local one, which
+  // would overwrite the real profile after a mere network error.
   if (error) {
     console.warn('[Supabase] Erro ao buscar perfil:', error.message);
-    return null;
+    throw error;
   }
   if (!data) return null;
   return {
@@ -243,8 +280,14 @@ export async function keepAliveSupabase(): Promise<boolean> {
   }
 
   try {
-    // Calling auth/v1/settings or getSession resets Supabase's 7-day inactivity counter
-    await supabase.auth.getSession();
+    // A real database write (getSession() only reads localStorage and never
+    // reached the server). Falls back to a plain query while the
+    // keep_alive() function from supabase-schema.sql is not installed.
+    const ping = await supabase.rpc('keep_alive', { p_source: 'app' });
+    if (ping.error) {
+      const query = await supabase.from('profiles').select('id').limit(1);
+      if (query.error) throw query.error;
+    }
     localStorage.setItem(PING_STORAGE_KEY, new Date(now).toISOString());
     return true;
   } catch (error) {
