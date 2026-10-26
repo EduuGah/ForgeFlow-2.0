@@ -14,7 +14,7 @@ import {
 import { findExercise, useAppStore } from '../store';
 import { formatClock, pluralize } from '../lib/format';
 import { muscleCode, suggestNextTemplate } from '../lib/training';
-import { groupRoutines } from '../lib/folders';
+import { folderLabel, groupRoutines } from '../lib/folders';
 import { haptic } from '../lib/haptics';
 import { useWorkoutLauncher } from '../features/useWorkoutLauncher';
 import { useRestCountdown } from '../features/RestTimer';
@@ -306,7 +306,7 @@ function StartWorkoutSheet({
               id={`start-routines-${groupIndex}`}
               className="text-micro mb-1 font-semibold tracking-wider text-ink-2 uppercase"
             >
-              {group.folder?.name ??
+              {(group.folder && folderLabel(folders, group.folder.id)) ??
                 (folders.length > 0 ? 'Sem pasta' : 'Suas rotinas')}
             </h3>
             <ul className="divide-y divide-line" role="list">

@@ -111,7 +111,9 @@ export interface WorkoutTemplateItem {
 export interface RoutineFolder {
   id: string;
   name: string;
-  /** Position on the Routines tab, ascending. */
+  /** Folder this one lives in; none (or a folder that is gone) = top level. */
+  parentId?: string;
+  /** Position among the folders of the same parent, ascending. */
   order: number;
   createdAt: string;
 }

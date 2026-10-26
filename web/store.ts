@@ -40,8 +40,9 @@ import { removeUntouchedSamples } from './lib/samples';
 import {
   moveFolder,
   nextFolderOrder,
+  placeFolder,
   placeRoutine,
-  reorderFolder,
+  removeFolder,
   sortFolders,
 } from './lib/folders';
 import { suggestGymId } from './lib/gyms';
@@ -1436,14 +1437,19 @@ export const actions = {
   },
 
   /* Routine folders */
-  createFolder: (name: string): string => {
+  /** Creates a folder at the end of `parentId` (`null` = top level). */
+  createFolder: (name: string, parentId: string | null = null): string => {
+    const parent = state.folders.some((folder) => folder.id === parentId)
+      ? parentId
+      : null;
     const folder: RoutineFolder = {
       id: uid('folder'),
       name: name.trim(),
-      order: nextFolderOrder(state.folders),
+      ...(parent ? { parentId: parent } : {}),
+      order: nextFolderOrder(state.folders, parent),
       createdAt: new Date().toISOString(),
     };
-    setState({ folders: [...state.folders, folder] });
+    setState({ folders: sortFolders([...state.folders, folder]) });
     remoteSet(['folders', folder.id], folder);
     return folder.id;
   },
@@ -1483,14 +1489,22 @@ export const actions = {
     );
   },
 
-  /** Moves a folder to a position (drag). */
-  reorderFolder: (id: string, index: number) => {
-    const result = reorderFolder(state.folders, id, index);
-    if (!result) return;
+  /**
+   * Puts a folder inside `parentId` (`null` = top level) at a position
+   * (drag or "Mover para…"). Refuses to put a folder inside itself.
+   */
+  placeFolder: (
+    id: string,
+    parentId: string | null,
+    index: number = Number.MAX_SAFE_INTEGER,
+  ): boolean => {
+    const result = placeFolder(state.folders, id, parentId, index);
+    if (!result) return false;
     setState({ folders: result.folders });
     result.changed.forEach((folder) =>
       remoteSet(['folders', folder.id], folder),
     );
+    return true;
   },
 
   moveFolder: (id: string, direction: -1 | 1) => {
@@ -1503,17 +1517,36 @@ export const actions = {
   },
 
   /**
-   * Deletes a folder. Its routines are deleted too when `withRoutines`,
-   * otherwise they move out of the folder.
+   * Deletes a folder. With `withContents` its subfolders and their routines
+   * are deleted too; otherwise what it held moves up one level.
    */
-  deleteFolder: (id: string, withRoutines: boolean) => {
-    const inside = state.templates.filter((t) => t.folderId === id);
-    setState({ folders: state.folders.filter((folder) => folder.id !== id) });
-    remoteDelete('folders', id);
-    inside.forEach((template) =>
-      withRoutines
-        ? actions.deleteTemplate(template.id)
-        : actions.moveTemplateToFolder(template.id, null),
+  deleteFolder: (id: string, withContents: boolean) => {
+    const result = removeFolder(
+      state.templates,
+      state.folders,
+      id,
+      withContents,
+    );
+    if (!result) return;
+    const moved = new Map(
+      result.changedTemplates.map((template) => [template.id, template]),
+    );
+    setState({
+      folders: result.folders,
+      templates: state.templates.map((t) => moved.get(t.id) ?? t),
+    });
+    result.deletedFolderIds.forEach((folderId) =>
+      remoteDelete('folders', folderId),
+    );
+    // Full writes so moving up a level also clears the old parent remotely.
+    result.changedFolders.forEach((folder) =>
+      remoteSet(['folders', folder.id], folder),
+    );
+    result.changedTemplates.forEach((template) =>
+      remoteSet(['templates', template.id], template),
+    );
+    result.deletedTemplateIds.forEach((templateId) =>
+      actions.deleteTemplate(templateId),
     );
   },
 

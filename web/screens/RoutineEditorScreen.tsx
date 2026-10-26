@@ -10,7 +10,7 @@ import {
 import { actions, findExercise, useAppStore } from '../store';
 import type { TemplateExercise } from '../lib/types';
 import { formatRestLabel } from '../lib/format';
-import { sortFolders } from '../lib/folders';
+import { folderLabel, sortFolders } from '../lib/folders';
 import { useNavigation } from '../navigation/Navigator';
 import { ExercisePicker } from '../features/ExercisePicker';
 import { Button, IconButton } from '../ui/Button';
@@ -188,7 +188,7 @@ export function RoutineEditorScreen({
               { value: '', label: 'Sem pasta' },
               ...sortFolders(folders).map((folder) => ({
                 value: folder.id,
-                label: folder.name,
+                label: folderLabel(folders, folder.id),
               })),
             ]}
           />
