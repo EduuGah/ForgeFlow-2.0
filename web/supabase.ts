@@ -124,6 +124,23 @@ export async function logoutSupabase(): Promise<void> {
   await supabase.auth.signOut();
 }
 
+/** Deletes every training record and the profile of who is signed in. */
+export async function supabaseDeleteMyData(): Promise<void> {
+  const { error } = await supabase.rpc('delete_my_data');
+  if (error) throw error;
+}
+
+/** Deletes the data, the @, the friendships and the login itself. */
+export async function supabaseDeleteMyAccount(): Promise<void> {
+  const { error } = await supabase.rpc('delete_my_account');
+  if (error) throw error;
+}
+
+/** Drops the session on this device only (the server may not know it anymore). */
+export async function forgetSession(): Promise<void> {
+  await supabase.auth.signOut({ scope: 'local' });
+}
+
 export function onAuthStateChanged(
   callback: (user: AppUser | null) => void,
 ): () => void {

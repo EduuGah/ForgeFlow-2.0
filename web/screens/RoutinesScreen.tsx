@@ -25,6 +25,7 @@ import {
   Play,
   Plus,
   Search,
+  Send,
   Trash2,
   Zap,
 } from 'lucide-react';
@@ -48,6 +49,12 @@ import { useNavigation } from '../navigation/Navigator';
 import { useWorkoutLauncher } from '../features/useWorkoutLauncher';
 import { OfflineNotice } from '../features/StatusBits';
 import { NameSheet } from '../features/NameSheet';
+import {
+  SendToFriendSheet,
+  shareTargets,
+  type ShareTarget,
+} from '../features/ShareSheets';
+import { refreshFriendsIfStale } from '../features/useFriends';
 import { Button, IconButton } from '../ui/Button';
 import { EmptyState } from '../ui/Feedback';
 import {
@@ -985,6 +992,7 @@ function FolderSection({
   const [menuOpen, setMenuOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [sharing, setSharing] = useState<ShareTarget | null>(null);
   const titleId = `folder-${folder.id}`;
   const listId = `folder-list-${folder.id}`;
   const Icon = collapsed && !isOver ? Folder : FolderOpen;
@@ -1035,6 +1043,15 @@ function FolderSection({
     },
     { label: 'Nova subpasta', icon: FolderPlus, onSelect: onCreateSubfolder },
     { label: 'Renomear pasta', icon: Pencil, onSelect: onRename },
+    {
+      label: 'Compartilhar com amigo',
+      description: 'Envia uma cópia da pasta, com subpastas e rotinas',
+      icon: Send,
+      onSelect: () => {
+        refreshFriendsIfStale();
+        setSharing(shareTargets.folder(folder.id));
+      },
+    },
     ...(destinations.length > 1
       ? [
           {
@@ -1157,6 +1174,7 @@ function FolderSection({
         title={folder.name}
         actions={menu}
       />
+      <SendToFriendSheet target={sharing} onClose={() => setSharing(null)} />
       <ActionSheet
         open={moveOpen}
         onClose={() => setMoveOpen(false)}
@@ -1326,6 +1344,7 @@ function RoutineCard({
   const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [sharing, setSharing] = useState<ShareTarget | null>(null);
   const currentFolder = folders.find(
     (folder) => folder.id === template.folderId,
   );
@@ -1455,6 +1474,14 @@ function RoutineCard({
             },
           },
           {
+            label: 'Compartilhar com amigo',
+            icon: Send,
+            onSelect: () => {
+              refreshFriendsIfStale();
+              setSharing(shareTargets.routine(template.id));
+            },
+          },
+          {
             label: 'Excluir rotina',
             icon: Trash2,
             tone: 'danger',
@@ -1482,6 +1509,7 @@ function RoutineCard({
           { label: 'Nova pasta…', icon: FolderPlus, onSelect: onNewFolder },
         ]}
       />
+      <SendToFriendSheet target={sharing} onClose={() => setSharing(null)} />
     </Card>
   );
 }

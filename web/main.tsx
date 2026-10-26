@@ -5,7 +5,9 @@ import './index.css';
 import { applyTheme, readThemePreference } from './lib/theme';
 import { registerServiceWorker } from './lib/offlineMedia';
 import { keepAliveSupabase } from './supabase';
+import { captureInvite } from './features/invite';
 
+captureInvite();
 applyTheme(readThemePreference());
 registerServiceWorker();
 void keepAliveSupabase();

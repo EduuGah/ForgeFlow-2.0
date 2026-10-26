@@ -11,7 +11,9 @@ import {
   ImageDown,
   Info,
   LogOut,
+  Trash2,
   UserRound,
+  UserX,
   Utensils,
 } from 'lucide-react';
 import { actions, useAppStore } from '../store';
@@ -101,6 +103,71 @@ export function SettingsScreen() {
         tone: 'error',
         title: 'Não foi possível sair. Tente novamente.',
       });
+    }
+  };
+
+  const [deleting, setDeleting] = useState(false);
+
+  const deletionError = (error: unknown) => {
+    const code = (error as { code?: string })?.code;
+    toast({
+      tone: 'error',
+      title: !navigator.onLine
+        ? 'Sem conexão: nada foi apagado'
+        : code === 'PGRST202'
+          ? 'Falta atualizar o banco: rode o supabase-schema.sql no Supabase'
+          : 'Não foi possível apagar. Nada foi alterado.',
+    });
+  };
+
+  const deleteData = async () => {
+    const ok = await confirm({
+      title: 'Apagar todos os seus dados?',
+      message: currentUser
+        ? 'Treinos, rotinas, recordes, metas, medidas, hidratação e nutrição serão apagados deste aparelho e da nuvem. Sua conta, seu @ e seus amigos continuam. Não dá para desfazer: se quiser uma cópia, exporte o backup antes.'
+        : 'Tudo o que está salvo neste aparelho será apagado. Não dá para desfazer: se quiser uma cópia, exporte o backup antes.',
+      confirmLabel: 'Apagar tudo',
+      tone: 'danger',
+      icon: Trash2,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await actions.deleteAllData();
+      toast({ tone: 'success', title: 'Dados apagados' });
+    } catch (error) {
+      deletionError(error);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const deleteAccount = async () => {
+    const ok =
+      (await confirm({
+        title: 'Excluir sua conta?',
+        message:
+          'Apaga seus treinos e dados, seu @, suas amizades e o login. Seus amigos deixam de te ver. Se quiser uma cópia, exporte o backup antes.',
+        confirmLabel: 'Continuar',
+        tone: 'danger',
+        icon: UserX,
+      })) &&
+      (await confirm({
+        title: 'Tem certeza?',
+        message:
+          'Esta é a última confirmação. A conta não pode ser recuperada depois.',
+        confirmLabel: 'Excluir conta',
+        tone: 'danger',
+        icon: UserX,
+      }));
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await actions.deleteAccount();
+      toast({ tone: 'success', title: 'Conta excluída' });
+    } catch (error) {
+      deletionError(error);
+      setDeleting(false);
     }
   };
 
@@ -231,6 +298,32 @@ export function SettingsScreen() {
             onClick={tutorial.show}
           />
           <ListRow icon={Info} title="ForgeFlow" value="2.0" />
+        </ListGroup>
+
+        <GroupLabel>Excluir dados</GroupLabel>
+        <ListGroup>
+          <ListRow
+            icon={Trash2}
+            tone="danger"
+            title="Apagar meus dados"
+            subtitle={
+              currentUser
+                ? 'Treinos, rotinas, recordes e diário, aqui e na nuvem'
+                : 'Tudo o que está salvo neste aparelho'
+            }
+            disabled={deleting}
+            onClick={deleteData}
+          />
+          {currentUser && (
+            <ListRow
+              icon={UserX}
+              tone="danger"
+              title="Excluir minha conta"
+              subtitle="Também apaga seu @, seus amigos e o login"
+              disabled={deleting}
+              onClick={deleteAccount}
+            />
+          )}
         </ListGroup>
 
         {currentUser && (

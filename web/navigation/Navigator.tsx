@@ -17,7 +17,8 @@ export type Route =
   | { name: 'goals' }
   | { name: 'hydration' }
   | { name: 'nutrition' }
-  | { name: 'social' }
+  | { name: 'social'; invite?: string }
+  | { name: 'friend'; userId: string }
   | { name: 'settings' }
   | { name: 'editProfile' }
   | { name: 'library' }

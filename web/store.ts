@@ -11,6 +11,9 @@ import {
   supabaseSetProfile,
   supabaseGetProfile,
   takeRedirectLoginError,
+  supabaseDeleteMyData,
+  supabaseDeleteMyAccount,
+  forgetSession,
   type AppUser,
 } from './supabase';
 import { uid } from './lib/id';
@@ -598,6 +601,19 @@ function remoteDelete(collectionName: RemoteCollection, id: string) {
 
 let syncInFlight: Promise<void> | null = null;
 
+/** Lets a running sync finish, so it can't upload data that is about to go. */
+async function settleSync() {
+  if (syncInFlight) await syncInFlight.catch(() => undefined);
+}
+
+/** Forgets everything this device keeps for the current person. */
+function wipeLocalData() {
+  writeSeq.clear();
+  state = { ...state, ...defaultData(state.currentUser), syncStatus: 'idle' };
+  persistNow();
+  emit();
+}
+
 /**
  * Removes sample routines and goals created by earlier versions while they
  * are still untouched, here and in the cloud (a sync would bring them back).
@@ -1053,6 +1069,38 @@ export const actions = {
     setState({ hasOnboarded: false }, { persist: false });
     await logoutSupabase();
     switchUser(null);
+  },
+
+  /**
+   * Erases workouts, routines, records, goals, measurements and the diary,
+   * here and (signed in) in the cloud. The login, @ and friends stay.
+   */
+  deleteAllData: async () => {
+    if (state.currentUser) {
+      await settleSync();
+      await supabaseDeleteMyData();
+    }
+    wipeLocalData();
+  },
+
+  /** Erases everything, the login included, and signs out. */
+  deleteAccount: async () => {
+    const user = state.currentUser;
+    if (!user) return;
+    await settleSync();
+    await supabaseDeleteMyAccount();
+    wipeLocalData();
+    writeOnboarded(false);
+    setState({ hasOnboarded: false }, { persist: false });
+    // Leave the account before dropping the session, so the sign-out event
+    // finds nothing left to save.
+    switchUser(null);
+    try {
+      localStorage.removeItem(storageKey(user.uid));
+    } catch {
+      // Storage unavailable: nothing was kept there either.
+    }
+    await forgetSession();
   },
 
   completeOnboarding: () => {
@@ -1883,16 +1931,6 @@ export const actions = {
         joinedChallenges: joined.includes(challengeId)
           ? joined.filter((id) => id !== challengeId)
           : [...joined, challengeId],
-      },
-    });
-  },
-
-  acceptFriend: (friendId: string) => {
-    if (state.social.acceptedFriends.includes(friendId)) return;
-    setState({
-      social: {
-        ...state.social,
-        acceptedFriends: [...state.social.acceptedFriends, friendId],
       },
     });
   },

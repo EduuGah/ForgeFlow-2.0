@@ -12,12 +12,14 @@ import {
   Utensils,
   MapPin,
 } from 'lucide-react';
+import { useEffect } from 'react';
 import { useAppStore, useProfilePhoto } from '../store';
 import { formatNumber } from '../lib/format';
 import { tutorial } from '../lib/tutorial';
 import { useNavigation } from '../navigation/Navigator';
 import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
 import { SyncBadge } from '../features/StatusBits';
+import { refreshFriendsIfStale, useFriends } from '../features/useFriends';
 import { IconButton } from '../ui/Button';
 import { Avatar } from '../ui/Feedback';
 import { Card, GroupLabel, ListGroup, ListRow, TabHeader } from '../ui/Layout';
@@ -39,6 +41,22 @@ export function ProfileScreen() {
   const { signIn, signingIn } = useGoogleSignIn();
   const activeGoals = goals.filter((goal) => goal.status === 'active').length;
   const since = history.at(-1)?.completedAt;
+  const friends = useFriends();
+  const invites = friends.lists.incoming.length;
+  const received = friends.inbox.length;
+  const friendNews = [
+    invites > 0 &&
+      `${invites} ${invites === 1 ? 'pedido' : 'pedidos'} de amizade`,
+    received > 0 &&
+      `${received} ${received === 1 ? 'rotina recebida' : 'rotinas recebidas'}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  // Keeps the friend-request count on the Community row current.
+  useEffect(() => {
+    if (currentUser) refreshFriendsIfStale();
+  }, [currentUser]);
 
   return (
     <>
@@ -196,8 +214,9 @@ export function ProfileScreen() {
         <ListGroup>
           <ListRow
             icon={Users}
-            title="Desafios e amigos"
-            subtitle="Ranking semanal e desafios em grupo"
+            title="Amigos e ranking"
+            subtitle={friendNews || 'Adicione amigos e compare os treinos'}
+            tone={friendNews ? 'brand' : 'default'}
             onClick={() => push({ name: 'social' })}
           />
         </ListGroup>

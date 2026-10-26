@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore, type FinishResult } from './store';
 import {
   NavigationProvider,
@@ -25,6 +25,8 @@ import { GoalsScreen } from './screens/GoalsScreen';
 import { HydrationScreen } from './screens/HydrationScreen';
 import { NutritionScreen } from './screens/NutritionScreen';
 import { SocialScreen } from './screens/SocialScreen';
+import { FriendScreen } from './screens/FriendScreen';
+import { clearInvite, peekInvite } from './features/invite';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { EditProfileScreen } from './screens/EditProfileScreen';
 import { LibraryScreen } from './screens/LibraryScreen';
@@ -77,7 +79,9 @@ function renderRoute(route: Route) {
     case 'nutrition':
       return <NutritionScreen />;
     case 'social':
-      return <SocialScreen />;
+      return <SocialScreen invite={route.invite} />;
+    case 'friend':
+      return <FriendScreen userId={route.userId} />;
     case 'settings':
       return <SettingsScreen />;
     case 'editProfile':
@@ -139,6 +143,29 @@ function MainShell() {
       />
       <RestTimerWatcher />
       <SyncWatcher />
+      <InviteWatcher />
     </div>
   );
+}
+
+/** The invite already opened on this page load (guests keep theirs stored). */
+let openedInvite: string | null = null;
+
+/**
+ * Opens the Community screen for an invite link (/?amigo=...). Without an
+ * account it only shows the sign-in prompt and keeps the invite for after the
+ * Google redirect.
+ */
+function InviteWatcher() {
+  const { currentUser } = useAppStore();
+  const { push } = useNavigation();
+  useEffect(() => {
+    const invite = peekInvite();
+    if (!invite) return;
+    if (currentUser) clearInvite();
+    else if (openedInvite === invite) return;
+    openedInvite = invite;
+    push({ name: 'social', invite });
+  }, [currentUser, push]);
+  return null;
 }

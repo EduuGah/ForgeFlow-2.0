@@ -204,3 +204,243 @@ $$;
 
 REVOKE ALL ON FUNCTION public.keep_alive(TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.keep_alive(TEXT) TO anon, authenticated;
+
+-- ============================================================
+-- Amizades
+-- ============================================================
+
+-- Perfil público: só o necessário para alguém te encontrar (nunca o e-mail).
+CREATE TABLE IF NOT EXISTS public.social_profiles (
+  user_id TEXT PRIMARY KEY,
+  username TEXT NOT NULL CHECK (username ~ '^[a-z0-9._-]{3,30}$'),
+  name TEXT NOT NULL DEFAULT '' CHECK (char_length(name) <= 60),
+  photo_url TEXT CHECK (char_length(photo_url) <= 300000),
+  -- Desligado: amigos continuam amigos, mas não veem seus treinos.
+  share_stats BOOLEAN NOT NULL DEFAULT true,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS social_profiles_username_key
+  ON public.social_profiles (username);
+
+-- Pedido nasce "pending"; só quem recebeu pode aceitar. Os dois lados podem
+-- apagar (cancelar, recusar ou desfazer a amizade).
+CREATE TABLE IF NOT EXISTS public.friendships (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  requester_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  addressee_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  accepted_at TIMESTAMPTZ,
+  CHECK (requester_id <> addressee_id)
+);
+-- Um único vínculo por dupla, seja quem for que pediu.
+CREATE UNIQUE INDEX IF NOT EXISTS friendships_pair_key ON public.friendships (
+  least(requester_id, addressee_id), greatest(requester_id, addressee_id)
+);
+CREATE INDEX IF NOT EXISTS friendships_addressee_idx ON public.friendships (addressee_id);
+
+ALTER TABLE public.social_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.friendships ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Perfis públicos visíveis para quem está logado" ON public.social_profiles;
+CREATE POLICY "Perfis públicos visíveis para quem está logado" ON public.social_profiles
+  FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Cada um edita o próprio perfil público" ON public.social_profiles;
+CREATE POLICY "Cada um edita o próprio perfil público" ON public.social_profiles
+  FOR ALL TO authenticated
+  USING (user_id = (select auth.uid())::text)
+  WITH CHECK (user_id = (select auth.uid())::text);
+
+DROP POLICY IF EXISTS "Participantes veem o vínculo" ON public.friendships;
+CREATE POLICY "Participantes veem o vínculo" ON public.friendships
+  FOR SELECT TO authenticated
+  USING ((select auth.uid())::text IN (requester_id, addressee_id));
+DROP POLICY IF EXISTS "Pedido sai em seu nome e pendente" ON public.friendships;
+CREATE POLICY "Pedido sai em seu nome e pendente" ON public.friendships
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    requester_id = (select auth.uid())::text
+    AND status = 'pending'
+    AND accepted_at IS NULL
+  );
+DROP POLICY IF EXISTS "Só o destinatário aceita" ON public.friendships;
+CREATE POLICY "Só o destinatário aceita" ON public.friendships
+  FOR UPDATE TO authenticated
+  USING (addressee_id = (select auth.uid())::text AND status = 'pending')
+  WITH CHECK (addressee_id = (select auth.uid())::text AND status = 'accepted');
+DROP POLICY IF EXISTS "Participantes desfazem o vínculo" ON public.friendships;
+CREATE POLICY "Participantes desfazem o vínculo" ON public.friendships
+  FOR DELETE TO authenticated
+  USING ((select auth.uid())::text IN (requester_id, addressee_id));
+
+-- Ao aceitar, só o status e a data mudam: trocar quem pediu criaria uma
+-- amizade com alguém que nunca concordou.
+REVOKE UPDATE ON public.friendships FROM anon, authenticated;
+GRANT UPDATE (status, accepted_at) ON public.friendships TO authenticated;
+
+-- Amigo aceito, que compartilha os treinos, pode LER histórico e recordes.
+CREATE OR REPLACE FUNCTION public.is_friend_sharing(p_owner TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.friendships f
+    WHERE f.status = 'accepted'
+      AND (
+        (f.requester_id = (select auth.uid())::text AND f.addressee_id = p_owner)
+        OR (f.addressee_id = (select auth.uid())::text AND f.requester_id = p_owner)
+      )
+  )
+  AND COALESCE(
+    (SELECT share_stats FROM public.social_profiles WHERE user_id = p_owner),
+    false
+  );
+$$;
+REVOKE ALL ON FUNCTION public.is_friend_sharing(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_friend_sharing(TEXT) TO authenticated;
+
+DROP POLICY IF EXISTS "Amigos veem os treinos" ON public.history;
+CREATE POLICY "Amigos veem os treinos" ON public.history
+  FOR SELECT TO authenticated USING (public.is_friend_sharing(user_id));
+DROP POLICY IF EXISTS "Amigos veem os recordes" ON public.prs;
+CREATE POLICY "Amigos veem os recordes" ON public.prs
+  FOR SELECT TO authenticated USING (public.is_friend_sharing(user_id));
+
+-- Busca por nome ou @usuário (o termo é tratado como texto, nunca como padrão).
+CREATE OR REPLACE FUNCTION public.search_people(p_query TEXT)
+RETURNS SETOF public.social_profiles
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  WITH q AS (
+    SELECT lower(btrim(btrim(p_query), '@')) AS term
+  ), pattern AS (
+    SELECT term,
+      '%' || replace(replace(replace(term, '\', '\\'), '%', '\%'), '_', '\_') || '%' AS p
+    FROM q
+  )
+  SELECT s.* FROM public.social_profiles s, pattern
+  WHERE char_length(pattern.term) >= 2
+    AND s.user_id <> (select auth.uid())::text
+    AND (s.username ILIKE pattern.p OR s.name ILIKE pattern.p)
+  ORDER BY (s.username = pattern.term) DESC, s.username
+  LIMIT 20;
+$$;
+REVOKE ALL ON FUNCTION public.search_people(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.search_people(TEXT) TO authenticated;
+
+-- ============================================================
+-- Rotinas compartilhadas entre amigos
+-- Quem envia manda uma cópia (rotina ou pasta); quem recebe salva nas
+-- próprias rotinas ou recusa. Só entre amigos aceitos.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.shared_routines (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  sender_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  recipient_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('routine', 'folder')),
+  title TEXT NOT NULL CHECK (char_length(title) BETWEEN 1 AND 80),
+  payload JSONB NOT NULL CHECK (pg_column_size(payload) <= 200000),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (sender_id <> recipient_id)
+);
+CREATE INDEX IF NOT EXISTS shared_routines_recipient_idx
+  ON public.shared_routines (recipient_id);
+ALTER TABLE public.shared_routines ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.are_friends(p_other TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.friendships f
+    WHERE f.status = 'accepted'
+      AND (
+        (f.requester_id = (select auth.uid())::text AND f.addressee_id = p_other)
+        OR (f.addressee_id = (select auth.uid())::text AND f.requester_id = p_other)
+      )
+  );
+$$;
+REVOKE ALL ON FUNCTION public.are_friends(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.are_friends(TEXT) TO authenticated;
+
+DROP POLICY IF EXISTS "Remetente e destinatário veem o envio" ON public.shared_routines;
+CREATE POLICY "Remetente e destinatário veem o envio" ON public.shared_routines
+  FOR SELECT TO authenticated
+  USING ((select auth.uid())::text IN (sender_id, recipient_id));
+DROP POLICY IF EXISTS "Envio só para amigos e em seu nome" ON public.shared_routines;
+CREATE POLICY "Envio só para amigos e em seu nome" ON public.shared_routines
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    sender_id = (select auth.uid())::text
+    AND public.are_friends(recipient_id)
+  );
+DROP POLICY IF EXISTS "Remetente e destinatário apagam o envio" ON public.shared_routines;
+CREATE POLICY "Remetente e destinatário apagam o envio" ON public.shared_routines
+  FOR DELETE TO authenticated
+  USING ((select auth.uid())::text IN (sender_id, recipient_id));
+-- Sem política de UPDATE: um envio não muda depois de feito.
+
+-- ============================================================
+-- Excluir dados e conta (Configurações › Excluir dados)
+-- Sempre de quem está logado; nunca recebem o id de fora.
+-- ============================================================
+
+-- Treinos, rotinas, recordes, metas, medidas, hidratação, nutrição e perfil.
+-- Mantém o login, o @ e os amigos.
+CREATE OR REPLACE FUNCTION public.delete_my_data()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  me TEXT := (select auth.uid())::text;
+  tbl TEXT;
+BEGIN
+  IF me IS NULL THEN
+    RAISE EXCEPTION 'É preciso estar logado' USING ERRCODE = '42501';
+  END IF;
+  FOREACH tbl IN ARRAY ARRAY[
+    'gyms', 'folders', 'templates', 'history', 'prs', 'goals',
+    'hydration', 'meals', 'custom_exercises', 'measurements', 'profiles'
+  ]
+  LOOP
+    EXECUTE format('DELETE FROM public.%I WHERE user_id = $1', tbl) USING me;
+  END LOOP;
+  -- Rotinas que enviou ou que esperam por você também são dados seus.
+  DELETE FROM public.shared_routines WHERE me IN (sender_id, recipient_id);
+END;
+$$;
+
+-- Tudo acima, mais o @, as amizades e o próprio login. Não dá para desfazer.
+CREATE OR REPLACE FUNCTION public.delete_my_account()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  me TEXT := (select auth.uid())::text;
+BEGIN
+  IF me IS NULL THEN
+    RAISE EXCEPTION 'É preciso estar logado' USING ERRCODE = '42501';
+  END IF;
+  PERFORM public.delete_my_data();
+  -- As amizades saem junto (ON DELETE CASCADE).
+  DELETE FROM public.social_profiles WHERE user_id = me;
+  DELETE FROM auth.users WHERE id = me::uuid;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.delete_my_data() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.delete_my_account() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.delete_my_data() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_my_account() TO authenticated;
