@@ -176,14 +176,17 @@ export function ChatScreen({ userId }: { userId: string }) {
           </InlineNotice>
         )}
 
+        {/* mt-auto: the conversation grows from the bottom, next to the
+            composer, with the empty space above it (like any chat app). */}
         {messages === null && !failed ? (
-          <div className="space-y-3">
+          <div className="mt-auto space-y-3 pb-3">
             <Skeleton className="h-10 w-2/3" />
             <Skeleton className="ml-auto h-10 w-1/2" />
             <Skeleton className="h-10 w-3/5" />
           </div>
         ) : messages && messages.length === 0 ? (
           <EmptyState
+            className="mt-auto"
             icon={MessageCircle}
             title="Comece a conversa"
             message={
@@ -193,7 +196,7 @@ export function ChatScreen({ userId }: { userId: string }) {
             }
           />
         ) : (
-          <ol className="flex flex-col gap-1 pb-3" aria-live="polite">
+          <ol className="mt-auto flex flex-col gap-1 pb-3" aria-live="polite">
             {(messages ?? []).map((message, index) => {
               const mine = message.senderId === me;
               const previous = messages?.[index - 1];
@@ -279,7 +282,7 @@ export function ChatScreen({ userId }: { userId: string }) {
           // Pinned to the bottom of the screen (the dock hides in a chat).
           // Screens keep room at the bottom for the dock, and sticky counts
           // that room too: the negative margin and offset give it back.
-          className="sticky -mx-4 mt-auto flex items-end gap-2 border-t border-line bg-canvas px-4 pt-2"
+          className="sticky -mx-4 flex items-end gap-2 border-t border-line bg-canvas px-4 pt-2"
           style={{
             bottom: `calc(-1 * ${DOCK_SPACE})`,
             paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))',
