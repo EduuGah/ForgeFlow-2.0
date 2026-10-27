@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { actions, findExercise, useAppStore } from '../store';
 import type { TemplateExercise } from '../lib/types';
-import { formatRestLabel } from '../lib/format';
+import { formatRepRange, formatRestLabel } from '../lib/format';
 import { folderLabel, sortFolders } from '../lib/folders';
 import { useNavigation } from '../navigation/Navigator';
 import { ExercisePicker } from '../features/ExercisePicker';
@@ -18,6 +18,7 @@ import { Button, IconButton } from '../ui/Button';
 import { EmptyState, ExerciseThumb } from '../ui/Feedback';
 import {
   NumberField,
+  NumericInput,
   SelectField,
   Stepper,
   TextAreaField,
@@ -308,7 +309,7 @@ function RoutineExercisePreview({ item }: { item: TemplateExercise }) {
 /** "2A + 3 × 10": warm-ups (if any) plus working sets × reps. */
 function setsLabel(item: TemplateExercise): string {
   const warmups = item.warmupSets ?? 0;
-  return `${warmups > 0 ? `${warmups}A + ` : ''}${item.targetSets} × ${item.targetReps}`;
+  return `${warmups > 0 ? `${warmups}A + ` : ''}${item.targetSets} × ${formatRepRange(item.targetReps, item.targetRepsMax)}`;
 }
 
 function RoutineExerciseCard({
@@ -387,13 +388,44 @@ function RoutineExerciseCard({
             max={20}
             onChange={(targetSets) => onChange({ targetSets })}
           />
-          <Stepper
-            label="Repetições"
-            value={item.targetReps}
-            min={1}
-            max={100}
-            onChange={(targetReps) => onChange({ targetReps })}
-          />
+          <div>
+            <span className="text-footnote mb-1.5 block font-medium text-ink-2">
+              Repetições
+            </span>
+            {/* A fixed count, or a range when "até" is filled in (8 até 12). */}
+            <div className="flex h-12 items-center gap-1.5 rounded-md bg-raised px-2">
+              <NumericInput
+                aria-label={`Repetições de ${item.exerciseName}`}
+                value={item.targetReps}
+                min={1}
+                max={100}
+                onValueChange={(targetReps) =>
+                  onChange({
+                    targetReps,
+                    ...(item.targetRepsMax && item.targetRepsMax <= targetReps
+                      ? { targetRepsMax: undefined }
+                      : {}),
+                  })
+                }
+                className="text-body h-full w-full min-w-0 bg-transparent text-center font-semibold tabular outline-none"
+              />
+              <span className="text-footnote shrink-0 text-ink-3">até</span>
+              <NumericInput
+                aria-label={`Máximo da faixa de repetições de ${item.exerciseName} (opcional)`}
+                value={item.targetRepsMax ?? 0}
+                zeroAsEmpty
+                placeholder="—"
+                min={0}
+                max={100}
+                onValueChange={(max) =>
+                  onChange({
+                    targetRepsMax: max > item.targetReps ? max : undefined,
+                  })
+                }
+                className="text-body h-full w-full min-w-0 bg-transparent text-center font-semibold tabular outline-none placeholder:text-ink-3"
+              />
+            </div>
+          </div>
           <NumberField
             label="Carga"
             suffix="kg"

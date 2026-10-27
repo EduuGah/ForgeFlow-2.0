@@ -11,6 +11,7 @@ import {
   ImageDown,
   Info,
   LogOut,
+  Smartphone,
   Trash2,
   UserRound,
   UserX,
@@ -35,6 +36,9 @@ import {
 import { useTheme, type ThemePreference } from '../lib/theme';
 import { useNavigation } from '../navigation/Navigator';
 import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
+import { InstallSheet, useInstallState } from '../features/InstallApp';
+import { PushSetup } from '../features/PushSetup';
+import { unregisterPush } from '../features/pushRegistration';
 import { Button } from '../ui/Button';
 import { Medal } from '../ui/Feedback';
 import { NumberField, Switch } from '../ui/Form';
@@ -48,24 +52,19 @@ const NOTIFICATION_ROWS: {
   description: string;
 }[] = [
   {
+    key: 'friendAlerts',
+    label: 'Amigos',
+    description: 'Mensagens, pedidos de amizade e rotinas recebidas',
+  },
+  {
     key: 'restTimerAlerts',
     label: 'Fim do descanso',
     description: 'Vibração e aviso quando o descanso termina',
   },
   {
-    key: 'workoutReminders',
-    label: 'Lembretes de treino',
-    description: 'Aviso nos dias em que você costuma treinar',
-  },
-  {
-    key: 'hydrationAlerts',
-    label: 'Hidratação',
-    description: 'Lembretes para beber água ao longo do dia',
-  },
-  {
-    key: 'weeklyReport',
-    label: 'Resumo semanal',
-    description: 'Volume, frequência e recordes da semana',
+    key: 'workoutProgress',
+    label: 'Treino em andamento',
+    description: 'Progresso do treino na notificação quando você sai do app',
   },
 ];
 
@@ -85,6 +84,8 @@ export function SettingsScreen() {
     'notifications' | 'hydration' | 'nutrition' | 'report' | null
   >(null);
   const { signIn, signingIn } = useGoogleSignIn();
+  const { installed } = useInstallState();
+  const [installOpen, setInstallOpen] = useState(false);
 
   const signOut = async () => {
     const ok = await confirm({
@@ -97,6 +98,7 @@ export function SettingsScreen() {
     });
     if (!ok) return;
     try {
+      await unregisterPush();
       await actions.logout();
     } catch {
       toast({
@@ -297,6 +299,14 @@ export function SettingsScreen() {
             title="Ver tutorial"
             onClick={tutorial.show}
           />
+          {!installed && (
+            <ListRow
+              icon={Smartphone}
+              title="Instalar o app"
+              subtitle="Tela inicial, offline e notificações"
+              onClick={() => setInstallOpen(true)}
+            />
+          )}
           <ListRow icon={Info} title="ForgeFlow" value="2.0" />
         </ListGroup>
 
@@ -335,6 +345,7 @@ export function SettingsScreen() {
         )}
       </div>
 
+      <InstallSheet open={installOpen} onClose={() => setInstallOpen(false)} />
       <NotificationsSheet
         open={sheet === 'notifications'}
         onClose={() => setSheet(null)}
@@ -511,6 +522,7 @@ function NotificationsSheet({
   const { notificationPrefs } = useAppStore();
   return (
     <Sheet open={open} onClose={onClose} title="Notificações">
+      <PushSetup className="mb-2" />
       <ul className="divide-y divide-line" role="list">
         {NOTIFICATION_ROWS.map((row) => (
           <li key={row.key} className="flex items-center gap-4 py-3.5">

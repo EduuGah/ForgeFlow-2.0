@@ -7,6 +7,10 @@
  * - Exercise photos (/exercises/*), cache-first, so the demos keep working at
  *   the gym. Keep PHOTOS in sync with web/lib/offlineMedia.ts.
  *
+ * - Notifications: shows Web Push messages (sent by the `push` Supabase
+ *   function while the app may be closed) and, on tap, opens the app on the
+ *   screen the notification is about.
+ *
  * Every other request (Supabase, Google sign-in) goes to the network untouched.
  */
 const PHOTOS = 'forgeflow-exercise-photos-v1';
@@ -123,4 +127,64 @@ self.addEventListener('fetch', (event) => {
   } else if (STATIC.test(url.pathname)) {
     event.respondWith(cacheFirst(SHELL, request));
   }
+});
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : '' };
+  }
+  const title = data.title || 'ForgeFlow';
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      });
+      // The app is on screen: it already shows this itself.
+      if (
+        windows.some(
+          (client) => client.visibilityState === 'visible' && client.focused,
+        )
+      )
+        return;
+      await self.registration.showNotification(title, {
+        body: data.body || '',
+        tag: data.tag,
+        renotify: Boolean(data.tag),
+        icon: '/icons/icon-192.png',
+        badge: '/icons/favicon-32.png',
+        vibrate: [120, 60, 120],
+        data: { url: data.url || '/' },
+      });
+    })(),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL(
+    (event.notification.data && event.notification.data.url) || '/',
+    self.location.origin,
+  ).href;
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      });
+      const open = windows.find(
+        (client) => new URL(client.url).origin === self.location.origin,
+      );
+      if (open) {
+        // The app is running: let it navigate without reloading.
+        await open.focus();
+        open.postMessage({ type: 'forgeflow-open', url });
+        return;
+      }
+      await self.clients.openWindow(url);
+    })(),
+  );
 });

@@ -29,6 +29,8 @@ import {
 } from '../social';
 import type { ShareKind, SharePayload } from '../lib/sharing';
 import { saveSharedRoutines } from './sharedRoutines';
+import { notify, type NewNotification } from './notificationFeed';
+import { pushToFriend } from './pushRegistration';
 
 /* ------------------------------------------------------------------ */
 /* Shared state: the Social screen, its friend pages and the Profile   */
@@ -187,18 +189,21 @@ export function refreshFriends(): Promise<void> {
       const inbox = await loadInbox(user.uid, profiles);
       const unread = await unreadBySender(user.uid).catch((error: unknown) => {
         console.warn('ForgeFlow mensagens:', error);
-        return friends.unread;
+        return { counts: friends.unread, latest: {} };
       });
       if (getState().currentUser?.uid !== user.uid) return;
+      const before = friends.lists;
+      const lists = splitFriendships(rows, profiles, user.uid);
       update({
         me,
-        lists: splitFriendships(rows, profiles, user.uid),
+        lists,
         inbox,
-        unread: openChat ? { ...unread, [openChat]: 0 } : unread,
+        unread: openChat ? { ...unread.counts, [openChat]: 0 } : unread.counts,
         status: 'ready',
         error: null,
         loadedAt: Date.now(),
       });
+      notifyFriendEvents(before, lists, inbox, unread.latest, profiles);
     } catch (error) {
       console.warn('ForgeFlow amigos:', error);
       update({
@@ -253,15 +258,87 @@ function listenForMessages(userId: string | null) {
   listeningAs = userId;
   if (!userId) return;
   stopListening = subscribeToMessages(userId, (message) => {
-    if (message.senderId !== openChat)
+    if (message.senderId !== openChat) {
       update({
         unread: {
           ...friends.unread,
           [message.senderId]: (friends.unread[message.senderId] ?? 0) + 1,
         },
       });
+      notify([messageEvent(message, friendById(message.senderId))], {
+        system: 'friendAlerts',
+      });
+    }
     messageListeners.forEach((listener) => listener(message));
   });
+}
+
+function nameOf(profile: SocialProfile | null | undefined): string {
+  return profile ? profile.name || `@${profile.username}` : 'Um amigo';
+}
+
+function messageEvent(
+  message: ChatMessage,
+  sender: SocialProfile | null | undefined,
+): NewNotification {
+  return {
+    id: `message-${message.id}`,
+    kind: 'message',
+    title: `Mensagem de ${nameOf(sender)}`,
+    body: message.body,
+    link: `chat:${message.senderId}`,
+    createdAt: message.createdAt,
+  };
+}
+
+/**
+ * Puts what a reload found in the bell (and on the phone when the app is in
+ * the background): requests, accepted requests, routines and messages.
+ */
+function notifyFriendEvents(
+  before: FriendLists,
+  after: FriendLists,
+  inbox: InboxShare[],
+  latestUnread: Record<string, ChatMessage>,
+  profiles: Map<string, SocialProfile>,
+) {
+  // Only requests seen pending here: a reload never lists every friend.
+  const wasSent = new Set(before.outgoing.map((link) => link.id));
+  notify(
+    [
+      ...after.incoming.map((link): NewNotification => ({
+        id: `request-${link.id}`,
+        kind: 'request',
+        title: 'Pedido de amizade',
+        body: `${nameOf(link.other)} quer ser seu amigo.`,
+        link: 'social',
+        createdAt: link.since,
+      })),
+      ...after.friends
+        .filter((link) => wasSent.has(link.id))
+        .map((link): NewNotification => ({
+          id: `friend-${link.id}`,
+          kind: 'friend',
+          title: 'Pedido aceito',
+          body: `Você e ${nameOf(link.other)} agora são amigos.`,
+          link: `friend:${link.other.userId}`,
+        })),
+      ...inbox.map((share): NewNotification => ({
+        id: `share-${share.id}`,
+        kind: 'share',
+        title: `${nameOf(share.sender)} te enviou ${share.kind === 'folder' ? 'uma pasta' : 'uma rotina'}`,
+        body: share.title,
+        link: 'social',
+        createdAt: share.createdAt,
+      })),
+      ...Object.entries(latestUnread)
+        .filter(([sender]) => sender !== openChat)
+        .map(([sender, message]) =>
+          messageEvent(message, profiles.get(sender)),
+        ),
+    ],
+    { system: 'friendAlerts' },
+  );
 }
 
 /** Runs for every message that arrives; returns the unsubscribe. */
@@ -335,7 +412,8 @@ export const friendActions = {
     const user = getState().currentUser;
     if (!user) return;
     try {
-      await sendFriendRequest(user.uid, other.userId);
+      const id = await sendFriendRequest(user.uid, other.userId);
+      pushToFriend({ type: 'request', id });
     } finally {
       // Also when it already existed: the lists show what it became.
       await refreshFriends();
@@ -345,6 +423,7 @@ export const friendActions = {
   async accept(link: FriendLink): Promise<void> {
     try {
       await acceptFriendRequest(link.id);
+      pushToFriend({ type: 'accepted', id: link.id });
     } finally {
       await refreshFriends();
     }
@@ -365,7 +444,8 @@ export const friendActions = {
   ): Promise<void> {
     const user = getState().currentUser;
     if (!user) return;
-    await sendShare(user.uid, friend.userId, kind, title, payload);
+    const id = await sendShare(user.uid, friend.userId, kind, title, payload);
+    pushToFriend({ type: 'share', id });
   },
 
   /** Saves what a friend sent as new routines; returns how many. */

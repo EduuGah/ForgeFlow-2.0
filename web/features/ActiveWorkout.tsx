@@ -29,6 +29,7 @@ import type {
 import {
   formatClock,
   formatNumber,
+  formatRepRange,
   formatRestLabel,
   formatWeight,
 } from '../lib/format';
@@ -666,6 +667,19 @@ function ExerciseBlock({
             ) : (
               <>
                 {doneCount}/{exercise.sets.length} séries
+                {exercise.targetReps && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                      Meta{' '}
+                      {formatRepRange(
+                        exercise.targetReps.min,
+                        exercise.targetReps.max,
+                      )}{' '}
+                      reps
+                    </span>
+                  </>
+                )}
                 {(bests?.weight ?? 0) > 0 && (
                   <>
                     <span aria-hidden="true">·</span>

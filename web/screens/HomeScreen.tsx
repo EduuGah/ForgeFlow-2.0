@@ -36,6 +36,9 @@ import {
 import type { WorkoutTemplateItem } from '../lib/types';
 import { haptic } from '../lib/haptics';
 import { useNavigation } from '../navigation/Navigator';
+import { InstallBanner } from '../features/InstallApp';
+import { NotificationBell } from '../features/NotificationBell';
+import { MessagesButton } from '../features/MessagesButton';
 import { useWorkoutLauncher } from '../features/useWorkoutLauncher';
 import { WorkoutCard } from '../features/WorkoutCard';
 import { OfflineNotice, SyncButton } from '../features/StatusBits';
@@ -94,6 +97,8 @@ export function HomeScreen() {
         eyebrow={`${greeting()}, ${firstName}`}
         actions={
           <>
+            <MessagesButton />
+            <NotificationBell />
             <SyncButton />
             <button
               type="button"
@@ -109,6 +114,7 @@ export function HomeScreen() {
 
       <div className="app-column space-y-6 px-4 pt-2">
         <OfflineNotice />
+        <InstallBanner />
         <TodayCard />
         <WeekHeat />
         <HealthTiles />

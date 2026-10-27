@@ -19,6 +19,8 @@ export interface ActiveExerciseSession {
   equipment: string | null;
   /** Rest started after completing a set of this exercise. */
   restSeconds?: number;
+  /** The routine's reps goal for this exercise (e.g. 8–12), when it has one. */
+  targetReps?: { min: number; max?: number };
   notes?: string;
   sets: SetEntry[];
 }
@@ -95,6 +97,8 @@ export interface TemplateExercise {
   /** Warm-up sets done before the working ones; missing = none. */
   warmupSets?: number;
   targetReps: number;
+  /** Top of a rep range (e.g. 8–12, with `targetReps` = 8); missing = fixed. */
+  targetRepsMax?: number;
   targetWeightKg?: number;
   restSeconds: number;
 }
@@ -235,6 +239,10 @@ export interface NotificationPrefs {
   restTimerAlerts: boolean;
   hydrationAlerts: boolean;
   weeklyReport: boolean;
+  /** Messages, friend requests and routines sent by friends. */
+  friendAlerts: boolean;
+  /** A notification with the workout's progress while the app is in the background. */
+  workoutProgress: boolean;
 }
 
 export type SyncStatus = 'idle' | 'syncing' | 'error';

@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { MessageCircle, Send } from 'lucide-react';
-import { useAppStore } from '../store';
+import { useEffect, useState } from 'react';
+import { Check, CheckCheck, MessageCircle, Send } from 'lucide-react';
+import { useAppStore, useProfilePhoto } from '../store';
 import { formatShortDate, formatTime } from '../lib/format';
-import { useNavigation } from '../navigation/Navigator';
+import { useNavigation, useScreen } from '../navigation/Navigator';
 import { DOCK_GAP, NAV_HEIGHT } from '../navigation/BottomNav';
 import {
   listConversation,
   markConversationRead,
   sendMessage,
+  subscribeToReadReceipts,
   type ChatMessage,
 } from '../social';
 import {
@@ -16,6 +17,7 @@ import {
   setOpenChat,
   useFriends,
 } from '../features/useFriends';
+import { pushToFriend } from '../features/pushRegistration';
 import { IconButton } from '../ui/Button';
 import { Avatar, EmptyState, InlineNotice, Skeleton } from '../ui/Feedback';
 import { StackHeader } from '../ui/Layout';
@@ -26,6 +28,21 @@ import { socialErrorMessage } from './SocialScreen';
 /** Catches up even when Realtime is off for the project. */
 const POLL_MS = 15_000;
 const MAX_LENGTH = 1000;
+/** The room the screen leaves for the floating dock (App's BOTTOM_INSET). */
+const DOCK_SPACE = `calc(${NAV_HEIGHT + DOCK_GAP + 24}px + env(safe-area-inset-bottom))`;
+
+/** ✓ sent, ✓✓ seen by the other person. */
+function ReadMark({ read }: { read: boolean }) {
+  const Icon = read ? CheckCheck : Check;
+  return (
+    <Icon
+      size={14}
+      strokeWidth={2.4}
+      className={read ? 'text-on-brand' : 'text-on-brand/60'}
+      aria-label={read ? 'Vista' : 'Enviada'}
+    />
+  );
+}
 
 /** A message still on its way: shown faded until the server answers. */
 interface Draft extends ChatMessage {
@@ -37,7 +54,10 @@ function sameDay(a: string, b: string) {
 }
 
 export function ChatScreen({ userId }: { userId: string }) {
-  const { currentUser, isOnline } = useAppStore();
+  const { currentUser, isOnline, userProfile } = useAppStore();
+  const myPhoto = useProfilePhoto();
+  const myName = userProfile.name || 'Você';
+  const { scrollRoot } = useScreen();
   const { pop } = useNavigation();
   const toast = useToast();
   const friends = useFriends();
@@ -49,7 +69,6 @@ export function ChatScreen({ userId }: { userId: string }) {
   const [messages, setMessages] = useState<Draft[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [text, setText] = useState('');
-  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => refreshFriendsIfStale(), []);
 
@@ -77,6 +96,16 @@ export function ChatScreen({ userId }: { userId: string }) {
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') void load();
     }, POLL_MS);
+    // The other person opened the conversation: ✓ becomes ✓✓.
+    const stopReceipts = subscribeToReadReceipts(me, (read) => {
+      if (read.recipientId !== userId) return;
+      setMessages(
+        (current) =>
+          current?.map((item) =>
+            item.id === read.id ? { ...item, readAt: read.readAt } : item,
+          ) ?? current,
+      );
+    });
     const stop = onIncomingMessage((message) => {
       if (message.senderId !== userId) return;
       setMessages((current) =>
@@ -90,14 +119,16 @@ export function ChatScreen({ userId }: { userId: string }) {
       alive = false;
       clearInterval(timer);
       stop();
+      stopReceipts();
       setOpenChat(null);
     };
   }, [me, userId]);
 
+  // New messages (and opening the chat) show the end of the conversation.
   const count = messages?.length ?? 0;
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: 'end' });
-  }, [count]);
+    scrollRoot?.scrollTo({ top: scrollRoot.scrollHeight });
+  }, [count, scrollRoot]);
 
   const send = async () => {
     const body = text.trim();
@@ -115,6 +146,7 @@ export function ChatScreen({ userId }: { userId: string }) {
     setMessages((current) => [...(current ?? []), draft]);
     try {
       const sent = await sendMessage(me, userId, body);
+      pushToFriend({ type: 'message', id: sent.id });
       setMessages((current) =>
         (current ?? []).map((item) => (item.id === draft.id ? sent : item)),
       );
@@ -132,7 +164,7 @@ export function ChatScreen({ userId }: { userId: string }) {
   return (
     <>
       <StackHeader title={title} onBack={pop} />
-      <div className="app-column flex min-h-[60dvh] flex-col px-4 pt-4">
+      <div className="app-column flex min-h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] flex-col px-4 pt-4">
         {!link && friends.status === 'ready' && (
           <InlineNotice tone="warning" className="mb-3">
             Vocês não são mais amigos: não dá para mandar mensagens.
@@ -161,14 +193,23 @@ export function ChatScreen({ userId }: { userId: string }) {
             }
           />
         ) : (
-          <ol className="flex flex-col gap-1.5 pb-4" aria-live="polite">
+          <ol className="flex flex-col gap-1 pb-3" aria-live="polite">
             {(messages ?? []).map((message, index) => {
               const mine = message.senderId === me;
               const previous = messages?.[index - 1];
+              const next = messages?.[index + 1];
               const newDay =
                 !previous || !sameDay(previous.createdAt, message.createdAt);
+              // One photo per run of messages from the same person.
+              const lastOfRun =
+                !next ||
+                next.senderId !== message.senderId ||
+                !sameDay(next.createdAt, message.createdAt);
               return (
-                <li key={message.id} className="flex flex-col">
+                <li
+                  key={message.id}
+                  className={cx('flex flex-col', lastOfRun && 'mb-1.5')}
+                >
                   {newDay && (
                     <span className="text-caption my-2 self-center rounded-full bg-raised px-2.5 py-0.5 text-ink-2">
                       {formatShortDate(message.createdAt)}
@@ -176,39 +217,56 @@ export function ChatScreen({ userId }: { userId: string }) {
                   )}
                   <div
                     className={cx(
-                      'flex max-w-[80%] items-end gap-2',
-                      mine ? 'self-end' : 'self-start',
+                      'flex max-w-[85%] items-end gap-2',
+                      mine ? 'flex-row-reverse self-end' : 'self-start',
                     )}
                   >
-                    {!mine && friend && (
-                      <Avatar
-                        name={friend.name || friend.username}
-                        photoUrl={friend.photoUrl}
-                        size={26}
-                      />
-                    )}
+                    <span className="w-7 shrink-0">
+                      {lastOfRun &&
+                        (mine ? (
+                          <Avatar name={myName} photoUrl={myPhoto} size={28} />
+                        ) : (
+                          friend && (
+                            <Avatar
+                              name={friend.name || friend.username}
+                              photoUrl={friend.photoUrl}
+                              size={28}
+                            />
+                          )
+                        ))}
+                    </span>
                     <div
                       className={cx(
-                        'rounded-2xl px-3.5 py-2',
-                        mine
-                          ? 'rounded-br-md bg-brand text-on-brand'
-                          : 'rounded-bl-md bg-surface',
+                        'relative min-w-0 rounded-2xl px-3 py-1.5',
+                        mine ? 'bg-brand text-on-brand' : 'bg-surface',
+                        lastOfRun && (mine ? 'rounded-br-md' : 'rounded-bl-md'),
                         message.pending && 'opacity-60',
                       )}
                     >
                       <p className="text-body break-words whitespace-pre-wrap">
                         {message.body}
+                        {/* Room on the last line for the time (WhatsApp-style). */}
+                        <span
+                          className={cx(
+                            'inline-block',
+                            mine ? 'w-[4.25rem]' : 'w-11',
+                          )}
+                          aria-hidden="true"
+                        />
                       </p>
-                      <p
+                      <span
                         className={cx(
-                          'text-micro mt-0.5 text-right',
-                          mine ? 'text-on-brand/75' : 'text-ink-3',
+                          'text-micro absolute right-2.5 bottom-1 flex items-center gap-0.5 tabular',
+                          mine ? 'text-on-brand/70' : 'text-ink-3',
                         )}
                       >
                         {message.pending
-                          ? 'enviando…'
+                          ? 'enviando'
                           : formatTime(message.createdAt)}
-                      </p>
+                        {mine && !message.pending && (
+                          <ReadMark read={Boolean(message.readAt)} />
+                        )}
+                      </span>
                     </div>
                   </div>
                 </li>
@@ -216,12 +274,15 @@ export function ChatScreen({ userId }: { userId: string }) {
             })}
           </ol>
         )}
-        <div ref={bottomRef} />
 
         <form
-          className="sticky mt-auto flex items-end gap-2 bg-canvas pt-2 pb-2"
+          // Pinned to the bottom with its background down to the screen's
+          // edge (behind the dock), so no message shows below it; the negative
+          // margin cancels the screen's own room for the dock.
+          className="sticky bottom-0 -mx-4 mt-auto flex items-end gap-2 border-t border-line bg-canvas px-4 pt-2"
           style={{
-            bottom: `calc(${NAV_HEIGHT + DOCK_GAP + 12}px + env(safe-area-inset-bottom))`,
+            paddingBottom: DOCK_SPACE,
+            marginBottom: `calc(-1 * ${DOCK_SPACE})`,
           }}
           onSubmit={(event) => {
             event.preventDefault();

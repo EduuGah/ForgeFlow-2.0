@@ -446,6 +446,29 @@ BEGIN
 END $$;
 
 -- ============================================================
+-- Notificações com o app fechado (Web Push)
+-- Cada aparelho que ativou as notificações; a função "push"
+-- (supabase/functions/push) envia para eles.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+  endpoint TEXT PRIMARY KEY CHECK (char_length(endpoint) <= 1000),
+  user_id TEXT NOT NULL,
+  p256dh TEXT NOT NULL CHECK (char_length(p256dh) <= 200),
+  auth TEXT NOT NULL CHECK (char_length(auth) <= 100),
+  user_agent TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx
+  ON public.push_subscriptions (user_id);
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Cada um cuida dos próprios aparelhos" ON public.push_subscriptions;
+CREATE POLICY "Cada um cuida dos próprios aparelhos" ON public.push_subscriptions
+  FOR ALL TO authenticated
+  USING (user_id = (select auth.uid())::text)
+  WITH CHECK (user_id = (select auth.uid())::text);
+
+-- ============================================================
 -- Excluir dados e conta (Configurações › Excluir dados)
 -- Sempre de quem está logado; nunca recebem o id de fora.
 -- ============================================================
@@ -476,6 +499,8 @@ BEGIN
   DELETE FROM public.shared_routines WHERE me IN (sender_id, recipient_id);
   -- E as conversas (dos dois lados: uma conversa pela metade não serve).
   DELETE FROM public.messages WHERE me IN (sender_id, recipient_id);
+  -- E os aparelhos que recebiam notificações.
+  DELETE FROM public.push_subscriptions WHERE user_id = me;
 END;
 $$;
 

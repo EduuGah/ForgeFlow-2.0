@@ -9,6 +9,8 @@ module.exports = [
       'dist/**',
       'web-build/**',
       'coverage/**',
+      // Deno (Supabase Edge Functions), checked by Supabase on deploy.
+      'supabase/functions/**',
     ],
   },
 ];

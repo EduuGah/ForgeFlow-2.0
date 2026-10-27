@@ -7,6 +7,10 @@ import { haptic } from '../lib/haptics';
 import { Button } from '../ui/Button';
 import { useToast } from '../ui/Overlay';
 import { useNow } from '../ui/core';
+import {
+  notifyRestEnded,
+  refreshWorkoutNotification,
+} from './workoutNotification';
 
 export function useRestCountdown() {
   const { restTimer } = useAppStore();
@@ -141,6 +145,9 @@ export function RestTimerWatcher() {
       return;
     firedFor.current = restTimer.endsAt;
     actions.stopRestTimer();
+    // In the background: a phone notification, and the progress one updated.
+    notifyRestEnded();
+    refreshWorkoutNotification();
     if (notificationPrefs.restTimerAlerts) {
       haptic('warning');
       toast({

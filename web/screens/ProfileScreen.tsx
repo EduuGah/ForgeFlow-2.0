@@ -19,6 +19,8 @@ import { tutorial } from '../lib/tutorial';
 import { useNavigation } from '../navigation/Navigator';
 import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
 import { SyncBadge } from '../features/StatusBits';
+import { NotificationBell } from '../features/NotificationBell';
+import { MessagesButton } from '../features/MessagesButton';
 import { resumeFriends, totalUnread, useFriends } from '../features/useFriends';
 import { IconButton } from '../ui/Button';
 import { Avatar } from '../ui/Feedback';
@@ -66,11 +68,15 @@ export function ProfileScreen() {
       <TabHeader
         title="Perfil"
         actions={
-          <IconButton
-            icon={Settings}
-            label="Configurações"
-            onClick={() => push({ name: 'settings' })}
-          />
+          <>
+            <MessagesButton />
+            <NotificationBell />
+            <IconButton
+              icon={Settings}
+              label="Configurações"
+              onClick={() => push({ name: 'settings' })}
+            />
+          </>
         }
       />
 

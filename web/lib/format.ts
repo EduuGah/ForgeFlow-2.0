@@ -65,6 +65,11 @@ export function formatRestLabel(seconds: number): string {
   return `${minutes}min ${rest}s`;
 }
 
+/** "8–12" for a range, "10" for a fixed count. */
+export function formatRepRange(min: number, max?: number): string {
+  return max && max > min ? `${min}–${max}` : String(min);
+}
+
 export function formatRelativeDay(iso: string, now: Date = new Date()): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';

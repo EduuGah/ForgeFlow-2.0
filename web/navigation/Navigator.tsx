@@ -20,6 +20,8 @@ export type Route =
   | { name: 'social'; invite?: string }
   | { name: 'friend'; userId: string }
   | { name: 'chat'; userId: string }
+  | { name: 'notifications' }
+  | { name: 'messages' }
   | { name: 'settings' }
   | { name: 'editProfile' }
   | { name: 'library' }

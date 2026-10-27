@@ -203,6 +203,8 @@ function defaultData(user: AppUser | null): PersistedData {
       restTimerAlerts: true,
       hydrationAlerts: true,
       weeklyReport: true,
+      friendAlerts: true,
+      workoutProgress: true,
     },
     restTimer: IDLE_REST_TIMER,
     social: { joinedChallenges: [], acceptedFriends: [] },
@@ -1146,6 +1148,10 @@ export const actions = {
           primaryMuscleGroup: catalog?.primaryMuscleGroup ?? 'Geral',
           equipment: catalog?.equipment ?? null,
           restSeconds: item.restSeconds ?? DEFAULT_REST_SECONDS,
+          targetReps: {
+            min: item.targetReps,
+            ...(item.targetRepsMax ? { max: item.targetRepsMax } : {}),
+          },
           sets: renumber([
             // Warm-ups first, empty: their loads vary too much to suggest.
             ...Array.from({ length: Math.max(0, item.warmupSets ?? 0) }, () =>
@@ -1237,6 +1243,8 @@ export const actions = {
         primaryMuscleGroup: exercise.primaryMuscleGroup,
         equipment: exercise.equipment,
         restSeconds: current.restSeconds,
+        // The slot keeps the routine's goal for it.
+        ...(current.targetReps ? { targetReps: current.targetReps } : {}),
         sets: current.sets.map((set) => {
           const last = lastOf[set.setType][used[set.setType]++];
           return newSet(

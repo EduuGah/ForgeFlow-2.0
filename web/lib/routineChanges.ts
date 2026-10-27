@@ -28,12 +28,18 @@ export function routineFromSession(
     const first =
       working.find((set) => set.completed && set.repetitions > 0) ?? working[0];
     const weight = known ? known.targetWeightKg : first?.weightKg;
+    // A swapped-in exercise inherits the goal of the slot it took.
+    const repsMax = known ? known.targetRepsMax : exercise.targetReps?.max;
     return {
       exerciseId: exercise.exerciseId,
       exerciseName: exercise.exerciseName,
       targetSets: Math.max(1, working.length),
       ...(warmupSets > 0 ? { warmupSets } : {}),
-      targetReps: known?.targetReps ?? (first?.repetitions || 10),
+      targetReps:
+        known?.targetReps ??
+        exercise.targetReps?.min ??
+        (first?.repetitions || 10),
+      ...(repsMax ? { targetRepsMax: repsMax } : {}),
       ...(weight ? { targetWeightKg: weight } : {}),
       restSeconds:
         exercise.restSeconds ?? known?.restSeconds ?? DEFAULT_REST_SECONDS,

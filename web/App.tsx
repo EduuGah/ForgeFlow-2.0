@@ -27,6 +27,14 @@ import { NutritionScreen } from './screens/NutritionScreen';
 import { SocialScreen } from './screens/SocialScreen';
 import { FriendScreen } from './screens/FriendScreen';
 import { ChatScreen } from './screens/ChatScreen';
+import { NotificationsScreen } from './screens/NotificationsScreen';
+import { MessagesScreen } from './screens/MessagesScreen';
+import { clearDeepLink, useDeepLink } from './features/deepLink';
+import { useOpenLink } from './features/useOpenLink';
+import { notify } from './features/notificationFeed';
+import { refreshPushRegistration } from './features/pushRegistration';
+import { refreshWorkoutNotification } from './features/workoutNotification';
+import { describeRecord } from './lib/training';
 import { clearInvite, peekInvite } from './features/invite';
 import {
   chatOpenWith,
@@ -91,6 +99,10 @@ function renderRoute(route: Route) {
       return <FriendScreen userId={route.userId} />;
     case 'chat':
       return <ChatScreen userId={route.userId} />;
+    case 'notifications':
+      return <NotificationsScreen />;
+    case 'messages':
+      return <MessagesScreen />;
     case 'settings':
       return <SettingsScreen />;
     case 'editProfile':
@@ -141,7 +153,12 @@ function MainShell() {
       </main>
       <StackHost render={renderRoute} bottomInset={BOTTOM_INSET} />
       <BottomNav />
-      <ActiveWorkoutScreen onFinished={setSummary} />
+      <ActiveWorkoutScreen
+        onFinished={(result) => {
+          notifyWorkoutResult(result);
+          setSummary(result);
+        }}
+      />
       <WorkoutSummary
         result={summary}
         onClose={() => setSummary(null)}
@@ -154,6 +171,8 @@ function MainShell() {
       <SyncWatcher />
       <InviteWatcher />
       <MessageWatcher />
+      <DeepLinkWatcher />
+      <WorkoutNotifier />
     </div>
   );
 }
@@ -191,6 +210,7 @@ function MessageWatcher() {
   useEffect(() => {
     if (!currentUser) return;
     void resumeFriends();
+    refreshPushRegistration();
     return onIncomingMessage((message) => {
       if (chatOpenWith() === message.senderId) return;
       const sender = friendById(message.senderId);
@@ -208,4 +228,52 @@ function MessageWatcher() {
     });
   }, [currentUser, push, toast]);
   return null;
+}
+
+/** Opens what a tapped notification points at (from startup or the worker). */
+function DeepLinkWatcher() {
+  const link = useDeepLink();
+  const open = useOpenLink();
+  useEffect(() => {
+    if (!link) return;
+    clearDeepLink();
+    open(link);
+  }, [link, open]);
+  return null;
+}
+
+/** The "workout in progress" notification follows the app going to the background. */
+function WorkoutNotifier() {
+  const { activeWorkout } = useAppStore();
+  useEffect(() => {
+    document.addEventListener('visibilitychange', refreshWorkoutNotification);
+    return () =>
+      document.removeEventListener(
+        'visibilitychange',
+        refreshWorkoutNotification,
+      );
+  }, []);
+  // Finished or discarded: the notification goes too.
+  useEffect(() => {
+    if (!activeWorkout) refreshWorkoutNotification();
+  }, [activeWorkout]);
+  return null;
+}
+
+/** Records and goals of a finished workout also go to the bell. */
+function notifyWorkoutResult(result: FinishResult) {
+  notify([
+    ...result.records.map((record) => ({
+      id: `record-${record.id}-${result.workout.id}`,
+      kind: 'record' as const,
+      title: 'Novo recorde pessoal',
+      body: describeRecord(record),
+    })),
+    ...result.goalsReached.map((goal) => ({
+      id: `goal-${goal.id}`,
+      kind: 'goal' as const,
+      title: 'Meta atingida',
+      body: goal.title,
+    })),
+  ]);
 }

@@ -140,12 +140,15 @@ export async function listFriendships(): Promise<{
 export async function sendFriendRequest(
   me: string,
   otherId: string,
-): Promise<void> {
-  const { error } = await supabase
+): Promise<number> {
+  const { data, error } = await supabase
     .from('friendships')
-    .insert({ requester_id: me, addressee_id: otherId });
+    .insert({ requester_id: me, addressee_id: otherId })
+    .select('id')
+    .single();
   if (error?.code === '23505') throw new SocialError(error.message, 'exists');
   if (error) fail(error);
+  return (data as { id: number }).id;
 }
 
 /** Throws a `gone` SocialError when the request was cancelled meanwhile. */
@@ -233,15 +236,20 @@ export async function sendShare(
   kind: ShareKind,
   title: string,
   payload: SharePayload,
-): Promise<void> {
-  const { error } = await supabase.from('shared_routines').insert({
-    sender_id: me,
-    recipient_id: recipientId,
-    kind,
-    title: title.trim().slice(0, 80) || 'Rotina',
-    payload,
-  });
+): Promise<number> {
+  const { data, error } = await supabase
+    .from('shared_routines')
+    .insert({
+      sender_id: me,
+      recipient_id: recipientId,
+      kind,
+      title: title.trim().slice(0, 80) || 'Rotina',
+      payload,
+    })
+    .select('id')
+    .single();
   if (error) fail(error);
+  return (data as { id: number }).id;
 }
 
 /** What friends sent to this person; unreadable payloads are skipped. */
@@ -383,20 +391,26 @@ export async function markConversationRead(
 }
 
 /** Unread messages per sender. */
-export async function unreadBySender(
-  me: string,
-): Promise<Record<string, number>> {
+/** Unread messages per sender, and the latest one from each. */
+export async function unreadBySender(me: string): Promise<{
+  counts: Record<string, number>;
+  latest: Record<string, ChatMessage>;
+}> {
   const { data, error } = await supabase
     .from('messages')
-    .select('sender_id')
+    .select('*')
     .eq('recipient_id', me)
     .is('read_at', null)
+    .order('created_at', { ascending: false })
     .limit(1000);
   if (error) fail(error);
   const counts: Record<string, number> = {};
-  for (const row of (data as { sender_id: string }[] | null) ?? [])
+  const latest: Record<string, ChatMessage> = {};
+  for (const row of (data as MessageRow[] | null) ?? []) {
     counts[row.sender_id] = (counts[row.sender_id] ?? 0) + 1;
-  return counts;
+    latest[row.sender_id] ??= fromMessageRow(row);
+  }
+  return { counts, latest };
 }
 
 /**
@@ -423,4 +437,60 @@ export function subscribeToMessages(
   return () => {
     void supabase.removeChannel(channel);
   };
+}
+
+/** Calls `onRead` when the other person reads a message this one sent. */
+export function subscribeToReadReceipts(
+  me: string,
+  onRead: (message: ChatMessage) => void,
+): () => void {
+  const channel = supabase
+    .channel(`messages-from-${me}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'messages',
+        filter: `sender_id=eq.${me}`,
+      },
+      (payload) => onRead(fromMessageRow(payload.new as MessageRow)),
+    )
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}
+
+export interface ConversationSummary {
+  friendId: string;
+  last: ChatMessage;
+  unread: number;
+}
+
+/** Latest message with each person, newest conversation first. */
+export async function listConversations(
+  me: string,
+): Promise<ConversationSummary[]> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .or(`sender_id.eq.${me},recipient_id.eq.${me}`)
+    .order('created_at', { ascending: false })
+    .limit(500);
+  if (error) fail(error);
+  const byFriend = new Map<string, ConversationSummary>();
+  for (const row of (data as MessageRow[] | null) ?? []) {
+    const message = fromMessageRow(row);
+    const friendId =
+      message.senderId === me ? message.recipientId : message.senderId;
+    const summary = byFriend.get(friendId) ?? {
+      friendId,
+      last: message,
+      unread: 0,
+    };
+    if (message.recipientId === me && !message.readAt) summary.unread += 1;
+    byFriend.set(friendId, summary);
+  }
+  return [...byFriend.values()];
 }

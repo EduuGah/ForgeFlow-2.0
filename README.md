@@ -99,6 +99,32 @@ chama a função `keep_alive()` do banco duas vezes por dia (usa os secrets
 estiver pausado, o workflow falha e o GitHub avisa por e-mail; aí é preciso
 clicar em **Restore project** no painel.
 
+### Notificações
+
+- **Com o app aberto ou em segundo plano**: o app avisa sozinho (mensagens,
+  pedidos, rotinas recebidas, fim do descanso e a notificação de treino em
+  andamento). Basta ativar em Configurações › Notificações ou no sininho.
+- **Com o app fechado (Web Push)**: a função
+  [`supabase/functions/push`](supabase/functions/push/index.ts) envia para os
+  aparelhos salvos em `push_subscriptions`. A chave pública VAPID está em
+  `.env` (`VITE_VAPID_PUBLIC_KEY`); a privada fica só em `supabase/.env.local`
+  (fora do git). Para publicar a função:
+
+  ```bash
+  npx supabase login
+  npx supabase functions deploy push --project-ref vuotoadogfazkycjfbrv --use-api
+  npx supabase secrets set --env-file supabase/.env.local --project-ref vuotoadogfazkycjfbrv
+  ```
+
+  Sem a CLI: no painel, **Edge Functions › Deploy a new function › Via
+  editor**, nome `push`, cole o `index.ts`; em **Edge Functions › Secrets**,
+  adicione `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` e `VAPID_SUBJECT` com os
+  valores de `supabase/.env.local`. Gerar um par novo invalida as inscrições
+  existentes (cada aparelho reativa sozinho na próxima abertura).
+
+- No iPhone, notificações da web só funcionam com o app instalado na tela de
+  início (iOS 16.4+).
+
 ### Native local persistence (FF-044)
 
 Android and iOS builds open `forgeflow.db` through Expo SQLite, apply versioned
