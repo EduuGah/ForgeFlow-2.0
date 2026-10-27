@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowDown,
   ArrowRight,
@@ -77,6 +70,7 @@ import {
   DragPreview,
   DropSlot,
   PRESS_TO_DRAG,
+  RemeasureDropTargets,
   dropAnnouncements,
   previewOffset,
   slotCollision,
@@ -315,7 +309,6 @@ export function RoutinesScreen() {
               folders={folders}
               collapsed={collapsed}
               onToggle={toggle}
-              onExpand={expand}
               onRename={(folder) => setFolderSheet({ mode: 'rename', folder })}
               onCreateSubfolder={(folder) =>
                 setFolderSheet({ mode: 'create', parentId: folder.id })
@@ -364,8 +357,8 @@ const FOLDER_SLOT = 'fslot:';
 const TOP = 'top';
 /** Space between rows (`space-y-3`); drop lines sit in its middle. */
 const GAP = 12;
-/** How long a dragged row must rest on a closed folder to open it. */
-const SPRING_OPEN_MS = 650;
+/** How far the finger must travel before the page may auto-scroll. */
+const SCROLL_AFTER_PX = 24;
 
 const BOARD_INSTRUCTIONS = {
   draggable:
@@ -401,7 +394,6 @@ function RoutineBoard({
   folders,
   collapsed,
   onToggle,
-  onExpand,
   onRename,
   onCreateSubfolder,
   renderCard,
@@ -410,8 +402,6 @@ function RoutineBoard({
   folders: RoutineFolder[];
   collapsed: string[];
   onToggle: (folderId: string) => void;
-  /** Opens a closed folder (a dragged row rested on it). */
-  onExpand: (folderId: string) => void;
   onRename: (folder: RoutineFolder) => void;
   onCreateSubfolder: (folder: RoutineFolder) => void;
   renderCard: (
@@ -422,8 +412,10 @@ function RoutineBoard({
   const sensors = useDragSensors(stepKeyboardCoordinates);
   const toast = useToast();
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [offset, setOffset] = useState(0);
-  const springTimer = useRef<number | undefined>(undefined);
+  // Row being held before a press-and-hold drag starts (it sinks a little).
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [offset, setOffset] = useState<number | null>(null);
+  const [scrollReady, setScrollReady] = useState(false);
   // Where the finger started and where it is, to tell a drop without moving.
   const pointer = useRef<{
     start: Coordinates | null;
@@ -436,17 +428,20 @@ function RoutineBoard({
     : draggingFolder
       ? 'folder'
       : null;
-  // Folders fold to their headers while one is dragged. Unlike sortable
-  // lists the board skips the pointer shift: the target is always what is
-  // under the finger.
+  // While a folder is dragged the board shows only folder headers; while a
+  // routine is dragged by touch or mouse, routines shrink to one line, so
+  // every gap is close to the finger and more of the list fits on screen.
+  // Unlike sortable lists the board skips the pointer shift: the target is
+  // always what is under the finger.
   const {
     containerRef,
     style: foldStyle,
     folded,
     begin,
     end,
-  } = useFoldWhileDragging(draggingFolder ? activeId : null);
+  } = useFoldWhileDragging(activeId);
   const foldFolders = draggingFolder && folded;
+  const foldRoutines = draggingRoutine && folded;
   const collisionDetection: CollisionDetection = (args) => {
     if (args.pointerCoordinates) pointer.current.last = args.pointerCoordinates;
     return slotCollision(args);
@@ -460,8 +455,6 @@ function RoutineBoard({
       Math.hypot(last.x - start.x, last.y - start.y) < 12
     );
   };
-
-  useEffect(() => () => window.clearTimeout(springTimer.current), []);
 
   const parents = useMemo(() => folderParents(folders), [folders]);
   const foldersById = new Map(folders.map((folder) => [folder.id, folder]));
@@ -559,9 +552,9 @@ function RoutineBoard({
   };
 
   const finish = () => {
-    window.clearTimeout(springTimer.current);
     end();
     setActiveId(null);
+    setScrollReady(false);
   };
 
   const drop = (plan: DropPlan) => {
@@ -613,6 +606,9 @@ function RoutineBoard({
                 : undefined
             }
             accepting={draggingRoutine}
+            pending={pendingId === ROUTINE + template.id}
+            compact={foldRoutines}
+            preview={<RoutinePreview template={template} />}
           >
             {(handle) => renderCard(template, handle)}
           </RoutineRow>
@@ -656,6 +652,7 @@ function RoutineBoard({
               }}
               collapsed={!open}
               activeKind={activeKind}
+              pending={pendingId === FOLDER + folder.id}
               slot={`${FOLDER_SLOT}${parentKey}:${index}`}
               endSlot={
                 index === list.length - 1
@@ -684,7 +681,7 @@ function RoutineBoard({
       sensors={sensors}
       collisionDetection={collisionDetection}
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-      autoScroll={AUTO_SCROLL}
+      autoScroll={{ ...AUTO_SCROLL, enabled: scrollReady }}
       accessibility={{
         announcements: dropAnnouncements(
           (id) => nameOf(String(id)),
@@ -692,28 +689,35 @@ function RoutineBoard({
         ),
         screenReaderInstructions: BOARD_INSTRUCTIONS,
       }}
+      onDragPending={({ id }) => setPendingId(String(id))}
+      onDragAbort={() => setPendingId(null)}
       onDragStart={({ active, activatorEvent }) => {
         const id = String(active.id);
-        pointer.current = {
-          start: activatorEvent ? getEventCoordinates(activatorEvent) : null,
-          last: null,
-        };
+        const start = activatorEvent
+          ? getEventCoordinates(activatorEvent)
+          : null;
+        pointer.current = { start, last: null };
+        setPendingId(null);
         setOffset(previewOffset(activatorEvent, id));
-        if (id.startsWith(FOLDER)) begin(id);
+        // Keyboard drags keep routines whole: their grip keeps the focus.
+        if (id.startsWith(FOLDER) || start) begin(id);
+        // The keyboard sensor scrolls by itself.
+        setScrollReady(start === null);
         setActiveId(id);
         haptic('tap');
       }}
+      onDragMove={() => {
+        const { start, last } = pointer.current;
+        if (
+          !scrollReady &&
+          start &&
+          last &&
+          Math.abs(last.y - start.y) > SCROLL_AFTER_PX
+        )
+          setScrollReady(true);
+      }}
       onDragOver={({ over }) => {
-        window.clearTimeout(springTimer.current);
-        const overId = over ? String(over.id) : '';
-        if (!overId.startsWith(INTO)) return;
-        haptic('tap');
-        const folderId = overId.slice(INTO.length);
-        if (collapsed.includes(folderId))
-          springTimer.current = window.setTimeout(
-            () => onExpand(folderId),
-            SPRING_OPEN_MS,
-          );
+        if (over && String(over.id).startsWith(INTO)) haptic('tap');
       }}
       onDragCancel={finish}
       onDragEnd={({ active, over }) => {
@@ -725,6 +729,7 @@ function RoutineBoard({
         if (plan) drop(plan);
       }}
     >
+      <RemeasureDropTargets token={folded} />
       <div ref={containerRef} style={foldStyle} className="space-y-4">
         {hasFolders ? renderLevel(null, 0) : renderRoutines(LOOSE, true)}
 
@@ -761,6 +766,9 @@ function RoutineRow({
   slot,
   endSlot,
   accepting,
+  pending,
+  compact,
+  preview,
   children,
 }: {
   id: string;
@@ -769,6 +777,11 @@ function RoutineRow({
   /** Gap below it, for the last routine of a group. */
   endSlot?: string;
   accepting: boolean;
+  /** Held down, about to be picked up. */
+  pending: boolean;
+  /** One-line form shown while a routine is dragged. */
+  compact: boolean;
+  preview: ReactNode;
   children: (handle: DragHandleProps) => ReactNode;
 }) {
   const { bindRow, handle, pressToDrag, dragging } = useDragRow(ROUTINE + id);
@@ -779,13 +792,20 @@ function RoutineRow({
       role="listitem"
       {...pressToDrag}
       className={cx(
-        'relative transition-opacity',
+        'relative transition-[opacity,scale] duration-300',
         PRESS_TO_DRAG,
+        pending && 'scale-[0.97]',
         dragging && 'opacity-40',
       )}
     >
       <DropSlot id={slot} disabled={!accepting} gap={GAP} />
-      {children(handle)}
+      {compact ? (
+        <div className="overflow-hidden rounded-lg border border-line">
+          {preview}
+        </div>
+      ) : (
+        children(handle)
+      )}
       {endSlot && (
         <DropSlot id={endSlot} disabled={!accepting} gap={GAP} side="after" />
       )}
@@ -936,6 +956,7 @@ function FolderSection({
   counts,
   collapsed,
   activeKind,
+  pending,
   slot,
   endSlot,
   onToggle,
@@ -955,6 +976,8 @@ function FolderSection({
   collapsed: boolean;
   /** What is being dragged on the board, if anything. */
   activeKind: 'routine' | 'folder' | null;
+  /** Held down, about to be picked up. */
+  pending: boolean;
   /** Gap above this folder (and below it, for the last one). */
   slot: string;
   endSlot?: string;
@@ -1098,8 +1121,9 @@ function FolderSection({
         data-sortable-id={FOLDER + folder.id}
         {...pressToDrag}
         className={cx(
-          'flex items-center gap-1 rounded-lg transition-colors',
+          'flex items-center gap-1 rounded-lg transition-[background-color,scale] duration-300',
           PRESS_TO_DRAG,
+          pending && 'scale-[0.97]',
           folding && 'bg-surface px-1',
           isOver && 'bg-brand-soft ring-2 ring-brand',
           dragging && 'opacity-40',
@@ -1108,7 +1132,7 @@ function FolderSection({
         <DragHandle
           handle={handle}
           label={`Arrastar a pasta ${folder.name} para reordenar ou colocar em outra pasta`}
-          className="-ml-1 w-7"
+          className="-ml-2 h-12 w-10"
         />
         <button
           type="button"
@@ -1412,7 +1436,7 @@ function RoutineCard({
           <DragHandle
             handle={handle}
             label={`Arrastar ${template.name} para reordenar ou mudar de pasta`}
-            className="-ml-2.5 w-7"
+            className="-my-1 -ml-3 h-11 w-10"
           />
         )}
         <div

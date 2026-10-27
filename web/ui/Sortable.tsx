@@ -19,6 +19,7 @@ import {
   closestCenter,
   getScrollableAncestors,
   pointerWithin,
+  useDndContext,
   useDraggable,
   useDroppable,
   useSensor,
@@ -79,7 +80,9 @@ export const pointerFirst: CollisionDetection = (args) => {
 // Module constants: new option objects on every render would rebuild the
 // sensors and re-render every draggable row.
 const HANDLE_OPTIONS = { activationConstraint: { distance: 3 } };
-const PRESS_OPTIONS = { activationConstraint: { delay: 220, tolerance: 6 } };
+// Long enough that a slow tap or the start of a scroll does not pick a row
+// up; the tolerance absorbs a finger's natural wobble while holding.
+const PRESS_OPTIONS = { activationConstraint: { delay: 300, tolerance: 8 } };
 
 /**
  * - Grip (mouse, pen or finger): drags after 3 px. The grip has
@@ -103,12 +106,14 @@ export function useDragSensors(
 }
 
 /**
- * Scrolls sooner and faster near the screen edges than dnd-kit's default
- * (the sticky header and the tab bar cover part of its zones on phones).
+ * Scrolls only when the finger is close to the screen edges (the sticky
+ * header and the tab bar sit over most of these zones on phones), at
+ * dnd-kit's default speed, so it does not pull the list from under a
+ * finger that is still choosing a place.
  */
 export const AUTO_SCROLL: AutoScrollOptions = {
-  threshold: { x: 0, y: 0.18 },
-  acceleration: 14,
+  threshold: { x: 0, y: 0.12 },
+  acceleration: 10,
 };
 
 export const SCREEN_READER_INSTRUCTIONS = {
@@ -304,7 +309,7 @@ export function SortableList({
 }) {
   const sensors = useDragSensors();
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useState<number | null>(null);
   const {
     containerRef,
     style: foldStyle,
@@ -374,48 +379,60 @@ export function SortableList({
   );
 }
 
-/** Gap between the finger and the bottom of the preview, plus its height. */
-const PREVIEW_LIFT = 72;
+/**
+ * Space between the finger and the bottom of the preview. Compact rows put
+ * the nearest gap at most ~30 px from the finger, so its drop line always
+ * shows below the preview.
+ */
+const FINGER_GAP = 36;
 
 /**
- * Offset that shows the preview just above the finger, wherever the row
- * was grabbed (a tall card, a long press), so the finger never hides it or
- * the place it is over. 0 for keyboard drags, which have no pointer. Call
- * on drag start, while the row is still where it was grabbed.
+ * How far below the row's top edge it was grabbed (a tall card, a long
+ * press), so the preview can sit just above the finger; `null` for
+ * keyboard drags, which have no pointer. Call on drag start, while the row
+ * is still where it was grabbed.
  */
 export function previewOffset(
   activatorEvent: Event | null,
   id: string,
-): number {
+): number | null {
   const start = activatorEvent ? getEventCoordinates(activatorEvent) : null;
   const row = [
     ...document.querySelectorAll<HTMLElement>('[data-sortable-id]'),
   ].find((element) => element.dataset.sortableId === id);
-  if (!start || !row) return 0;
-  return start.y - row.getBoundingClientRect().top - PREVIEW_LIFT;
+  if (!start || !row) return null;
+  return start.y - row.getBoundingClientRect().top;
 }
 
-/** Compact copy of the dragged row that follows the finger. */
+/** Compact copy of the dragged row that floats just above the finger. */
 export function DragPreview({
   children,
-  offset = 0,
+  offset = null,
 }: {
   children: ReactNode;
   /** From `previewOffset`. */
-  offset?: number;
+  offset?: number | null;
 }) {
   // Portaled: a transformed ancestor (sheets, the workout panel) would
-  // otherwise offset the fixed-position overlay.
+  // otherwise offset the fixed-position overlay. No drop animation: the
+  // preview is lifted off its row, so flying back would look like a jump.
   return createPortal(
     <DragOverlay
-      dropAnimation={{ duration: 160 }}
+      dropAnimation={null}
       zIndex={80}
       modifiers={[lockToVerticalAxis]}
     >
       {children ? (
         <div
           className="scale-[1.02] rounded-lg shadow-sheet ring-2 ring-brand"
-          style={offset ? { transform: `translateY(${offset}px)` } : undefined}
+          style={
+            offset === null
+              ? undefined
+              : {
+                  // 100% = the preview's own height, whatever it shows.
+                  transform: `translateY(calc(${offset}px - 100% - ${FINGER_GAP}px))`,
+                }
+          }
         >
           {children}
         </div>
@@ -466,6 +483,19 @@ export function SortableRow({
       })}
     </div>
   );
+}
+
+/**
+ * Re-measures every drop target when `token` changes. Rows that fold move
+ * the targets without resizing them, which dnd-kit does not notice on its
+ * own. Render inside the DndContext.
+ */
+export function RemeasureDropTargets({ token }: { token: unknown }) {
+  const { droppableContainers, measureDroppableContainers } = useDndContext();
+  useLayoutEffect(() => {
+    measureDroppableContainers([...droppableContainers.keys()]);
+  }, [token, droppableContainers, measureDroppableContainers]);
+  return null;
 }
 
 /* ------------------------------------------------------------------ */
