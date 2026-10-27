@@ -49,7 +49,14 @@ export function useExerciseFilter(exercises: Exercise[], favorites: string[]) {
           searchKey(exercise.equipment ?? '').includes(key)
         );
       })
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+      .sort((a, b) => {
+        // With a muscle picked, exercises focused on it come first and those
+        // that only work it on the side (pull-ups for forearms) after.
+        const muscle = filter !== 'all' && filter !== 'favorites';
+        const side = (exercise: Exercise) =>
+          muscle && exercise.primaryMuscleGroup !== filter ? 1 : 0;
+        return side(a) - side(b) || a.name.localeCompare(b.name, 'pt-BR');
+      });
   }, [exercises, favorites, filter, query]);
 
   return { query, setQuery, filter, setFilter, filtered };

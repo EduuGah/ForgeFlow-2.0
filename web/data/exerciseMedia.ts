@@ -142,6 +142,17 @@ const MEDIA: Record<string, string> = {
   '1128': 'Reverse_Grip_Triceps_Pushdown',
   '1129': 'Body_Tricep_Press',
   '1130': 'Machine_Triceps_Extension',
+  // Antebraços
+  '1131': 'Palms-Up_Barbell_Wrist_Curl_Over_A_Bench',
+  '1132': 'Palms-Down_Wrist_Curl_Over_A_Bench',
+  '1133': 'Seated_Dumbbell_Palms-Up_Wrist_Curl',
+  '1134': 'Seated_Dumbbell_Palms-Down_Wrist_Curl',
+  '1135': 'Standing_Palms-Up_Barbell_Behind_The_Back_Wrist_Curl',
+  '1136': 'Cable_Wrist_Curl',
+  '1137': 'Wrist_Roller',
+  '1138': 'Farmers_Walk',
+  '1139': 'Plate_Pinch',
+  '1140': 'Finger_Curls',
 };
 
 const CATALOG_PREFIX = '00000000-0000-4000-8000-00000000';

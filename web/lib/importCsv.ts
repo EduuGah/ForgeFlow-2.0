@@ -683,6 +683,21 @@ const KNOWN_NAMES: Record<string, number> = {
 };
 
 const GROUP_KEYWORDS: [group: string, keywords: string[]][] = [
+  // First: "Wrist Curl" would otherwise be biceps, "Behind the Back" back.
+  [
+    'Antebracos',
+    [
+      'wrist',
+      'punho',
+      'forearm',
+      'antebraco',
+      'farmer',
+      'fazendeiro',
+      'pinch',
+      'finger curl',
+      'flexao de dedos',
+    ],
+  ],
   [
     'Cardio',
     [

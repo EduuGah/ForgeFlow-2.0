@@ -289,6 +289,10 @@ describe('exercise matching', () => {
     expect(guessMuscleGroup('Crunch (Machine)')).toBe('Core');
     expect(guessMuscleGroup('Treadmill')).toBe('Cardio');
     expect(guessMuscleGroup('Shrug (Smith Machine)')).toBe('Costas');
+    expect(guessMuscleGroup('Wrist Curl (Barbell)')).toBe('Antebracos');
+    expect(guessMuscleGroup('Behind the Back Wrist Curl')).toBe('Antebracos');
+    expect(guessMuscleGroup("Farmer's Walk")).toBe('Antebracos');
+    expect(guessMuscleGroup('Close Grip Bench Press')).toBe('Peito');
     expect(guessMuscleGroup('Mystery move')).toBe('Geral');
   });
 });

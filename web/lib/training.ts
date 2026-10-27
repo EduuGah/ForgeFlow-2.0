@@ -33,6 +33,7 @@ export const MUSCLE_GROUPS = [
   'Ombros',
   'Biceps',
   'Triceps',
+  'Antebracos',
   'Core',
 ];
 
@@ -53,6 +54,7 @@ const MUSCLE_CODES: Record<string, string> = {
   Ombros: 'OMB',
   Biceps: 'BÍC',
   Triceps: 'TRÍ',
+  Antebracos: 'ANT',
   Core: 'CORE',
   Cardio: 'CAR',
 };

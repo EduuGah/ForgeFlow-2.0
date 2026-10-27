@@ -4,7 +4,7 @@ import { MEDIA_FOLDERS } from '../data/exerciseMedia';
 const CACHE = 'forgeflow-exercise-photos-v1';
 
 /** Approximate size of all exercise photos, shown before downloading. */
-export const EXERCISE_PHOTOS_MB = 3.4;
+export const EXERCISE_PHOTOS_MB = 3.8;
 
 function photoUrls(): string[] {
   return MEDIA_FOLDERS.flatMap((folder) => {
