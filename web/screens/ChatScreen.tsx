@@ -276,12 +276,13 @@ export function ChatScreen({ userId }: { userId: string }) {
         )}
 
         <form
-          // Pinned to the bottom with its background down to the screen's
-          // edge (behind the dock), so no message shows below it; the negative
-          // margin cancels the screen's own room for the dock.
-          className="sticky bottom-0 -mx-4 mt-auto flex items-end gap-2 border-t border-line bg-canvas px-4 pt-2"
+          // Pinned to the bottom of the screen (the dock hides in a chat).
+          // Screens keep room at the bottom for the dock, and sticky counts
+          // that room too: the negative margin and offset give it back.
+          className="sticky -mx-4 mt-auto flex items-end gap-2 border-t border-line bg-canvas px-4 pt-2"
           style={{
-            paddingBottom: DOCK_SPACE,
+            bottom: `calc(-1 * ${DOCK_SPACE})`,
+            paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))',
             marginBottom: `calc(-1 * ${DOCK_SPACE})`,
           }}
           onSubmit={(event) => {

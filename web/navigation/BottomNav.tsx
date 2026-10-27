@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ChevronRight,
   ClipboardList,
@@ -42,14 +42,69 @@ const RIGHT: Item[] = [
 export const NAV_HEIGHT = 68;
 export const DOCK_GAP = 12;
 
+/** How far a scroll must go in one direction before the dock reacts. */
+const SCROLL_SLACK = 8;
+
+/**
+ * Hides the dock while the person scrolls down (more room to read) and brings
+ * it back on any scroll up or screen change. Listens in the capture phase so
+ * every scrolling screen counts, not only the page.
+ */
+function useHideOnScroll(
+  resetKey: string,
+): [boolean, (hidden: boolean) => void] {
+  const [hidden, setHidden] = useState(false);
+  const [lastKey, setLastKey] = useState(resetKey);
+  if (lastKey !== resetKey) {
+    setLastKey(resetKey);
+    setHidden(false);
+  }
+
+  useEffect(() => {
+    const last = new WeakMap<object, number>();
+    const onScroll = (event: Event) => {
+      const target = event.target;
+      const element =
+        target instanceof Element && !(target instanceof HTMLHtmlElement)
+          ? target
+          : null;
+      // Sheets and dialogs scroll on their own; the dock is not about them.
+      if (element?.closest('[role="dialog"]')) return;
+      const key = element ?? document;
+      const position = element ? element.scrollTop : window.scrollY;
+      // Every screen starts at the top.
+      const previous = last.get(key) ?? 0;
+      const delta = position - previous;
+      if (Math.abs(delta) < SCROLL_SLACK) return;
+      last.set(key, position);
+      setHidden(delta > 0 && position > 80);
+    };
+    document.addEventListener('scroll', onScroll, {
+      capture: true,
+      passive: true,
+    });
+    return () =>
+      document.removeEventListener('scroll', onScroll, { capture: true });
+  }, []);
+
+  return [hidden, setHidden];
+}
+
 /**
  * Floating dock: four destinations around a raised "Treinar" button, which
  * starts (or resumes) a workout from anywhere in the app.
  */
 export function BottomNav() {
-  const { tab, selectTab, openWorkout } = useNavigation();
+  const { tab, stack, selectTab, openWorkout } = useNavigation();
   const { activeWorkout } = useAppStore();
   const [startOpen, setStartOpen] = useState(false);
+  const top = stack.at(-1)?.route.name ?? null;
+  const [scrolledAway, setScrolledAway] = useHideOnScroll(
+    `${tab}:${stack.length}:${top}`,
+  );
+  // A conversation uses the whole bottom for typing.
+  const away = top === 'chat';
+  const hidden = away || scrolledAway;
 
   const renderItem = ({ tab: itemTab, label, icon: Icon }: Item) => {
     const active = tab === itemTab;
@@ -92,9 +147,15 @@ export function BottomNav() {
     <>
       <nav
         aria-label="Navegação principal"
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3"
+        aria-hidden={away || undefined}
+        inert={away || undefined}
+        // Keyboard users bring it back by tabbing into it.
+        onFocusCapture={() => setScrolledAway(false)}
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 transition-[translate] duration-300 ease-standard motion-reduce:transition-none"
         style={{
           paddingBottom: `calc(${DOCK_GAP}px + env(safe-area-inset-bottom))`,
+          // Far enough to take the raised Treinar button along.
+          translate: hidden ? '0 calc(100% + 48px)' : '0 0',
         }}
       >
         <ul

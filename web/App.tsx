@@ -29,7 +29,7 @@ import { FriendScreen } from './screens/FriendScreen';
 import { ChatScreen } from './screens/ChatScreen';
 import { NotificationsScreen } from './screens/NotificationsScreen';
 import { MessagesScreen } from './screens/MessagesScreen';
-import { clearDeepLink, useDeepLink } from './features/deepLink';
+import { takeDeepLink, useDeepLink } from './features/deepLink';
 import { useOpenLink } from './features/useOpenLink';
 import { notify } from './features/notificationFeed';
 import { refreshPushRegistration } from './features/pushRegistration';
@@ -236,8 +236,9 @@ function DeepLinkWatcher() {
   const open = useOpenLink();
   useEffect(() => {
     if (!link) return;
-    clearDeepLink();
-    open(link);
+    // Taken, not just read: the effect may run twice for the same link.
+    const next = takeDeepLink();
+    if (next) open(next);
   }, [link, open]);
   return null;
 }

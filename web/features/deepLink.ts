@@ -81,6 +81,9 @@ export function useDeepLink(): string | null {
   );
 }
 
-export function clearDeepLink() {
-  setPending(null);
+/** Hands the pending link over once (a second call gets null). */
+export function takeDeepLink(): string | null {
+  const link = pending;
+  if (link) setPending(null);
+  return link;
 }
