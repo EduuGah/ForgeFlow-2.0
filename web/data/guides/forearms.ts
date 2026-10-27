@@ -42,7 +42,7 @@ export const FOREARM_GUIDES: GuideMap = {
     ],
     breathing: 'Solte o ar na subida e inspire ao descer.',
     tips: [
-      'Comece bem mais leve que na rosca de punho normal.',
+      'Comece bem mais leve que na flexão de punho.',
       'Ajuda a equilibrar o antebraço e prevenir dores no cotovelo.',
     ],
     mistakes: EXTENSION_MISTAKES,

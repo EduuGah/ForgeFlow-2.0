@@ -4,6 +4,7 @@ import type { Exercise } from '../../src/domain/training/entities';
 import { actions, useAppStore } from '../store';
 import { searchKey } from '../lib/format';
 import { MUSCLE_GROUPS, muscleLabel } from '../lib/training';
+import { exerciseAliases } from '../data/aliases';
 import { Button } from '../ui/Button';
 import { EmptyState, ExerciseThumb } from '../ui/Feedback';
 import {
@@ -46,7 +47,10 @@ export function useExerciseFilter(exercises: Exercise[], favorites: string[]) {
         return (
           searchKey(exercise.name).includes(key) ||
           searchKey(exercise.primaryMuscleGroup).includes(key) ||
-          searchKey(exercise.equipment ?? '').includes(key)
+          searchKey(exercise.equipment ?? '').includes(key) ||
+          exerciseAliases(exercise.id).some((alias) =>
+            searchKey(alias).includes(key),
+          )
         );
       })
       .sort((a, b) => {

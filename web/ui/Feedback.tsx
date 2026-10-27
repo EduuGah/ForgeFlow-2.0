@@ -286,12 +286,12 @@ export function ExerciseThumb({
   size = 44,
 }: {
   muscle?: string | null;
-  /** Catalog exercises show their start photo instead of the muscle tag. */
+  /** Catalog exercises show a photo instead of the muscle tag. */
   exerciseId?: string | null;
   size?: number;
 }) {
   const [failed, setFailed] = useState(false);
-  const photo = exerciseId ? exerciseMedia(exerciseId)?.start : undefined;
+  const photo = exerciseId ? exerciseMedia(exerciseId)?.thumb : undefined;
 
   if (photo && !failed) {
     return (

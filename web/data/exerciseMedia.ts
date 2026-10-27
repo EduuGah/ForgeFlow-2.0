@@ -160,15 +160,35 @@ const CATALOG_PREFIX = '00000000-0000-4000-8000-00000000';
 export interface ExerciseMedia {
   start: string;
   end: string;
+  /** The photo that shows the exercise best in a small thumbnail. */
+  thumb: string;
 }
+
+/*
+ * Exercises whose start photo reads as a different movement: a wrist flexion
+ * starts with the wrist bent back, which looks like an extension. Their
+ * thumbnail shows the end of the movement instead.
+ */
+const THUMB_AT_END = new Set([
+  '1131',
+  '1132',
+  '1133',
+  '1134',
+  '1135',
+  '1136',
+  '1140',
+]);
 
 /** Start/end photos of a catalog exercise; custom exercises have none. */
 export function exerciseMedia(exerciseId: string): ExerciseMedia | null {
   if (!exerciseId.startsWith(CATALOG_PREFIX)) return null;
-  const folder = MEDIA[exerciseId.slice(CATALOG_PREFIX.length)];
+  const code = exerciseId.slice(CATALOG_PREFIX.length);
+  const folder = MEDIA[code];
   if (!folder) return null;
   const base = `/exercises/${encodeURIComponent(folder)}`;
-  return { start: `${base}/0.webp`, end: `${base}/1.webp` };
+  const start = `${base}/0.webp`;
+  const end = `${base}/1.webp`;
+  return { start, end, thumb: THUMB_AT_END.has(code) ? end : start };
 }
 
 /** Every media folder, for scripts and tests. */

@@ -1,6 +1,7 @@
 import { systemExercises } from '../../src/data/seeds/systemExercises';
 import { GUIDES, exerciseGuide } from './guides';
 import { MEDIA_FOLDERS, exerciseMedia } from './exerciseMedia';
+import { exerciseAliases } from './aliases';
 
 describe('exercise guides and media', () => {
   it('cover every catalog exercise', () => {
@@ -41,5 +42,37 @@ describe('exercise guides and media', () => {
   it('ignores custom exercises', () => {
     expect(exerciseGuide('custom-import-x')).toBeNull();
     expect(exerciseMedia('custom-import-x')).toBeNull();
+  });
+});
+
+describe('forearm exercises', () => {
+  const byName = (name: string) =>
+    systemExercises.find((exercise) => exercise.name === name)!;
+
+  it('are named the way gyms call them', () => {
+    for (const name of [
+      'Flexao de punho com barra',
+      'Flexao de punho com halteres',
+      'Extensao de punho com barra',
+      'Extensao de punho com halteres',
+    ])
+      expect([name, byName(name)?.primaryMuscleGroup]).toEqual([
+        name,
+        'Antebracos',
+      ]);
+  });
+
+  it('can still be found by other names', () => {
+    const flexion = byName('Flexao de punho com barra');
+    expect(exerciseAliases(flexion.id)).toContain('rosca de punho');
+    expect(exerciseAliases(flexion.id)).toContain('wrist curl');
+    expect(exerciseAliases('custom-x')).toEqual([]);
+  });
+
+  it('show the end of a wrist curl in thumbnails (the start looks like an extension)', () => {
+    const flexion = exerciseMedia(byName('Flexao de punho com barra').id)!;
+    expect(flexion.thumb).toBe(flexion.end);
+    const pullUp = exerciseMedia(byName('Barra fixa').id)!;
+    expect(pullUp.thumb).toBe(pullUp.start);
   });
 });
