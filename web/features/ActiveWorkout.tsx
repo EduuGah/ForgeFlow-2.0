@@ -13,6 +13,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Replace,
   StickyNote,
   Timer,
   Trash2,
@@ -110,6 +111,7 @@ export function ActiveWorkoutScreen({
   const [menuOpen, setMenuOpen] = useState(false);
   const [restPickerOpen, setRestPickerOpen] = useState(false);
   const [infoExerciseId, setInfoExerciseId] = useState<string | null>(null);
+  const [swapIndex, setSwapIndex] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bests = useMemo(() => bestRecordValues(prs), [prs]);
   const exerciseKeys = (workout?.exercises ?? []).map(
@@ -342,6 +344,7 @@ export function ActiveWorkoutScreen({
                     handle={handle}
                     compact={sorting}
                     onShowInfo={() => setInfoExerciseId(exercise.exerciseId)}
+                    onSwap={() => setSwapIndex(index)}
                   />
                 );
               }}
@@ -393,6 +396,43 @@ export function ActiveWorkoutScreen({
         onConfirm={(exercises) => {
           actions.addExercisesToActiveWorkout(exercises);
           haptic('tap');
+        }}
+      />
+      <ExercisePicker
+        open={swapIndex !== null}
+        mode="single"
+        title={
+          swapIndex !== null && workout.exercises[swapIndex]
+            ? `Trocar ${workout.exercises[swapIndex].exerciseName}`
+            : 'Trocar exercício'
+        }
+        excludeIds={
+          swapIndex !== null && workout.exercises[swapIndex]
+            ? [workout.exercises[swapIndex].exerciseId]
+            : undefined
+        }
+        onClose={() => setSwapIndex(null)}
+        onConfirm={async ([replacement]) => {
+          const index = swapIndex;
+          const current = index !== null ? workout.exercises[index] : null;
+          if (index === null || !current || !replacement) return;
+          const done = current.sets.filter((set) => set.completed).length;
+          if (done > 0) {
+            const ok = await confirm({
+              title: `Trocar ${current.exerciseName}?`,
+              message: `${done} ${done === 1 ? 'série concluída dele será descartada' : 'séries concluídas dele serão descartadas'}. As séries continuam, agora para ${replacement.name}.`,
+              confirmLabel: 'Trocar exercício',
+              icon: Replace,
+            });
+            if (!ok) return;
+          }
+          actions.swapActiveExercise(index, replacement);
+          haptic('tap');
+          toast({
+            tone: 'success',
+            title: 'Exercício trocado',
+            description: `${current.exerciseName} → ${replacement.name}`,
+          });
         }}
       />
       <RenameSheet
@@ -479,6 +519,7 @@ function ExerciseBlock({
   handle,
   compact,
   onShowInfo,
+  onSwap,
 }: {
   exercise: ActiveExerciseSession;
   index: number;
@@ -490,6 +531,7 @@ function ExerciseBlock({
   /** Folded to its header while the exercises are being reordered. */
   compact: boolean;
   onShowInfo: () => void;
+  onSwap: () => void;
 }) {
   const confirm = useConfirm();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -560,6 +602,7 @@ function ExerciseBlock({
         actions.addSetToActiveExercise(index, 'warmup');
       },
     },
+    { label: 'Trocar exercício', icon: Replace, onSelect: onSwap },
     { label: 'Ver detalhes do exercício', icon: Info, onSelect: onShowInfo },
     ...(index > 0
       ? [

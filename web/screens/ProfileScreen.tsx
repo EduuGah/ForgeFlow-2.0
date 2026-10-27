@@ -19,7 +19,7 @@ import { tutorial } from '../lib/tutorial';
 import { useNavigation } from '../navigation/Navigator';
 import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
 import { SyncBadge } from '../features/StatusBits';
-import { refreshFriendsIfStale, useFriends } from '../features/useFriends';
+import { resumeFriends, totalUnread, useFriends } from '../features/useFriends';
 import { IconButton } from '../ui/Button';
 import { Avatar } from '../ui/Feedback';
 import { Card, GroupLabel, ListGroup, ListRow, TabHeader } from '../ui/Layout';
@@ -44,7 +44,10 @@ export function ProfileScreen() {
   const friends = useFriends();
   const invites = friends.lists.incoming.length;
   const received = friends.inbox.length;
+  const unread = totalUnread(friends);
   const friendNews = [
+    unread > 0 &&
+      `${unread} ${unread === 1 ? 'mensagem nova' : 'mensagens novas'}`,
     invites > 0 &&
       `${invites} ${invites === 1 ? 'pedido' : 'pedidos'} de amizade`,
     received > 0 &&
@@ -55,7 +58,7 @@ export function ProfileScreen() {
 
   // Keeps the friend-request count on the Community row current.
   useEffect(() => {
-    if (currentUser) refreshFriendsIfStale();
+    if (currentUser) void resumeFriends();
   }, [currentUser]);
 
   return (

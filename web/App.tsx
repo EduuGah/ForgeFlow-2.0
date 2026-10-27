@@ -7,7 +7,7 @@ import {
   type Route,
 } from './navigation/Navigator';
 import { BottomNav, DOCK_GAP, NAV_HEIGHT } from './navigation/BottomNav';
-import { ConfirmProvider, ToastProvider } from './ui/Overlay';
+import { ConfirmProvider, ToastProvider, useToast } from './ui/Overlay';
 import { ActiveWorkoutScreen } from './features/ActiveWorkout';
 import { RestTimerWatcher } from './features/RestTimer';
 import { SyncWatcher } from './features/StatusBits';
@@ -26,7 +26,14 @@ import { HydrationScreen } from './screens/HydrationScreen';
 import { NutritionScreen } from './screens/NutritionScreen';
 import { SocialScreen } from './screens/SocialScreen';
 import { FriendScreen } from './screens/FriendScreen';
+import { ChatScreen } from './screens/ChatScreen';
 import { clearInvite, peekInvite } from './features/invite';
+import {
+  chatOpenWith,
+  friendById,
+  onIncomingMessage,
+  resumeFriends,
+} from './features/useFriends';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { EditProfileScreen } from './screens/EditProfileScreen';
 import { LibraryScreen } from './screens/LibraryScreen';
@@ -82,6 +89,8 @@ function renderRoute(route: Route) {
       return <SocialScreen invite={route.invite} />;
     case 'friend':
       return <FriendScreen userId={route.userId} />;
+    case 'chat':
+      return <ChatScreen userId={route.userId} />;
     case 'settings':
       return <SettingsScreen />;
     case 'editProfile':
@@ -144,6 +153,7 @@ function MainShell() {
       <RestTimerWatcher />
       <SyncWatcher />
       <InviteWatcher />
+      <MessageWatcher />
     </div>
   );
 }
@@ -167,5 +177,35 @@ function InviteWatcher() {
     openedInvite = invite;
     push({ name: 'social', invite });
   }, [currentUser, push]);
+  return null;
+}
+
+/**
+ * Signed in: loads friends (which starts listening for chat messages) and
+ * announces messages whose conversation is not on screen.
+ */
+function MessageWatcher() {
+  const { currentUser } = useAppStore();
+  const { push } = useNavigation();
+  const toast = useToast();
+  useEffect(() => {
+    if (!currentUser) return;
+    void resumeFriends();
+    return onIncomingMessage((message) => {
+      if (chatOpenWith() === message.senderId) return;
+      const sender = friendById(message.senderId);
+      toast({
+        title: `Mensagem de ${sender ? sender.name || `@${sender.username}` : 'um amigo'}`,
+        description:
+          message.body.length > 90
+            ? `${message.body.slice(0, 90)}…`
+            : message.body,
+        action: {
+          label: 'Abrir',
+          onPress: () => push({ name: 'chat', userId: message.senderId }),
+        },
+      });
+    });
+  }, [currentUser, push, toast]);
   return null;
 }

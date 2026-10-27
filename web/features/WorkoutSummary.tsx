@@ -13,6 +13,7 @@ import { Medal } from '../ui/Feedback';
 import { Stat } from '../ui/Layout';
 import { cx, useBackLayer, usePresence, useScrollLock } from '../ui/core';
 import { GymChips } from './GymPicker';
+import { RoutineUpdateCard } from './RoutineUpdateCard';
 
 /** Full-screen celebration after saving a workout. */
 export function WorkoutSummary({
@@ -41,7 +42,8 @@ export function WorkoutSummary({
   );
 
   if (!mounted || !shown) return null;
-  const { workout, records, goalsReached, workoutNumber } = shown;
+  const { workout, records, goalsReached, workoutNumber, routineUpdate } =
+    shown;
   const hasRecords = records.length > 0;
 
   return createPortal(
@@ -116,6 +118,11 @@ export function WorkoutSummary({
               size="sm"
             />
           </div>
+
+          {routineUpdate && (
+            // Keyed by workout: a new result starts with the question again.
+            <RoutineUpdateCard key={workout.id} update={routineUpdate} />
+          )}
 
           <section
             className="mt-4 w-full animate-rise rounded-lg bg-surface p-4 text-left"

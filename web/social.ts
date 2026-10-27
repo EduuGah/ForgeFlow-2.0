@@ -302,3 +302,125 @@ export async function getSocialProfiles(
   );
   return profiles;
 }
+
+/* ------------------------------------------------------------------ */
+/* Chat                                                                */
+/* ------------------------------------------------------------------ */
+
+export interface ChatMessage {
+  id: number;
+  senderId: string;
+  recipientId: string;
+  body: string;
+  createdAt: string;
+  readAt: string | null;
+}
+
+interface MessageRow {
+  id: number;
+  sender_id: string;
+  recipient_id: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+}
+
+function fromMessageRow(row: MessageRow): ChatMessage {
+  return {
+    id: row.id,
+    senderId: row.sender_id,
+    recipientId: row.recipient_id,
+    body: row.body,
+    createdAt: row.created_at,
+    readAt: row.read_at,
+  };
+}
+
+/** The latest messages between two people, oldest first. */
+export async function listConversation(
+  me: string,
+  friendId: string,
+  limit = 200,
+): Promise<ChatMessage[]> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .or(
+      `and(sender_id.eq.${me},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${me})`,
+    )
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) fail(error);
+  return ((data as MessageRow[] | null) ?? []).map(fromMessageRow).reverse();
+}
+
+/** RLS only accepts it between friends. */
+export async function sendMessage(
+  me: string,
+  friendId: string,
+  body: string,
+): Promise<ChatMessage> {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({ sender_id: me, recipient_id: friendId, body: body.trim() })
+    .select('*')
+    .single();
+  if (error) fail(error);
+  return fromMessageRow(data as MessageRow);
+}
+
+export async function markConversationRead(
+  me: string,
+  friendId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('recipient_id', me)
+    .eq('sender_id', friendId)
+    .is('read_at', null);
+  if (error) fail(error);
+}
+
+/** Unread messages per sender. */
+export async function unreadBySender(
+  me: string,
+): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('sender_id')
+    .eq('recipient_id', me)
+    .is('read_at', null)
+    .limit(1000);
+  if (error) fail(error);
+  const counts: Record<string, number> = {};
+  for (const row of (data as { sender_id: string }[] | null) ?? [])
+    counts[row.sender_id] = (counts[row.sender_id] ?? 0) + 1;
+  return counts;
+}
+
+/**
+ * Calls `onMessage` for every message sent to this person while subscribed
+ * (Supabase Realtime; RLS decides what arrives). Returns the unsubscribe.
+ */
+export function subscribeToMessages(
+  me: string,
+  onMessage: (message: ChatMessage) => void,
+): () => void {
+  const channel = supabase
+    .channel(`messages-to-${me}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `recipient_id=eq.${me}`,
+      },
+      (payload) => onMessage(fromMessageRow(payload.new as MessageRow)),
+    )
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}

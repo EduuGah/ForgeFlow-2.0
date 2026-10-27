@@ -77,6 +77,7 @@ function toShared(
       exerciseId: exercise.exerciseId,
       exerciseName: exercise.exerciseName,
       targetSets: exercise.targetSets,
+      ...(exercise.warmupSets ? { warmupSets: exercise.warmupSets } : {}),
       targetReps: exercise.targetReps,
       ...(exercise.targetWeightKg !== undefined
         ? { targetWeightKg: exercise.targetWeightKg }
@@ -195,10 +196,12 @@ export function readSharePayload(raw: unknown): SharePayload | null {
         .map(record)
         .map((exercise) => {
           const weight = count(exercise.targetWeightKg, 0, 1000, -1);
+          const warmupSets = Math.round(count(exercise.warmupSets, 0, 10, 0));
           return {
             exerciseId: text(exercise.exerciseId, 100),
             exerciseName: text(exercise.exerciseName, SHARE_LIMITS.name),
             targetSets: count(exercise.targetSets, 1, 20, 3),
+            ...(warmupSets > 0 ? { warmupSets } : {}),
             targetReps: count(exercise.targetReps, 0, 100, 10),
             ...(weight >= 0 ? { targetWeightKg: weight } : {}),
             restSeconds: count(exercise.restSeconds, 0, 900, 90),

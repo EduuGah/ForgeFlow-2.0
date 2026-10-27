@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Dumbbell, EyeOff, Send, Trophy, UserMinus } from 'lucide-react';
+import {
+  Dumbbell,
+  EyeOff,
+  MessageCircle,
+  Send,
+  Trophy,
+  UserMinus,
+} from 'lucide-react';
+import { useAppStore } from '../store';
 import { addDays, startOfDay } from '../lib/dates';
 import {
   formatCompact,
@@ -8,7 +16,8 @@ import {
   formatRelativeDay,
   formatShortDate,
 } from '../lib/format';
-import { totalsBetween } from '../lib/training';
+import { totalsBetween, type PeriodTotals } from '../lib/training';
+import { compareBests, type BestComparison } from '../lib/friends';
 import type { CompletedWorkout, PersonalRecordItem } from '../lib/types';
 import { useNavigation } from '../navigation/Navigator';
 import { fetchFriendRecords, fetchFriendWorkouts } from '../social';
@@ -23,13 +32,15 @@ import {
   Skeleton,
 } from '../ui/Feedback';
 import { Card, GroupLabel, StackHeader, Stat } from '../ui/Layout';
+import { cx } from '../ui/core';
 import { socialErrorMessage, useRemoveFriend } from './SocialScreen';
 
 /** How far back a friend's page looks. */
 const HISTORY_DAYS = 90;
 
 export function FriendScreen({ userId }: { userId: string }) {
-  const { pop } = useNavigation();
+  const { pop, push } = useNavigation();
+  const { history, prs } = useAppStore();
   const friends = useFriends();
   const removeFriend = useRemoveFriend();
   const link = friends.lists.friends.find(
@@ -63,6 +74,11 @@ export function FriendScreen({ userId }: { userId: string }) {
       alive = false;
     };
   }, [userId, sharing]);
+
+  const myMonth = useMemo(() => {
+    const end = addDays(startOfDay(new Date()), 1);
+    return totalsBetween(history, addDays(end, -30), end);
+  }, [history]);
 
   const month = useMemo(() => {
     if (!data) return null;
@@ -118,14 +134,23 @@ export function FriendScreen({ userId }: { userId: string }) {
           <p className="text-footnote text-ink-2">
             @{person.username} · amigos desde {formatShortDate(link.since)}
           </p>
-          <Button
-            variant="tinted"
-            icon={Send}
-            className="mt-4"
-            onClick={() => setPicking(true)}
-          >
-            Enviar rotina
-          </Button>
+          <div className="mt-4 flex gap-2">
+            <Button
+              icon={MessageCircle}
+              onClick={() => push({ name: 'chat', userId: person.userId })}
+            >
+              Mensagem
+              {(friends.unread[person.userId] ?? 0) > 0 &&
+                ` (${friends.unread[person.userId]})`}
+            </Button>
+            <Button
+              variant="tinted"
+              icon={Send}
+              onClick={() => setPicking(true)}
+            >
+              Enviar rotina
+            </Button>
+          </div>
         </div>
         <PickRoutineSheet
           friend={person}
@@ -166,6 +191,15 @@ export function FriendScreen({ userId }: { userId: string }) {
                 value={formatDurationMinutes(month.durationMinutes)}
               />
             </Card>
+
+            <GroupLabel>
+              Você × {person.name || `@${person.username}`}
+            </GroupLabel>
+            <CompareCard
+              mine={myMonth}
+              theirs={month}
+              bests={compareBests(prs, data.records)}
+            />
 
             <GroupLabel>Últimos treinos</GroupLabel>
             {data.workouts.length === 0 ? (
@@ -272,6 +306,95 @@ function FriendWorkoutCard({ workout }: { workout: CompletedWorkout }) {
           </li>
         )}
       </ul>
+    </Card>
+  );
+}
+
+/** Side by side: the last 30 days and the heaviest loads both have. */
+function CompareCard({
+  mine,
+  theirs,
+  bests,
+}: {
+  mine: PeriodTotals;
+  theirs: PeriodTotals;
+  bests: BestComparison[];
+}) {
+  const rows = [
+    {
+      label: 'Treinos',
+      mine: mine.workouts,
+      theirs: theirs.workouts,
+      format: (value: number) => formatNumber(value, 0),
+    },
+    {
+      label: 'Volume',
+      mine: mine.volumeKg,
+      theirs: theirs.volumeKg,
+      format: (value: number) => `${formatCompact(value)} kg`,
+    },
+    {
+      label: 'Tempo',
+      mine: mine.durationMinutes,
+      theirs: theirs.durationMinutes,
+      format: formatDurationMinutes,
+    },
+    ...bests.map((best) => ({
+      label: best.exerciseName,
+      mine: best.mine,
+      theirs: best.theirs,
+      format: (value: number) => `${formatNumber(value)} kg`,
+    })),
+  ];
+  return (
+    <Card className="mx-4 overflow-hidden">
+      <div className="text-micro grid grid-cols-[1fr_auto_auto] gap-3 border-b border-line px-4 py-2 font-semibold tracking-wider text-ink-3 uppercase">
+        <span>30 dias e maiores cargas</span>
+        <span className="w-20 text-right">Você</span>
+        <span className="w-20 text-right">Amigo</span>
+      </div>
+      <ul className="divide-y divide-line">
+        {rows.map((row) => {
+          const lead =
+            row.mine === row.theirs
+              ? null
+              : row.mine > row.theirs
+                ? 'me'
+                : 'them';
+          return (
+            <li
+              key={row.label}
+              className="text-callout grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2.5"
+            >
+              <span className="min-w-0 truncate">{row.label}</span>
+              <span
+                className={cx(
+                  'w-20 text-right tabular',
+                  lead === 'me' ? 'font-semibold text-brand-ink' : 'text-ink-2',
+                )}
+              >
+                {row.format(row.mine)}
+              </span>
+              <span
+                className={cx(
+                  'w-20 text-right tabular',
+                  lead === 'them'
+                    ? 'font-semibold text-brand-ink'
+                    : 'text-ink-2',
+                )}
+              >
+                {row.format(row.theirs)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {bests.length === 0 && (
+        <p className="text-footnote border-t border-line px-4 py-2.5 text-ink-3">
+          Recordes aparecem aqui quando vocês dois tiverem treinado o mesmo
+          exercício.
+        </p>
+      )}
     </Card>
   );
 }

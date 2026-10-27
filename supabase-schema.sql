@@ -389,6 +389,63 @@ CREATE POLICY "Remetente e destinatário apagam o envio" ON public.shared_routin
 -- Sem política de UPDATE: um envio não muda depois de feito.
 
 -- ============================================================
+-- Chat entre amigos
+-- Só amigos aceitos trocam mensagens; só quem recebe marca como lida.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.messages (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  sender_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  recipient_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  body TEXT NOT NULL CHECK (char_length(btrim(body)) BETWEEN 1 AND 1000),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  read_at TIMESTAMPTZ,
+  CHECK (sender_id <> recipient_id)
+);
+-- Conversa de uma dupla em ordem, e as não lidas de cada pessoa.
+CREATE INDEX IF NOT EXISTS messages_pair_idx ON public.messages (
+  least(sender_id, recipient_id), greatest(sender_id, recipient_id), created_at
+);
+CREATE INDEX IF NOT EXISTS messages_unread_idx
+  ON public.messages (recipient_id) WHERE read_at IS NULL;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Quem conversa vê as mensagens" ON public.messages;
+CREATE POLICY "Quem conversa vê as mensagens" ON public.messages
+  FOR SELECT TO authenticated
+  USING ((select auth.uid())::text IN (sender_id, recipient_id));
+DROP POLICY IF EXISTS "Mensagem só para amigos e em seu nome" ON public.messages;
+CREATE POLICY "Mensagem só para amigos e em seu nome" ON public.messages
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    sender_id = (select auth.uid())::text
+    AND read_at IS NULL
+    AND public.are_friends(recipient_id)
+  );
+DROP POLICY IF EXISTS "Quem recebe marca como lida" ON public.messages;
+CREATE POLICY "Quem recebe marca como lida" ON public.messages
+  FOR UPDATE TO authenticated
+  USING (recipient_id = (select auth.uid())::text)
+  WITH CHECK (recipient_id = (select auth.uid())::text);
+-- Ao marcar como lida, só a data muda (o texto e os participantes, nunca).
+REVOKE UPDATE ON public.messages FROM anon, authenticated;
+GRANT UPDATE (read_at) ON public.messages TO authenticated;
+
+-- Mensagens chegam na hora (Realtime), quando o projeto tem a publicação.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
+    AND NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = 'messages'
+    )
+  THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+  END IF;
+END $$;
+
+-- ============================================================
 -- Excluir dados e conta (Configurações › Excluir dados)
 -- Sempre de quem está logado; nunca recebem o id de fora.
 -- ============================================================
@@ -417,6 +474,8 @@ BEGIN
   END LOOP;
   -- Rotinas que enviou ou que esperam por você também são dados seus.
   DELETE FROM public.shared_routines WHERE me IN (sender_id, recipient_id);
+  -- E as conversas (dos dois lados: uma conversa pela metade não serve).
+  DELETE FROM public.messages WHERE me IN (sender_id, recipient_id);
 END;
 $$;
 

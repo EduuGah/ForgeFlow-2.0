@@ -39,6 +39,10 @@ import {
   sortByCompletedDesc,
 } from './lib/training';
 import { reconcileCollection } from './lib/sync';
+import {
+  describeRoutineChanges,
+  routineFromSession,
+} from './lib/routineChanges';
 import { removeUntouchedSamples } from './lib/samples';
 import {
   moveFolder,
@@ -66,6 +70,7 @@ import type {
   SetEntry,
   SetType,
   SyncStatus,
+  TemplateExercise,
   WorkoutTemplateItem,
   UserProfile,
 } from './lib/types';
@@ -990,6 +995,17 @@ export interface FinishResult {
   records: PersonalRecordItem[];
   goalsReached: GoalItem[];
   workoutNumber: number;
+  /**
+   * The session as a routine, offered to save. With a routine that it no
+   * longer matches, `changes` says how; a free workout has no `templateId`.
+   */
+  routineUpdate: {
+    templateId: string | null;
+    templateName: string;
+    folderId?: string;
+    changes: string[];
+    exercises: TemplateExercise[];
+  } | null;
 }
 
 /**
@@ -1130,14 +1146,20 @@ export const actions = {
           primaryMuscleGroup: catalog?.primaryMuscleGroup ?? 'Geral',
           equipment: catalog?.equipment ?? null,
           restSeconds: item.restSeconds ?? DEFAULT_REST_SECONDS,
-          sets: Array.from({ length: Math.max(1, item.targetSets) }, (_, i) =>
-            newSet(
-              i + 1,
-              'working',
-              item.targetWeightKg ?? 0,
-              item.targetReps ?? 0,
+          sets: renumber([
+            // Warm-ups first, empty: their loads vary too much to suggest.
+            ...Array.from({ length: Math.max(0, item.warmupSets ?? 0) }, () =>
+              newSet(0, 'warmup', 0, 0),
             ),
-          ),
+            ...Array.from({ length: Math.max(1, item.targetSets) }, () =>
+              newSet(
+                0,
+                'working',
+                item.targetWeightKg ?? 0,
+                item.targetReps ?? 0,
+              ),
+            ),
+          ]),
         };
       },
     );
@@ -1192,6 +1214,40 @@ export const actions = {
       ...workout,
       exercises: workout.exercises.filter((_, i) => i !== index),
     }));
+  },
+
+  /**
+   * Puts another exercise in this slot. The sets keep their layout (how many,
+   * warm-up or working) but start over, prefilled from the new exercise's
+   * last session; rest time stays.
+   */
+  swapActiveExercise: (index: number, exercise: Exercise) => {
+    const previous =
+      previousSetsFor(state.history, exercise.id, exercise.name) ?? [];
+    const lastOf = {
+      warmup: previous.filter((set) => set.type === 'warmup'),
+      working: previous.filter((set) => set.type !== 'warmup'),
+    };
+    updateExercise(index, (current) => {
+      const used = { warmup: 0, working: 0 };
+      return {
+        key: uid('ex'),
+        exerciseId: exercise.id,
+        exerciseName: exercise.name,
+        primaryMuscleGroup: exercise.primaryMuscleGroup,
+        equipment: exercise.equipment,
+        restSeconds: current.restSeconds,
+        sets: current.sets.map((set) => {
+          const last = lastOf[set.setType][used[set.setType]++];
+          return newSet(
+            set.setNumber,
+            set.setType,
+            last?.weightKg ?? 0,
+            last?.repetitions ?? 0,
+          );
+        }),
+      };
+    });
   },
 
   /** Moves an exercise of the session from one position to another (drag). */
@@ -1313,6 +1369,22 @@ export const actions = {
     const now = new Date();
     const workout = buildCompletedWorkout(active, now, uid('hist'));
     if (workout.exercises.length === 0) return null;
+    const template =
+      state.templates.find((item) => item.id === active.templateId) ?? null;
+    const routine = routineFromSession(active, template);
+    const changes = template
+      ? describeRoutineChanges(template.exercises, routine)
+      : [];
+    const routineUpdate: FinishResult['routineUpdate'] =
+      template && changes.length === 0
+        ? null
+        : {
+            templateId: template?.id ?? null,
+            templateName: template?.name ?? active.name,
+            ...(template?.folderId ? { folderId: template.folderId } : {}),
+            changes,
+            exercises: routine,
+          };
     // Pre-filled with the usual gym; the summary lets the person change it.
     const gymId = suggestGymId(state.history, state.gyms, active.templateId);
     if (gymId) workout.gymId = gymId;
@@ -1359,6 +1431,7 @@ export const actions = {
       records: achieved,
       goalsReached,
       workoutNumber: history.length,
+      routineUpdate,
     };
   },
 

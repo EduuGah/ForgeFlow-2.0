@@ -90,7 +90,10 @@ export interface Gym {
 export interface TemplateExercise {
   exerciseId: string;
   exerciseName: string;
+  /** Working sets (warm-ups are counted apart). */
   targetSets: number;
+  /** Warm-up sets done before the working ones; missing = none. */
+  warmupSets?: number;
   targetReps: number;
   targetWeightKg?: number;
   restSeconds: number;

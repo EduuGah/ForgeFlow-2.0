@@ -1,4 +1,4 @@
-import type { CompletedWorkout } from './types';
+import type { CompletedWorkout, PersonalRecordItem } from './types';
 
 export interface SocialProfile {
   userId: string;
@@ -178,4 +178,56 @@ export function buildRanking(
         b.workouts - a.workouts ||
         Number(b.me) - Number(a.me),
     );
+}
+
+/* ------------------------------------------------------------------ */
+/* Comparing with a friend                                             */
+/* ------------------------------------------------------------------ */
+
+export interface BestComparison {
+  exerciseId: string;
+  exerciseName: string;
+  mine: number;
+  theirs: number;
+}
+
+function heaviest(
+  records: PersonalRecordItem[],
+): Map<string, PersonalRecordItem> {
+  const best = new Map<string, PersonalRecordItem>();
+  for (const record of records) {
+    if (record.type !== 'weight' || !(record.value > 0)) continue;
+    const current = best.get(record.exerciseId);
+    if (!current || record.value > current.value)
+      best.set(record.exerciseId, record);
+  }
+  return best;
+}
+
+/** Heaviest loads of the exercises both people have records in, top first. */
+export function compareBests(
+  mine: PersonalRecordItem[],
+  theirs: PersonalRecordItem[],
+  limit = 8,
+): BestComparison[] {
+  const myBests = heaviest(mine);
+  const theirBests = heaviest(theirs);
+  const shared: BestComparison[] = [];
+  for (const [exerciseId, record] of myBests) {
+    const other = theirBests.get(exerciseId);
+    if (!other) continue;
+    shared.push({
+      exerciseId,
+      exerciseName: record.exerciseName,
+      mine: record.value,
+      theirs: other.value,
+    });
+  }
+  return shared
+    .sort(
+      (a, b) =>
+        Math.max(b.mine, b.theirs) - Math.max(a.mine, a.theirs) ||
+        a.exerciseName.localeCompare(b.exerciseName, 'pt-BR'),
+    )
+    .slice(0, limit);
 }

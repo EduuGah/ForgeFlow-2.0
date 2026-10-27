@@ -21,6 +21,9 @@ import {
   saveSocialProfile,
   sendFriendRequest,
   sendShare,
+  subscribeToMessages,
+  unreadBySender,
+  type ChatMessage,
   type IncomingShare,
   type SocialErrorKind,
 } from '../social';
@@ -43,6 +46,8 @@ export interface FriendsState {
   takenUsername: string | null;
   /** Routines and folders friends sent, waiting to be saved or declined. */
   inbox: InboxShare[];
+  /** Unread chat messages, by friend. */
+  unread: Record<string, number>;
   loadedAt: number;
 }
 
@@ -61,6 +66,7 @@ function initialState(ownerId: string | null): FriendsState {
     lists: EMPTY_LISTS,
     takenUsername: null,
     inbox: [],
+    unread: {},
     loadedAt: 0,
   };
 }
@@ -166,9 +172,11 @@ export function refreshFriends(): Promise<void> {
   const user = getState().currentUser;
   if (!user) {
     if (friends.ownerId) friends = initialState(null);
+    listenForMessages(null);
     return Promise.resolve();
   }
   if (friends.ownerId !== user.uid) friends = initialState(user.uid);
+  listenForMessages(user.uid);
   if (inFlight) return inFlight;
 
   update({ status: friends.me ? friends.status : 'loading', error: null });
@@ -177,11 +185,16 @@ export function refreshFriends(): Promise<void> {
       const me = await ensureMyProfile(user.uid);
       const { rows, profiles } = await listFriendships();
       const inbox = await loadInbox(user.uid, profiles);
+      const unread = await unreadBySender(user.uid).catch((error: unknown) => {
+        console.warn('ForgeFlow mensagens:', error);
+        return friends.unread;
+      });
       if (getState().currentUser?.uid !== user.uid) return;
       update({
         me,
         lists: splitFriendships(rows, profiles, user.uid),
         inbox,
+        unread: openChat ? { ...unread, [openChat]: 0 } : unread,
         status: 'ready',
         error: null,
         loadedAt: Date.now(),
@@ -220,6 +233,87 @@ async function loadInbox(
   } catch (error) {
     console.warn('ForgeFlow rotinas recebidas:', error);
     return [];
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Chat: one Realtime subscription per signed-in person.               */
+/* ------------------------------------------------------------------ */
+
+const messageListeners = new Set<(message: ChatMessage) => void>();
+let listeningAs: string | null = null;
+let stopListening: (() => void) | null = null;
+/** The friend whose conversation is on screen: their messages arrive read. */
+let openChat: string | null = null;
+
+function listenForMessages(userId: string | null) {
+  if (listeningAs === userId) return;
+  stopListening?.();
+  stopListening = null;
+  listeningAs = userId;
+  if (!userId) return;
+  stopListening = subscribeToMessages(userId, (message) => {
+    if (message.senderId !== openChat)
+      update({
+        unread: {
+          ...friends.unread,
+          [message.senderId]: (friends.unread[message.senderId] ?? 0) + 1,
+        },
+      });
+    messageListeners.forEach((listener) => listener(message));
+  });
+}
+
+/** Runs for every message that arrives; returns the unsubscribe. */
+export function onIncomingMessage(
+  listener: (message: ChatMessage) => void,
+): () => void {
+  messageListeners.add(listener);
+  return () => {
+    messageListeners.delete(listener);
+  };
+}
+
+/** Marks a conversation as on screen (or none), clearing its unread count. */
+export function setOpenChat(friendId: string | null) {
+  openChat = friendId;
+  if (friendId && friends.unread[friendId])
+    update({ unread: { ...friends.unread, [friendId]: 0 } });
+}
+
+/** The friend whose conversation is on screen, if any. */
+export function chatOpenWith(): string | null {
+  return openChat;
+}
+
+export function friendById(userId: string): SocialProfile | null {
+  return (
+    friends.lists.friends.find((link) => link.other.userId === userId)?.other ??
+    null
+  );
+}
+
+export function totalUnread(state: FriendsState): number {
+  return Object.values(state.unread).reduce((sum, count) => sum + count, 0);
+}
+
+/**
+ * For badges and chat at startup: reloads (when stale) only for people who
+ * already joined the community. Unlike `refreshFriends`, it never creates
+ * the public profile; opening Friends does that.
+ */
+export async function resumeFriends(maxAgeMs = 60_000): Promise<void> {
+  const user = getState().currentUser;
+  if (!user || !getState().isOnline) return;
+  if (friends.ownerId === user.uid && friends.me) {
+    listenForMessages(user.uid);
+    refreshFriendsIfStale(maxAgeMs);
+    return;
+  }
+  try {
+    if (await getSocialProfile(user.uid)) await refreshFriends();
+  } catch {
+    // Offline or an older database: the Friends screen explains it.
   }
 }
 

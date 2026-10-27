@@ -19,6 +19,7 @@ export type Route =
   | { name: 'nutrition' }
   | { name: 'social'; invite?: string }
   | { name: 'friend'; userId: string }
+  | { name: 'chat'; userId: string }
   | { name: 'settings' }
   | { name: 'editProfile' }
   | { name: 'library' }

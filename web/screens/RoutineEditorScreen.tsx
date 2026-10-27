@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowUp,
   ClipboardList,
+  Info,
   MoreVertical,
   Plus,
   Trash2,
@@ -23,7 +24,8 @@ import {
   TextField,
 } from '../ui/Form';
 import { Card, SectionHeader, StackHeader } from '../ui/Layout';
-import { ActionSheet, useConfirm, useToast } from '../ui/Overlay';
+import { ActionSheet, Sheet, useConfirm, useToast } from '../ui/Overlay';
+import { ExerciseDetailView } from './ExerciseDetailScreen';
 import { cx, useBackGuard } from '../ui/core';
 import { uid } from '../lib/id';
 import {
@@ -297,10 +299,16 @@ function RoutineExercisePreview({ item }: { item: TemplateExercise }) {
         {item.exerciseName}
       </p>
       <span className="text-footnote text-ink-2 tabular">
-        {item.targetSets} × {item.targetReps}
+        {setsLabel(item)}
       </span>
     </div>
   );
+}
+
+/** "2A + 3 × 10": warm-ups (if any) plus working sets × reps. */
+function setsLabel(item: TemplateExercise): string {
+  const warmups = item.warmupSets ?? 0;
+  return `${warmups > 0 ? `${warmups}A + ` : ''}${item.targetSets} × ${item.targetReps}`;
 }
 
 function RoutineExerciseCard({
@@ -324,6 +332,7 @@ function RoutineExerciseCard({
   onRemove: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const muscle = findExercise(item.exerciseId)?.primaryMuscleGroup;
 
   return (
@@ -334,13 +343,24 @@ function RoutineExerciseCard({
           label={`Arrastar ${item.exerciseName} para reordenar`}
           className="-ml-2"
         />
-        <ExerciseThumb muscle={muscle} exerciseId={item.exerciseId} size={40} />
-        <p className="text-headline ml-1 min-w-0 flex-1 truncate font-semibold">
-          {item.exerciseName}
-        </p>
+        <button
+          type="button"
+          onClick={() => setInfoOpen(true)}
+          aria-label={`Ver detalhes de ${item.exerciseName}`}
+          className="pressable flex min-w-0 flex-1 items-center gap-3 rounded-md text-left"
+        >
+          <ExerciseThumb
+            muscle={muscle}
+            exerciseId={item.exerciseId}
+            size={40}
+          />
+          <span className="text-headline min-w-0 flex-1 truncate font-semibold">
+            {item.exerciseName}
+          </span>
+        </button>
         {compact ? (
           <span className="text-footnote text-ink-2 tabular">
-            {item.targetSets} × {item.targetReps}
+            {setsLabel(item)}
           </span>
         ) : (
           <IconButton
@@ -354,7 +374,14 @@ function RoutineExerciseCard({
       {!compact && (
         <div className="mt-3 grid grid-cols-2 gap-3">
           <Stepper
-            label="Séries"
+            label="Aquecimento"
+            value={item.warmupSets ?? 0}
+            min={0}
+            max={10}
+            onChange={(warmupSets) => onChange({ warmupSets })}
+          />
+          <Stepper
+            label="Séries de trabalho"
             value={item.targetSets}
             min={1}
             max={20}
@@ -379,6 +406,7 @@ function RoutineExerciseCard({
           />
           <SelectField
             label="Descanso"
+            containerClassName="col-span-2"
             value={String(item.restSeconds)}
             onChange={(value) => onChange({ restSeconds: Number(value) })}
             options={REST_CHOICES.map((seconds) => ({
@@ -393,6 +421,11 @@ function RoutineExerciseCard({
         onClose={() => setMenuOpen(false)}
         title={item.exerciseName}
         actions={[
+          {
+            label: 'Ver detalhes do exercício',
+            icon: Info,
+            onSelect: () => setInfoOpen(true),
+          },
           ...(index > 0
             ? [
                 {
@@ -419,6 +452,17 @@ function RoutineExerciseCard({
           },
         ]}
       />
+      {/* A sheet, not a new screen: the routine being edited stays as is. */}
+      <Sheet
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+        size="tall"
+        bodyClassName="px-0 pb-0"
+      >
+        {infoOpen && (
+          <ExerciseDetailView exerciseId={item.exerciseId} embedded />
+        )}
+      </Sheet>
     </div>
   );
 }

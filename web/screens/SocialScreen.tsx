@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Check,
   Clock,
+  Activity,
   Copy,
+  Dumbbell,
   Inbox,
   Search,
   Share2,
@@ -12,7 +14,13 @@ import {
 } from 'lucide-react';
 import { actions, useAppStore, useProfilePhoto } from '../store';
 import { addDays, startOfDay } from '../lib/dates';
-import { formatCompact, formatNumber, formatRelativeDay } from '../lib/format';
+import {
+  formatCompact,
+  formatDurationMinutes,
+  formatNumber,
+  formatRelativeDay,
+  formatTime,
+} from '../lib/format';
 import {
   buildRanking,
   inviteLink,
@@ -32,6 +40,7 @@ import type { CompletedWorkout } from '../lib/types';
 import {
   friendActions,
   refreshFriends,
+  totalUnread,
   useFriends,
   type FriendsState,
   type InboxShare,
@@ -52,7 +61,7 @@ import { Card, GroupLabel, StackHeader } from '../ui/Layout';
 import { useConfirm, useToast } from '../ui/Overlay';
 import { cx } from '../ui/core';
 
-type SocialTab = 'friends' | 'ranking' | 'challenges';
+type SocialTab = 'friends' | 'activity' | 'ranking' | 'challenges';
 
 const CHALLENGES = [
   {
@@ -116,7 +125,8 @@ export function SocialScreen({ invite }: { invite?: string }) {
   }, [currentUser, isOnline]);
 
   const needsAccount = !currentUser && tab !== 'challenges';
-  const pending = friends.lists.incoming.length + friends.inbox.length;
+  const pending =
+    friends.lists.incoming.length + friends.inbox.length + totalUnread(friends);
 
   return (
     <>
@@ -132,6 +142,7 @@ export function SocialScreen({ invite }: { invite?: string }) {
                 value: 'friends',
                 label: pending ? `Amigos (${pending})` : 'Amigos',
               },
+              { value: 'activity', label: 'Atividade' },
               { value: 'ranking', label: 'Ranking' },
               { value: 'challenges', label: 'Desafios' },
             ]}
@@ -172,6 +183,7 @@ export function SocialScreen({ invite }: { invite?: string }) {
             {tab === 'friends' && (
               <FriendsPanel friends={friends} invite={invite} />
             )}
+            {tab === 'activity' && <ActivityPanel friends={friends} />}
             {tab === 'ranking' && <RankingPanel friends={friends} />}
           </>
         )}
@@ -808,20 +820,39 @@ function FriendsPanel({
         />
       ) : (
         <ul className="divide-y divide-line bg-surface">
-          {list.map((link) => (
-            <PersonRow
-              key={link.id}
-              person={link.other}
-              subtitle={
-                link.other.shareStats
-                  ? `@${link.other.username}`
-                  : `@${link.other.username} · treinos privados`
-              }
-              onClick={() =>
-                push({ name: 'friend', userId: link.other.userId })
-              }
-            />
-          ))}
+          {list.map((link) => {
+            const unread = friends.unread[link.other.userId] ?? 0;
+            return (
+              <PersonRow
+                key={link.id}
+                person={link.other}
+                subtitle={
+                  unread > 0
+                    ? `${unread} ${unread === 1 ? 'mensagem nova' : 'mensagens novas'}`
+                    : link.other.shareStats
+                      ? `@${link.other.username}`
+                      : `@${link.other.username} · treinos privados`
+                }
+                trailing={
+                  unread > 0 ? (
+                    <span
+                      className="text-caption grid size-6 shrink-0 place-items-center rounded-full bg-brand font-bold text-on-brand tabular"
+                      aria-label={`${unread} não lidas`}
+                    >
+                      {unread > 9 ? '9+' : unread}
+                    </span>
+                  ) : undefined
+                }
+                // New messages open the conversation straight away.
+                onClick={() =>
+                  push({
+                    name: unread > 0 ? 'chat' : 'friend',
+                    userId: link.other.userId,
+                  })
+                }
+              />
+            );
+          })}
         </ul>
       )}
 
@@ -842,6 +873,133 @@ function FriendsPanel({
 /* ------------------------------------------------------------------ */
 /* Ranking                                                             */
 /* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* Activity                                                            */
+/* ------------------------------------------------------------------ */
+
+const ACTIVITY_DAYS = 14;
+
+function ActivityPanel({ friends }: { friends: FriendsState }) {
+  const { isOnline } = useAppStore();
+  const { push } = useNavigation();
+  const [feed, setFeed] = useState<
+    { friend: SocialProfile; workout: CompletedWorkout }[] | null
+  >(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const list = friends.lists.friends;
+  const sharing = list.filter((link) => link.other.shareStats);
+
+  useEffect(() => {
+    if (!isOnline || friends.status !== 'ready') return;
+    const people = new Map(
+      list
+        .filter((link) => link.other.shareStats)
+        .map((link) => [link.other.userId, link.other]),
+    );
+    let alive = true;
+    fetchFriendWorkouts(
+      [...people.keys()],
+      addDays(startOfDay(new Date()), -ACTIVITY_DAYS),
+    )
+      .then((byFriend) => {
+        if (!alive) return;
+        const items = [...byFriend.entries()].flatMap(([id, workouts]) => {
+          const friend = people.get(id);
+          return friend ? workouts.map((workout) => ({ friend, workout })) : [];
+        });
+        items.sort((a, b) =>
+          b.workout.completedAt.localeCompare(a.workout.completedAt),
+        );
+        setFeed(items.slice(0, 60));
+        setFailed(null);
+      })
+      .catch((error: unknown) => alive && setFailed(socialErrorMessage(error)));
+    return () => {
+      alive = false;
+    };
+  }, [list, isOnline, friends.status]);
+
+  return (
+    <section
+      id="panel-activity"
+      role="tabpanel"
+      aria-labelledby="tab-activity"
+      className="animate-fade-in space-y-3 px-4 pt-4 pb-6"
+    >
+      {failed && <InlineNotice tone="error">{failed}</InlineNotice>}
+      {list.length === 0 && friends.status === 'ready' ? (
+        <EmptyState
+          icon={Activity}
+          title="Nada por aqui ainda"
+          message="Adicione amigos na aba Amigos para ver os treinos deles."
+        />
+      ) : feed === null && !failed ? (
+        <>
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </>
+      ) : feed && feed.length === 0 ? (
+        <EmptyState
+          icon={Dumbbell}
+          title="Nenhum treino recente"
+          message={
+            sharing.length === 0
+              ? 'Seus amigos não compartilham os treinos.'
+              : `Seus amigos não treinaram nos últimos ${ACTIVITY_DAYS} dias.`
+          }
+        />
+      ) : (
+        (feed ?? []).map(({ friend, workout }) => {
+          const who = friend.name || `@${friend.username}`;
+          const names = workout.exercises.map((e) => e.exerciseName);
+          return (
+            <button
+              key={`${friend.userId}-${workout.id}`}
+              type="button"
+              onClick={() => push({ name: 'friend', userId: friend.userId })}
+              className="pressable block w-full rounded-lg border border-line bg-surface p-4 text-left"
+            >
+              <span className="flex items-center gap-3">
+                <Avatar name={who} photoUrl={friend.photoUrl} size={40} />
+                <span className="min-w-0 flex-1">
+                  <span className="text-callout block truncate">
+                    <span className="font-semibold">{who}</span> treinou{' '}
+                    <span className="font-semibold">{workout.name}</span>
+                  </span>
+                  <span className="text-footnote block text-ink-2">
+                    {formatRelativeDay(workout.completedAt)},{' '}
+                    {formatTime(workout.completedAt)}
+                  </span>
+                </span>
+                {workout.prsAchieved.length > 0 && (
+                  <Badge tone="record">
+                    {workout.prsAchieved.length}{' '}
+                    {workout.prsAchieved.length === 1 ? 'recorde' : 'recordes'}
+                  </Badge>
+                )}
+              </span>
+              <span className="text-footnote mt-3 flex gap-4 text-ink-2 tabular">
+                <span>{formatDurationMinutes(workout.durationMinutes)}</span>
+                <span>{formatCompact(workout.totalVolumeKg)} kg</span>
+                <span>
+                  {workout.totalSets}{' '}
+                  {workout.totalSets === 1 ? 'série' : 'séries'}
+                </span>
+              </span>
+              {names.length > 0 && (
+                <span className="text-footnote mt-1 block truncate text-ink-3">
+                  {names.slice(0, 4).join(' · ')}
+                  {names.length > 4 && ` +${names.length - 4}`}
+                </span>
+              )}
+            </button>
+          );
+        })
+      )}
+    </section>
+  );
+}
 
 type Period = '7' | '30';
 
