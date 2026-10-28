@@ -66,7 +66,12 @@ describe('medals', () => {
       }),
       workout('2026-10-21T23:00:00'),
     ];
-    const list = achievements(history, [], new Date('2026-10-22T12:00:00'));
+    const list = achievements(
+      history,
+      [],
+      { friends: 2, measurements: 1 },
+      new Date('2026-10-22T12:00:00'),
+    );
     const get = (id: string) => list.find((item) => item.id === id);
     expect(get('first')).toMatchObject({ progress: 1, target: 1 });
     expect(get('w10')).toMatchObject({ progress: 2, target: 10 });
@@ -74,5 +79,9 @@ describe('medals', () => {
     expect(get('late')?.progress).toBe(1);
     expect(get('long')?.progress).toBe(120);
     expect(get('r1')?.progress).toBe(1);
+    expect(get('friend1')?.progress).toBe(1);
+    expect(get('measure1')?.progress).toBe(1);
+    expect(list.length).toBeGreaterThanOrEqual(40);
+    expect(new Set(list.map((item) => item.id)).size).toBe(list.length);
   });
 });

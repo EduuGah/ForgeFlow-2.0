@@ -21,6 +21,7 @@ import { HomeScreen } from './screens/HomeScreen';
 import { RoutinesScreen } from './screens/RoutinesScreen';
 import { ProgressScreen } from './screens/ProgressScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
+import { AchievementsScreen } from './screens/AchievementsScreen';
 import { GoalsScreen } from './screens/GoalsScreen';
 import { HydrationScreen } from './screens/HydrationScreen';
 import { NutritionScreen } from './screens/NutritionScreen';
@@ -91,6 +92,8 @@ function renderRoute(route: Route) {
   switch (route.name) {
     case 'goals':
       return <GoalsScreen />;
+    case 'achievements':
+      return <AchievementsScreen />;
     case 'hydration':
       return <HydrationScreen />;
     case 'nutrition':

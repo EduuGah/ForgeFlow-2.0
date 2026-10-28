@@ -3,93 +3,144 @@ import { cx } from './core';
 
 /*
  * The body map: a front and a back figure whose muscles light up with the
- * theme colour as they are worked. Each figure is drawn as its left half
- * and mirrored. Decorative unless given a `label`; the lists next to it
- * carry the numbers.
+ * theme colour as they are worked. Athletic proportions (broad shoulders,
+ * V-shaped torso, full limbs), each figure drawn as its left half on a
+ * 200 × 400 grid and mirrored. Decorative unless given a `label`; the
+ * lists next to it carry the numbers.
  */
 
-const SILHOUETTE =
-  'M60 36 L46 37 C38 38 31 41 28 48 C25 55 25 63 24 70 C22 82 20 96 19 108 C18 116 17 124 18 130 L22 131 C24 124 26 116 28 108 C31 98 33 88 35 80 L38 72 C39 84 40 96 41 108 C41 112 40 116 40 120 C39 140 40 160 41 176 C41 196 42 214 43 236 L52 236 C53 216 55 196 56 178 C57 160 58 140 59 124 L60 124 Z';
+/** The whole outline, under the muscles: head to feet, left half. */
+const SILHOUETTE = [
+  'M100 52 L89 53',
+  'C88 60 80 64 70 66',
+  'C55 68 44 76 41 91',
+  'C38 105 40 119 43 129',
+  'C40 141 40 152 42 161',
+  'C36 177 32 195 31 213',
+  'C30 224 31 234 34 244',
+  'C36 252 43 255 46 248',
+  'C46 240 46 231 48 223',
+  'C54 205 59 187 62 169',
+  'C64 158 64 147 64 138',
+  'C64 130 65 124 66 118',
+  'C67 140 66 162 68 182',
+  'C68 194 65 205 63 215',
+  'C59 242 59 270 63 297',
+  'C64 307 64 315 64 323',
+  'C61 347 62 369 66 386',
+  'C67 394 73 398 84 398',
+  'C92 398 94 392 92 386',
+  'C93 366 94 344 95 322',
+  'C96 312 97 304 97.5 296',
+  'C98.5 270 98.5 244 99 222',
+  'L100 216 Z',
+].join(' ');
 
 type Muscle = [BodyRegion, string];
 
 const FRONT: Muscle[] = [
   [
+    'traps',
+    'M89 55 C86 61 79 65 71 67 C79 70 87 69 93 65 C92 62 90 58 89 55 Z',
+  ],
+  [
     'delts',
-    'M30 46 C34 40 42 38 46 40 C44 46 41 51 36 55 C33 57 29 58 27 59 C27 54 28 50 30 46 Z',
+    'M70 69 C57 70 47 77 44 90 C42 101 43 111 46 118 C51 109 57 100 62 93 C67 86 70 78 70 69 Z',
   ],
   [
     'chest',
-    'M47 41 C52 40 57 40 59.5 41 L59.5 62 C55 65 49 65 44 62 C41 58 40 53 42 48 C43 45 45 42 47 41 Z',
+    'M98.5 73 C90 70 80 70 73 73 C66 79 63 90 64 101 C67 110 76 115 87 115 C93 115 97 112 98.5 107 Z',
   ],
   [
     'biceps',
-    'M27 62 C30 60 34 59 36 61 C36 68 35 76 32 82 C30 84 27 84 25 83 C24 76 25 68 27 62 Z',
+    'M47 121 C44 132 44 145 47 155 C51 158 57 154 60 146 C62 136 62 125 60 118 C56 116 51 117 47 121 Z',
   ],
   [
     'forearms',
-    'M24 87 C27 86 31 86 32 88 C31 98 28 108 24 118 C22 119 20 119 19 118 C19 108 21 96 24 87 Z',
+    'M45 162 C40 176 36 192 35 208 C36 216 41 219 45 215 C51 201 56 185 60 169 C58 161 50 159 45 162 Z',
   ],
   [
     'abs',
-    'M52 67 H59.5 V75 H52 Z M52 77 H59.5 V85 H52 Z M52 87 H59.5 V95 H52 Z M52.5 97 H59.5 V107 C56 107 53.5 105 52.5 102 Z',
+    [
+      'M87.5 119 H98.5 V134 H87.5 Q85.5 134 85.5 132 V121 Q85.5 119 87.5 119 Z',
+      'M87.5 137 H98.5 V152 H87.5 Q85.5 152 85.5 150 V139 Q85.5 137 87.5 137 Z',
+      'M87.5 155 H98.5 V170 H87.5 Q85.5 170 85.5 168 V157 Q85.5 155 87.5 155 Z',
+      'M86.5 173 H98.5 V206 C93 205 88.5 199 86.5 190 Z',
+    ].join(' '),
   ],
   [
     'obliques',
-    'M43 66 C46 67 49 68 50 69 L50 104 C47 104 44 102 42 98 C41 88 41 76 43 66 Z',
+    'M70 119 C75 123 80 125 83 127 L83 191 C79 195 75 195 72 191 C68 173 67 147 70 119 Z',
   ],
   [
     'quads',
-    'M42 122 C46 119 52 119 57 121 C58 134 57 150 55 166 C52 170 47 170 44 167 C41 152 40 136 42 122 Z',
+    [
+      'M65 224 C61 248 62 276 67.5 296 C70.5 300 75.5 301 78.5 296 C80.5 274 81 248 80 226 C77 219 69 218 65 224 Z',
+      'M82.5 222 C85 244 85.5 266 84 284 C88 285 92 288 94.5 293 C96.5 272 97 244 95.5 225 C92 218 86 217 82.5 222 Z',
+      'M83.5 288 C86 287 91 289 93.5 294 C93.5 300 89.5 303 85.5 301.5 C83 298.5 82.5 293 83.5 288 Z',
+    ].join(' '),
   ],
   [
     'shins',
-    'M44 182 C47 180 51 180 53 182 C53 196 52 212 50 226 L46 226 C44 212 43 196 44 182 Z',
+    'M66.5 326 C64 344 64.5 364 68.5 380 L75.5 381 C77.5 362 78 344 76.5 327 C73.5 322 69.5 322 66.5 326 Z',
+  ],
+  [
+    'calves',
+    'M79.5 324 C84 330 89 340 90.5 352 C91 362 88.5 372 84.5 380 L79.5 380 C80.5 360 80.5 342 79.5 324 Z',
   ],
 ];
 
 const BACK: Muscle[] = [
   [
     'traps',
-    'M48 32 C53 33 57 35 59.5 36 L59.5 50 C55 47 50 45 44 43 C41 42 38 41 36 41 C40 37 44 33 48 32 Z',
+    'M89 54 C85 61 78 65 70 69 C79 74 87 83 92 96 C95 104 97.5 110 99.5 113 L99.5 56 Z',
   ],
   [
     'rearDelts',
-    'M30 46 C34 41 38 41 42 43 C42 48 40 52 36 55 C33 57 29 58 27 59 C27 54 28 50 30 46 Z',
+    'M69 70 C57 71 47 78 44 90 C42 101 43 111 46 118 C51 109 57 100 62 93 C66 85 69 78 69 70 Z',
   ],
   [
     'midBack',
-    'M45 46 C50 47 55 49 59.5 52 L59.5 74 C55 70 50 64 46 58 C44 54 44 50 45 46 Z',
+    'M72 77 C80 83 87 92 91 104 C87 110 81 112 75 110 C71 102 70 90 72 77 Z',
   ],
   [
     'lats',
-    'M42 58 C45 62 50 68 55 74 C55 84 52 94 48 102 C45 100 42 94 41 86 C40 76 40 66 42 58 Z',
+    'M70 113 C76 117 84 119 91 117 C93 133 91 151 85 169 C79 173 74 171 71 165 C68 147 68 129 70 113 Z',
   ],
   [
     'lowerBack',
-    'M53 80 C55 82 58 84 59.5 85 L59.5 110 C56 110 53 108 51 106 C52 98 52 88 53 80 Z',
+    'M94 121 C96.5 124 98.5 126 99.5 126 L99.5 197 C95.5 197 91.5 193 89.5 187 C90.5 167 92.5 143 94 121 Z',
   ],
   [
     'triceps',
-    'M27 61 C30 59 34 59 36 61 C36 69 34 77 31 83 C29 84 26 84 25 83 C24 75 25 67 27 61 Z',
+    'M47 121 C44 132 44 145 47 155 C51 158 57 154 60 146 C62 136 62 125 60 118 C56 116 51 117 47 121 Z',
   ],
   [
     'forearms',
-    'M24 87 C27 86 31 86 32 88 C31 98 28 108 24 118 C22 119 20 119 19 118 C19 108 21 96 24 87 Z',
+    'M45 162 C40 176 36 192 35 208 C36 216 41 219 45 215 C51 201 56 185 60 169 C58 161 50 159 45 162 Z',
   ],
   [
     'glutes',
-    'M43 112 C47 110 54 110 59.5 112 L59.5 132 C56 136 50 137 45 134 C41 130 40 120 43 112 Z',
+    'M66 205 C70 199 82 197 92 199 C97 201 99 205 99.5 209 L99.5 238 C94 246 84 250 74 246 C66 240 63 226 66 205 Z',
   ],
   [
     'hamstrings',
-    'M42 140 C46 139 52 139 57 141 C57 152 56 162 54 172 C51 175 47 175 44 172 C42 162 41 150 42 140 Z',
+    [
+      'M64.5 252 C62 270 64 290 68.5 303 C72.5 307 77.5 305 79.5 299 C81 281 81 265 80 252 C75 248 68.5 248 64.5 252 Z',
+      'M82.5 252 C84.5 270 84.5 288 82.5 301 C87.5 308 94.5 304 95.5 293 C96.5 277 96.5 262 95 251 C91 247 86 247 82.5 252 Z',
+    ].join(' '),
   ],
   [
     'calves',
-    'M44 180 C47 177 52 177 54 180 C55 190 54 202 51 212 C49 214 46 214 45 212 C43 202 42 190 44 180 Z',
+    [
+      'M65.5 326 C61.5 340 62 356 67.5 368 C71 373 76.5 371 78.5 364 C80.5 351 80 337 77.5 326 C73.5 320 68.5 320 65.5 326 Z',
+      'M80.5 325 C83 337 83.5 351 82 364 C85 371 91.5 369 93 360 C95 347 94 334 90 325 C87 319 83 319 80.5 325 Z',
+    ].join(' '),
   ],
 ];
+
+const BASE = 'var(--color-raised)';
+const IDLE = 'color-mix(in srgb, var(--color-ink) 16%, var(--color-surface))';
 
 function Half({
   muscles,
@@ -100,14 +151,15 @@ function Half({
 }) {
   return (
     <>
-      <path d={SILHOUETTE} fill="var(--color-raised)" />
-      {muscles.map(([region, d]) => (
-        <g key={region}>
+      <path d={SILHOUETTE} fill={BASE} />
+      {muscles.map(([region, d], index) => (
+        <g key={`${region}-${index}`}>
           <path
             d={d}
-            fill="var(--color-overlay)"
+            fill={IDLE}
             stroke="var(--color-surface)"
-            strokeWidth="1.2"
+            strokeWidth="1.6"
+            strokeLinejoin="round"
           />
           <path
             d={d}
@@ -137,29 +189,16 @@ function Figure({
   return (
     <figure className="flex flex-col items-center">
       <svg
-        viewBox="0 0 120 250"
+        viewBox="22 0 156 402"
         height={height}
-        width={(height * 120) / 250}
+        width={(height * 156) / 402}
         aria-hidden="true"
         focusable="false"
       >
-        <ellipse
-          cx="60"
-          cy="18"
-          rx="10.5"
-          ry="12.5"
-          fill="var(--color-raised)"
-        />
-        <rect
-          x="54"
-          y="28"
-          width="12"
-          height="10"
-          rx="3"
-          fill="var(--color-raised)"
-        />
+        <ellipse cx="100" cy="30" rx="17" ry="21" fill={BASE} />
+        <path d="M90 46 H110 L112 58 H88 Z" fill={BASE} />
         <Half muscles={muscles} intensity={intensity} />
-        <g transform="translate(120 0) scale(-1 1)">
+        <g transform="translate(200 0) scale(-1 1)">
           <Half muscles={muscles} intensity={intensity} />
         </g>
       </svg>
@@ -189,7 +228,7 @@ export function BodyMap({
 }) {
   return (
     <div
-      className={cx('flex items-start justify-center gap-2', className)}
+      className={cx('flex items-start justify-center gap-1', className)}
       role={label ? 'img' : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}

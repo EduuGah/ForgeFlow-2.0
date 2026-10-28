@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   ArrowRight,
+  Check,
   ChevronRight,
   Clock,
   Dumbbell,
@@ -42,6 +43,7 @@ import { haptic } from '../lib/haptics';
 import { useNavigation } from '../navigation/Navigator';
 import { InstallBanner } from '../features/InstallApp';
 import { FriendsTrainingNow } from '../features/TrainingNow';
+import { QuickAccess } from '../features/QuickAccess';
 import { MuscleMapCard, historyMuscleWork } from '../features/MuscleMap';
 import { monthForecast } from '../lib/projections';
 import {
@@ -132,6 +134,7 @@ export function HomeScreen() {
         <OfflineNotice />
         <InstallBanner />
         <TodayCard />
+        <QuickAccess />
         <DeloadSuggestion />
         <FriendsTrainingNow />
         <WeekHeat />
@@ -372,36 +375,49 @@ function LiveDuration({ startedAt }: { startedAt: string }) {
 
 /* ------------------------------------------------------------------ */
 
-/** The week as a heat strip: each day glows by how much volume it holds. */
+/** The week day by day: a ✓ on each day trained (tap to open it). */
 function WeekHeat() {
   const { history, prs, streakWeeks } = useAppStore();
+  const { push } = useNavigation();
   const today = new Date();
   const todayIndex = (today.getDay() + 6) % 7;
   const weekStart = startOfWeek(today);
 
-  const { days, week, lastWeek, weekRecords, weekWork } = useMemo(() => {
-    const start = startOfWeek(new Date());
-    const perDay = Array.from({ length: 7 }, (_, i) =>
-      totalsBetween(history, addDays(start, i), addDays(start, i + 1)),
-    );
-    const since = start.getTime();
-    // Last week up to the same weekday, so Wednesday compares with Wednesday.
-    const elapsed = ((new Date().getDay() + 6) % 7) + 1;
-    return {
-      days: perDay,
-      week: totalsBetween(history, start, addDays(start, 7)),
-      lastWeek: totalsBetween(
-        history,
-        addDays(start, -7),
-        addDays(start, -7 + elapsed),
-      ),
-      weekRecords: prs.filter(
-        (record) => (recordDate(record)?.getTime() ?? 0) >= since,
-      ).length,
-      weekWork: historyMuscleWork(history, start),
-    };
-  }, [history, prs]);
-  const maxVolume = Math.max(1, ...days.map((day) => day.volumeKg));
+  const { days, week, lastWeek, weekRecords, weekWork, dayWorkouts } =
+    useMemo(() => {
+      const start = startOfWeek(new Date());
+      const perDay = Array.from({ length: 7 }, (_, i) =>
+        totalsBetween(history, addDays(start, i), addDays(start, i + 1)),
+      );
+      const since = start.getTime();
+      // Last week up to the same weekday, so Wednesday compares with Wednesday.
+      const elapsed = ((new Date().getDay() + 6) % 7) + 1;
+      return {
+        days: perDay,
+        week: totalsBetween(history, start, addDays(start, 7)),
+        lastWeek: totalsBetween(
+          history,
+          addDays(start, -7),
+          addDays(start, -7 + elapsed),
+        ),
+        weekRecords: prs.filter(
+          (record) => (recordDate(record)?.getTime() ?? 0) >= since,
+        ).length,
+        weekWork: historyMuscleWork(history, start),
+        // The day's first workout, opened by tapping the day.
+        dayWorkouts: Array.from({ length: 7 }, (_, i) => {
+          const from = addDays(start, i).getTime();
+          const to = addDays(start, i + 1).getTime();
+          return (
+            history.find((workout) => {
+              const time = Date.parse(workout.completedAt);
+              return time >= from && time < to;
+            })?.id ?? ''
+          );
+        }),
+      };
+    }, [history, prs]);
+  const trainedDays = days.filter((day) => day.workouts > 0).length;
 
   return (
     <Card className="p-4">
@@ -421,49 +437,97 @@ function WeekHeat() {
           </span>
         )}
       </div>
+      <p className="text-footnote mt-0.5 text-ink-2">
+        {trainedDays === 0
+          ? 'Nenhum treino ainda nesta semana.'
+          : `${trainedDays} de 7 dias com treino · toque num dia para ver`}
+      </p>
 
-      <ol
-        className="mt-4 grid grid-cols-7 gap-2"
-        aria-label="Volume treinado em cada dia da semana"
-      >
+      <ol className="mt-3 grid grid-cols-7 gap-1" aria-label="Dias da semana">
         {days.map((day, index) => {
           const date = addDays(weekStart, index);
           const isToday = index === todayIndex;
           const trained = day.workouts > 0;
-          const heat = trained ? Math.max(0.28, day.volumeKg / maxVolume) : 0;
-          return (
-            <li
-              key={index}
-              className="flex flex-col items-center gap-1.5"
-              aria-label={`${WEEKDAY_NAMES[index]}, dia ${date.getDate()}: ${
-                trained
-                  ? `${formatWeight(day.volumeKg)} kg`
-                  : index > todayIndex
-                    ? 'ainda não chegou'
-                    : 'sem treino'
-              }`}
-            >
-              <span
-                className="relative flex h-14 w-full items-end overflow-hidden rounded-md bg-raised"
-                aria-hidden="true"
-              >
-                <span
-                  className="w-full rounded-md bg-linear-to-t from-brand-press to-brand transition-[height] duration-700 ease-decelerate"
-                  style={{ height: `${heat * 100}%` }}
-                />
-                {isToday && (
-                  <span className="absolute inset-0 rounded-md ring-2 ring-brand-ink ring-inset" />
-                )}
-              </span>
+          const future = index > todayIndex;
+          const label = `${WEEKDAY_NAMES[index]}, dia ${date.getDate()}: ${
+            trained
+              ? `${day.workouts} ${day.workouts === 1 ? 'treino' : 'treinos'}, ${formatWeight(day.volumeKg)} kg`
+              : future
+                ? 'ainda não chegou'
+                : isToday
+                  ? 'hoje, sem treino ainda'
+                  : 'descanso'
+          }`;
+          const content = (
+            <>
               <span
                 className={cx(
-                  'text-caption tabular',
-                  isToday ? 'font-bold text-ink' : 'text-ink-3',
+                  'text-caption font-semibold',
+                  isToday ? 'text-ink' : 'text-ink-3',
                 )}
                 aria-hidden="true"
               >
                 {WEEKDAYS[index]}
               </span>
+              <span
+                className={cx(
+                  'grid size-10 place-items-center rounded-full transition-colors',
+                  trained
+                    ? 'bg-brand text-on-brand'
+                    : future
+                      ? 'border border-dashed border-line-strong text-ink-3'
+                      : 'bg-raised text-ink-2',
+                  isToday &&
+                    'ring-2 ring-brand-ink ring-offset-2 ring-offset-surface',
+                )}
+                aria-hidden="true"
+              >
+                {trained ? (
+                  <Check size={18} strokeWidth={3} />
+                ) : (
+                  <span className="text-footnote font-semibold tabular">
+                    {date.getDate()}
+                  </span>
+                )}
+              </span>
+              <span
+                className={cx(
+                  'text-micro h-3.5 tabular',
+                  trained ? 'text-brand-ink' : 'text-ink-3',
+                )}
+                aria-hidden="true"
+              >
+                {trained
+                  ? day.volumeKg >= 1000
+                    ? `${formatNumber(day.volumeKg / 1000)} t`
+                    : `${formatNumber(day.volumeKg, 0)} kg`
+                  : isToday
+                    ? 'hoje'
+                    : ''}
+              </span>
+            </>
+          );
+          return (
+            <li key={index}>
+              {trained ? (
+                <button
+                  type="button"
+                  aria-label={label}
+                  onClick={() =>
+                    push({ name: 'workout', workoutId: dayWorkouts[index] })
+                  }
+                  className="pressable flex w-full flex-col items-center gap-1 rounded-md py-0.5"
+                >
+                  {content}
+                </button>
+              ) : (
+                <div
+                  aria-label={label}
+                  className="flex flex-col items-center gap-1 py-0.5"
+                >
+                  {content}
+                </div>
+              )}
             </li>
           );
         })}
@@ -492,7 +556,7 @@ function WeekHeat() {
           }
         />
       </div>
-      {(week.volumeKg > 0 || lastWeek.volumeKg > 0) && (
+      {lastWeek.volumeKg > 0 && (
         <p className="mt-2">
           <Delta
             value={percentChange(week.volumeKg, lastWeek.volumeKg)}

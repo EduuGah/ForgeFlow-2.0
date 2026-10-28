@@ -8,6 +8,7 @@ import {
   formatNumber,
   formatShortDate,
   formatWeight,
+  searchKey,
 } from '../lib/format';
 import {
   RECORD_LABELS,
@@ -18,6 +19,7 @@ import {
   muscleDistribution,
   muscleLabel,
   percentChange,
+  recordDate,
   type ChartMetric,
 } from '../lib/training';
 import type { PersonalRecordItem, PersonalRecordType } from '../lib/types';
@@ -34,13 +36,14 @@ import {
 import { filterByGym, type GymFilter } from '../lib/gyms';
 import { Button } from '../ui/Button';
 import { EmptyState, Medal } from '../ui/Feedback';
-import { NumberField, SegmentedControl } from '../ui/Form';
+import { NumberField, SegmentedControl, TextField } from '../ui/Form';
+import { Sheet } from '../ui/Overlay';
 import { Card, Delta, SectionHeader, Stat, TabHeader } from '../ui/Layout';
 import { cx } from '../ui/core';
 import { ProgressScene } from '../ui/Scenes';
 import { MuscleMapCard, historyMuscleWork } from '../features/MuscleMap';
 import { SummarySheet } from '../features/SummarySheet';
-import { LevelCard, MedalWall } from '../features/Medals';
+import { MedalPreview } from '../features/Medals';
 import { YearCalendar } from '../features/YearCalendar';
 import { Art } from '../ui/Art';
 
@@ -71,6 +74,26 @@ function formatMetricTick(metric: ChartMetric, value: number): string {
       ? `${formatNumber(value / 60)} h`
       : `${formatNumber(value, 0)} min`;
   return formatCompact(value);
+}
+
+const JUMPS: [string, string][] = [
+  ['stats-achievements', 'Medalhas'],
+  ['stats-chart', 'Gráfico'],
+  ['stats-strength', 'Força'],
+  ['stats-records', 'Recordes'],
+  ['stats-year', 'Ano'],
+  ['stats-weight', 'Peso'],
+  ['stats-balance', 'Músculos'],
+];
+
+/** Scrolls to a section, below the sticky header and filters. */
+function jumpTo(id: string) {
+  const target = [...document.querySelectorAll<HTMLElement>(`#${id}`)].find(
+    (element) => element.offsetParent !== null,
+  );
+  if (!target) return;
+  const top = target.getBoundingClientRect().top + window.scrollY - 176;
+  window.scrollTo({ top, behavior: 'smooth' });
 }
 
 /** Evolution tab: one period filter above everything it scopes. */
@@ -136,8 +159,20 @@ export function ProgressScreen() {
       entry.records[record.type] = record;
       map.set(record.exerciseId, entry);
     }
-    return [...map.entries()];
+    const latest = (
+      records: Partial<Record<PersonalRecordType, PersonalRecordItem>>,
+    ) =>
+      Math.max(
+        0,
+        ...Object.values(records).map(
+          (record) => (record && recordDate(record)?.getTime()) || 0,
+        ),
+      );
+    return [...map.entries()].sort(
+      (a, b) => latest(b[1].records) - latest(a[1].records),
+    );
   }, [prs]);
+  const [allRecordsOpen, setAllRecordsOpen] = useState(false);
 
   const { current, previous } = comparison;
 
@@ -165,6 +200,21 @@ export function ProgressScreen() {
             value={period}
             onChange={setPeriod}
           />
+          <nav
+            aria-label="Ir para"
+            className="-mx-4 mt-2 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none]"
+          >
+            {JUMPS.map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => jumpTo(id)}
+                className="pressable text-caption h-7 shrink-0 rounded-full bg-raised px-3 font-semibold text-ink-2"
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
           {gyms.length > 0 && (
             <SegmentedControl
               label="Academia"
@@ -222,6 +272,13 @@ export function ProgressScreen() {
             Variação comparada ao período anterior de mesma duração.
           </p>
         </Card>
+
+        <section aria-labelledby="stats-achievements">
+          <SectionHeader id="stats-achievements" title="Nível e medalhas" />
+          <Card className="p-4">
+            <MedalPreview onOpenAll={() => push({ name: 'achievements' })} />
+          </Card>
+        </section>
 
         <section aria-labelledby="stats-chart">
           <SectionHeader
@@ -293,7 +350,15 @@ export function ProgressScreen() {
         <MuscleBalanceCard />
 
         <section aria-labelledby="stats-records">
-          <SectionHeader id="stats-records" title="Recordes pessoais" />
+          <SectionHeader
+            id="stats-records"
+            title="Recordes pessoais"
+            action={
+              recordsByExercise.length > 0 ? (
+                <span className="text-footnote text-ink-3">mais recentes</span>
+              ) : undefined
+            }
+          />
           {recordsByExercise.length === 0 ? (
             <Card>
               <EmptyState
@@ -303,53 +368,34 @@ export function ProgressScreen() {
               />
             </Card>
           ) : (
-            <Card as="div" className="divide-y divide-line">
-              {recordsByExercise.map(([exerciseId, entry]) => (
-                <button
-                  key={exerciseId}
-                  type="button"
-                  onClick={() =>
-                    findExercise(exerciseId) &&
-                    push({ name: 'exercise', exerciseId })
-                  }
-                  className="flex w-full items-start gap-3 px-4 py-3 text-left active:bg-raised"
+            <>
+              <Card as="div" className="divide-y divide-line">
+                {recordsByExercise.slice(0, 5).map(([exerciseId, entry]) => (
+                  <RecordRow
+                    key={exerciseId}
+                    exerciseId={exerciseId}
+                    name={entry.name}
+                    records={entry.records}
+                  />
+                ))}
+              </Card>
+              {recordsByExercise.length > 5 && (
+                <Button
+                  variant="secondary"
+                  block
+                  className="mt-2"
+                  onClick={() => setAllRecordsOpen(true)}
                 >
-                  <Medal size={22} className="mt-0.5 shrink-0" />
-                  <span className="min-w-0 flex-1">
-                    <span className="text-callout block truncate font-medium">
-                      {entry.name}
-                    </span>
-                    <span className="text-footnote mt-0.5 flex flex-wrap gap-x-3 text-ink-2">
-                      {(
-                        [
-                          'weight',
-                          'estimated_1rm',
-                          'volume',
-                        ] as PersonalRecordType[]
-                      ).map((type) =>
-                        entry.records[type] ? (
-                          <span key={type}>
-                            {RECORD_LABELS[type]}:{' '}
-                            <span className="text-ink tabular">
-                              {formatWeight(entry.records[type]!.value)} kg
-                            </span>
-                          </span>
-                        ) : null,
-                      )}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </Card>
+                  Ver todos os recordes ({recordsByExercise.length})
+                </Button>
+              )}
+              <AllRecordsSheet
+                open={allRecordsOpen}
+                onClose={() => setAllRecordsOpen(false)}
+                entries={recordsByExercise}
+              />
+            </>
           )}
-        </section>
-
-        <section aria-labelledby="stats-achievements">
-          <SectionHeader id="stats-achievements" title="Nível e medalhas" />
-          <Card className="space-y-5 p-4">
-            <LevelCard />
-            <MedalWall />
-          </Card>
         </section>
 
         <OneRepMaxCalculator />
@@ -799,5 +845,96 @@ function MuscleBalanceCard() {
         </ul>
       </Card>
     </section>
+  );
+}
+
+type RecordEntry = [
+  string,
+  {
+    name: string;
+    records: Partial<Record<PersonalRecordType, PersonalRecordItem>>;
+  },
+];
+
+/** One exercise's records in a line; opens the exercise. */
+function RecordRow({
+  exerciseId,
+  name,
+  records,
+}: {
+  exerciseId: string;
+  name: string;
+  records: RecordEntry[1]['records'];
+}) {
+  const { push } = useNavigation();
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        findExercise(exerciseId) && push({ name: 'exercise', exerciseId })
+      }
+      className="flex w-full items-start gap-3 px-4 py-3 text-left active:bg-raised"
+    >
+      <Medal size={22} className="mt-0.5 shrink-0" />
+      <span className="min-w-0 flex-1">
+        <span className="text-callout block truncate font-medium">{name}</span>
+        <span className="text-footnote mt-0.5 flex flex-wrap gap-x-3 text-ink-2">
+          {(['weight', 'estimated_1rm', 'volume'] as PersonalRecordType[]).map(
+            (type) =>
+              records[type] ? (
+                <span key={type}>
+                  {RECORD_LABELS[type]}:{' '}
+                  <span className="text-ink tabular">
+                    {formatWeight(records[type]!.value)} kg
+                  </span>
+                </span>
+              ) : null,
+          )}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+/** Every record, with a search box for long lists. */
+function AllRecordsSheet({
+  open,
+  onClose,
+  entries,
+}: {
+  open: boolean;
+  onClose: () => void;
+  entries: RecordEntry[];
+}) {
+  const [query, setQuery] = useState('');
+  const key = searchKey(query);
+  const shown = key
+    ? entries.filter(([, entry]) => searchKey(entry.name).includes(key))
+    : entries;
+  return (
+    <Sheet open={open} onClose={onClose} title="Recordes pessoais">
+      <TextField
+        label="Buscar exercício"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="Ex.: supino"
+      />
+      <div className="mt-3 divide-y divide-line overflow-hidden rounded-lg border border-line">
+        {shown.length === 0 ? (
+          <p className="text-callout px-4 py-5 text-center text-ink-3">
+            Nenhum recorde com esse nome.
+          </p>
+        ) : (
+          shown.map(([exerciseId, entry]) => (
+            <RecordRow
+              key={exerciseId}
+              exerciseId={exerciseId}
+              name={entry.name}
+              records={entry.records}
+            />
+          ))
+        )}
+      </div>
+    </Sheet>
   );
 }

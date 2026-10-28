@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  ChevronRight,
   CloudCog,
   Droplet,
   Dumbbell,
@@ -8,6 +9,7 @@ import {
   Ruler,
   Settings,
   Target,
+  Trophy,
   Users,
   Utensils,
   MapPin,
@@ -129,7 +131,19 @@ export function ProfileScreen() {
               </div>
             ))}
           </dl>
-          <LevelCard className="border-t border-line px-4 py-3" />
+          <button
+            type="button"
+            onClick={() => push({ name: 'achievements' })}
+            className="flex w-full items-center gap-2 border-t border-line pr-4 text-left active:bg-raised"
+            aria-label="Abrir conquistas"
+          >
+            <LevelCard className="min-w-0 flex-1 px-4 py-3" />
+            <ChevronRight
+              size={18}
+              className="shrink-0 text-ink-3"
+              aria-hidden="true"
+            />
+          </button>
         </Card>
 
         {since && (
@@ -196,6 +210,11 @@ export function ProfileScreen() {
             title="Metas"
             value={activeGoals > 0 ? `${activeGoals} ativas` : undefined}
             onClick={() => push({ name: 'goals' })}
+          />
+          <ListRow
+            icon={Trophy}
+            title="Conquistas e medalhas"
+            onClick={() => push({ name: 'achievements' })}
           />
         </ListGroup>
 

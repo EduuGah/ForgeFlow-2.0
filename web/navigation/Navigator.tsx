@@ -15,6 +15,7 @@ export type Tab = 'home' | 'routines' | 'progress' | 'profile';
 
 export type Route =
   | { name: 'goals' }
+  | { name: 'achievements' }
   | { name: 'hydration' }
   | { name: 'nutrition' }
   | { name: 'social'; invite?: string }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '../store';
 import {
+  MEDAL_CATEGORIES,
   achievements,
   levelOf,
   totalXp,
@@ -10,6 +11,8 @@ import {
 import { formatCompact, formatNumber } from '../lib/format';
 import { ProgressBar, ProgressRing } from '../ui/Feedback';
 import { Sheet } from '../ui/Overlay';
+import { Button } from '../ui/Button';
+import { useFriends } from './useFriends';
 import { cx } from '../ui/core';
 
 /* Levels from XP and a wall of painted medals. */
@@ -111,67 +114,156 @@ function progressText(item: Achievement): string {
   return `${show(item.progress)} / ${show(item.target)}`;
 }
 
-/** Every medal: won ones in colour, the rest grey with their progress. */
-export function MedalWall() {
-  const { history, prs } = useAppStore();
-  const list = useMemo(() => achievements(history, prs), [history, prs]);
-  const [open, setOpen] = useState<Achievement | null>(null);
-  const won = list.filter((item) => item.progress >= item.target).length;
-  // Won first, then the closest to being won.
-  const ordered = [...list].sort(
-    (a, b) =>
-      Number(b.progress >= b.target) - Number(a.progress >= a.target) ||
-      b.progress / b.target - a.progress / a.target,
+/** Every medal from the person's data (workouts, records, goals, friends). */
+export function useAchievements(): Achievement[] {
+  const { history, prs, goals, measurements } = useAppStore();
+  const friendCount = useFriends().lists.friends.length;
+  return useMemo(
+    () =>
+      achievements(history, prs, {
+        goals,
+        measurements: measurements.length,
+        friends: friendCount,
+      }),
+    [history, prs, goals, measurements, friendCount],
   );
+}
+
+const won = (item: Achievement) => item.progress >= item.target;
+
+function MedalTile({
+  item,
+  onOpen,
+}: {
+  item: Achievement;
+  onOpen: () => void;
+}) {
   return (
-    <div>
-      <p className="text-footnote mb-3 text-ink-2">
+    <button
+      type="button"
+      onClick={onOpen}
+      className="pressable flex w-full flex-col items-center gap-1 rounded-lg bg-raised px-1.5 py-3 text-center"
+    >
+      <MedalArt achievement={item} size={56} />
+      <span className="text-caption line-clamp-2 font-semibold">
+        {item.title}
+      </span>
+      <span className="text-micro text-ink-3 tabular">
+        {progressText(item)}
+      </span>
+    </button>
+  );
+}
+
+function MedalSheet({
+  item,
+  onClose,
+}: {
+  item: Achievement | null;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet open={item !== null} onClose={onClose} title={item?.title ?? ''}>
+      {item && (
+        <div className="flex flex-col items-center gap-3 pb-2 text-center">
+          <MedalArt achievement={item} size={110} />
+          <p className="text-body text-ink-2">{item.description}</p>
+          {!won(item) && (
+            <ProgressBar
+              value={(item.progress / item.target) * 100}
+              label={`Progresso de ${item.title}`}
+              className="max-w-xs"
+            />
+          )}
+          <p className="text-footnote text-ink-3 tabular">
+            {item.category} · {progressText(item)}
+          </p>
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+/** Every medal, by category: won ones in colour, the rest with progress. */
+export function MedalWall() {
+  const list = useAchievements();
+  const [open, setOpen] = useState<Achievement | null>(null);
+  return (
+    <div className="space-y-5">
+      {MEDAL_CATEGORIES.map((category) => {
+        const items = list
+          .filter((item) => item.category === category)
+          // Won first, then the closest to being won.
+          .sort(
+            (a, b) =>
+              Number(won(b)) - Number(won(a)) ||
+              b.progress / b.target - a.progress / a.target,
+          );
+        if (items.length === 0) return null;
+        return (
+          <section key={category} aria-label={category}>
+            <h3 className="text-footnote mb-2 flex items-baseline justify-between font-semibold">
+              {category}
+              <span className="text-caption font-normal text-ink-3 tabular">
+                {items.filter(won).length}/{items.length}
+              </span>
+            </h3>
+            <ul className="grid grid-cols-3 gap-2">
+              {items.map((item) => (
+                <li key={item.id}>
+                  <MedalTile item={item} onOpen={() => setOpen(item)} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+      <MedalSheet item={open} onClose={() => setOpen(null)} />
+    </div>
+  );
+}
+
+/** A short look: level, how many medals, the best ones won and a link. */
+export function MedalPreview({ onOpenAll }: { onOpenAll: () => void }) {
+  const list = useAchievements();
+  const [open, setOpen] = useState<Achievement | null>(null);
+  const tierRank = { gold: 3, silver: 2, bronze: 1 };
+  const best = list
+    .filter(won)
+    .sort((a, b) => tierRank[b.tier] - tierRank[a.tier])
+    .slice(0, 3);
+  const next = list
+    .filter((item) => !won(item))
+    .sort((a, b) => b.progress / b.target - a.progress / a.target)[0];
+  return (
+    <div className="space-y-4">
+      <LevelCard />
+      <p className="text-footnote text-ink-2">
         <span className="font-semibold text-ink">
-          {won} de {list.length}
+          {list.filter(won).length} de {list.length}
         </span>{' '}
         medalhas conquistadas
-      </p>
-      <ul className="grid grid-cols-3 gap-2">
-        {ordered.map((item) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              onClick={() => setOpen(item)}
-              className="pressable flex w-full flex-col items-center gap-1 rounded-lg bg-raised px-1.5 py-3 text-center"
-            >
-              <MedalArt achievement={item} size={56} />
-              <span className="text-caption line-clamp-2 font-semibold">
-                {item.title}
-              </span>
-              <span className="text-micro text-ink-3 tabular">
-                {progressText(item)}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-      <Sheet
-        open={open !== null}
-        onClose={() => setOpen(null)}
-        title={open?.title ?? ''}
-      >
-        {open && (
-          <div className="flex flex-col items-center gap-3 pb-2 text-center">
-            <MedalArt achievement={open} size={110} />
-            <p className="text-body text-ink-2">{open.description}</p>
-            {open.progress < open.target && (
-              <ProgressBar
-                value={(open.progress / open.target) * 100}
-                label={`Progresso de ${open.title}`}
-                className="max-w-xs"
-              />
-            )}
-            <p className="text-footnote text-ink-3 tabular">
-              {progressText(open)}
-            </p>
-          </div>
+        {next && (
+          <>
+            {' '}
+            · próxima: <span className="text-ink">{next.title}</span> (
+            {progressText(next)})
+          </>
         )}
-      </Sheet>
+      </p>
+      {best.length > 0 && (
+        <ul className="grid grid-cols-3 gap-2">
+          {best.map((item) => (
+            <li key={item.id}>
+              <MedalTile item={item} onOpen={() => setOpen(item)} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <Button variant="secondary" block onClick={onOpenAll}>
+        Ver todas as conquistas
+      </Button>
+      <MedalSheet item={open} onClose={() => setOpen(null)} />
     </div>
   );
 }
