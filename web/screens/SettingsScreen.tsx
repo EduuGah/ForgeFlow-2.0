@@ -33,7 +33,7 @@ import {
   downloadOfflinePhotos,
   offlinePhotosSupported,
 } from '../lib/offlineMedia';
-import { useTheme, type ThemePreference } from '../lib/theme';
+import { ACCENTS, useTheme, type ThemePreference } from '../lib/theme';
 import { useNavigation } from '../navigation/Navigator';
 import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
 import { InstallSheet, useInstallState } from '../features/InstallApp';
@@ -221,6 +221,7 @@ export function SettingsScreen() {
       <div className="app-column pb-6">
         <GroupLabel>Aparência</GroupLabel>
         <ThemePicker />
+        <AccentPicker />
 
         <GroupLabel>Conta</GroupLabel>
         {!currentUser && (
@@ -431,6 +432,70 @@ const THEMES: { value: ThemePreference; label: string }[] = [
 ];
 
 /** Three miniature screens; the selected one gets the ember outline. */
+/** Accent color swatches and the pure-black option for dark mode. */
+function AccentPicker() {
+  const { accent, black, resolved, setAccent, setBlack } = useTheme();
+  return (
+    <div className="mx-4 mt-4 rounded-lg border border-line bg-surface p-4">
+      <p className="text-footnote mb-3 font-medium text-ink-2">
+        Cor de destaque
+      </p>
+      <div
+        role="radiogroup"
+        aria-label="Cor de destaque"
+        className="flex flex-wrap gap-3"
+      >
+        {ACCENTS.map((option) => {
+          const selected = accent === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              aria-label={option.label}
+              title={option.label}
+              onClick={() => setAccent(option.value)}
+              className={cx(
+                'pressable grid size-11 place-items-center rounded-full ring-offset-2 ring-offset-surface transition-shadow',
+                selected && 'ring-2 ring-ink',
+              )}
+              style={{ background: option.color }}
+            >
+              {selected && (
+                <Check
+                  size={18}
+                  strokeWidth={3}
+                  className="text-black/80"
+                  aria-hidden="true"
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-caption mt-2 text-ink-3">
+        {ACCENTS.find((option) => option.value === accent)?.label}
+      </p>
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3">
+        <span className="min-w-0">
+          <span className="text-body block">Fundo preto</span>
+          <span className="text-footnote block text-ink-2">
+            {resolved === 'dark'
+              ? 'Preto total no modo escuro (economiza bateria em telas OLED)'
+              : 'Vale quando o app está no modo escuro'}
+          </span>
+        </span>
+        <Switch
+          label="Fundo preto no modo escuro"
+          checked={black}
+          onChange={setBlack}
+        />
+      </div>
+    </div>
+  );
+}
+
 function ThemePicker() {
   const { preference, setPreference } = useTheme();
   return (
@@ -490,7 +555,7 @@ function ThemePreview({ theme }: { theme: ThemePreference }) {
         />
         <span
           className="h-2 w-1/2 rounded-sm"
-          style={{ background: '#ff7a1a' }}
+          style={{ background: 'var(--color-brand)' }}
         />
       </span>
     );

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MessageCircle, UserPlus } from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
 import { useAppStore } from '../store';
 import { formatRelativeDay, formatTime } from '../lib/format';
 import { useNavigation } from '../navigation/Navigator';
@@ -78,7 +78,7 @@ export function MessagesScreen() {
       <div className="app-column pb-6">
         {!currentUser ? (
           <EmptyState
-            icon={MessageCircle}
+            art="chat"
             title="Converse com seus amigos"
             message="Entre com a conta Google para trocar mensagens."
             action={<GoogleButton onClick={signIn} loading={signingIn} />}
@@ -106,7 +106,7 @@ export function MessagesScreen() {
             ) : friends.status === 'ready' &&
               friends.lists.friends.length === 0 ? (
               <EmptyState
-                icon={UserPlus}
+                art="friends"
                 title="Nenhum amigo ainda"
                 message="Adicione amigos para conversar com eles."
                 action={

@@ -1,5 +1,13 @@
 import { supabase } from './supabase';
-import type { FriendshipRow, SocialProfile } from './lib/friends';
+import {
+  LIVE_QUIET_MS,
+  isReactionEmoji,
+  type FriendshipRow,
+  type LiveWorkout,
+  type ReactionEmoji,
+  type SocialProfile,
+  type WorkoutReaction,
+} from './lib/friends';
 import type { CompletedWorkout, PersonalRecordItem } from './lib/types';
 import {
   readSharePayload,
@@ -493,4 +501,202 @@ export async function listConversations(
     byFriend.set(friendId, summary);
   }
   return [...byFriend.values()];
+}
+
+/* ------------------------------------------------------------------ */
+/* Training now                                                        */
+/* ------------------------------------------------------------------ */
+
+interface LiveRow {
+  user_id: string;
+  name: string;
+  started_at: string;
+  done_sets: number;
+  total_sets: number;
+  current_exercise: string | null;
+  ended_at: string | null;
+  updated_at: string;
+}
+
+/** Shows friends this person's workout in progress (or updates it). */
+export async function publishLiveWorkout(
+  me: string,
+  live: Pick<
+    LiveWorkout,
+    'name' | 'startedAt' | 'doneSets' | 'totalSets' | 'currentExercise'
+  >,
+): Promise<void> {
+  const { error } = await supabase.from('live_workouts').upsert({
+    user_id: me,
+    name: live.name,
+    started_at: live.startedAt,
+    done_sets: live.doneSets,
+    total_sets: live.totalSets,
+    current_exercise: live.currentExercise,
+    ended_at: null,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) fail(error);
+}
+
+/** The workout ended (finished or discarded). */
+export async function endLiveWorkout(me: string): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('live_workouts')
+    .update({ ended_at: now, updated_at: now })
+    .eq('user_id', me);
+  if (error) fail(error);
+}
+
+/** Friends' latest workouts in progress (RLS: only friends who share). */
+export async function listLiveWorkouts(
+  userIds: string[],
+): Promise<LiveWorkout[]> {
+  if (userIds.length === 0) return [];
+  const since = new Date(Date.now() - LIVE_QUIET_MS).toISOString();
+  const { data, error } = await supabase
+    .from('live_workouts')
+    .select('*')
+    .in('user_id', userIds)
+    .is('ended_at', null)
+    .gte('updated_at', since);
+  if (error) fail(error);
+  return ((data as LiveRow[] | null) ?? []).map((row) => ({
+    userId: row.user_id,
+    name: row.name,
+    startedAt: row.started_at,
+    doneSets: row.done_sets,
+    totalSets: row.total_sets,
+    currentExercise: row.current_exercise,
+    endedAt: row.ended_at,
+    updatedAt: row.updated_at,
+  }));
+}
+
+/** Load records of several friends in one call, by person. */
+export async function fetchRecordsOf(
+  userIds: string[],
+): Promise<Map<string, PersonalRecordItem[]>> {
+  const byUser = new Map<string, PersonalRecordItem[]>(
+    userIds.map((id) => [id, []]),
+  );
+  if (userIds.length === 0) return byUser;
+  const { data, error } = await supabase
+    .from('prs')
+    .select('user_id, data')
+    .in('user_id', userIds)
+    .limit(2000);
+  if (error) fail(error);
+  for (const row of (data as
+    { user_id: string; data: PersonalRecordItem }[] | null) ?? []) {
+    if (row.data && typeof row.data.value === 'number')
+      byUser.get(row.user_id)?.push(row.data);
+  }
+  return byUser;
+}
+
+/* ------------------------------------------------------------------ */
+/* Reactions                                                           */
+/* ------------------------------------------------------------------ */
+
+interface ReactionRow {
+  id: number;
+  owner_id: string;
+  workout_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+}
+
+function fromReactionRows(rows: ReactionRow[] | null): WorkoutReaction[] {
+  const reactions: WorkoutReaction[] = [];
+  for (const row of rows ?? []) {
+    if (!isReactionEmoji(row.emoji)) continue;
+    reactions.push({
+      id: row.id,
+      ownerId: row.owner_id,
+      workoutId: row.workout_id,
+      userId: row.user_id,
+      emoji: row.emoji,
+      createdAt: row.created_at,
+    });
+  }
+  return reactions;
+}
+
+/** Reactions to the given workouts of the given people. */
+export async function fetchReactions(
+  ownerIds: string[],
+  workoutIds: string[],
+): Promise<WorkoutReaction[]> {
+  if (ownerIds.length === 0 || workoutIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('workout_reactions')
+    .select('*')
+    .in('owner_id', ownerIds)
+    .in('workout_id', workoutIds)
+    .limit(1000);
+  if (error) fail(error);
+  return fromReactionRows(data as ReactionRow[] | null);
+}
+
+/** Reactions friends left on this person's workouts since `since`. */
+export async function fetchReceivedReactions(
+  me: string,
+  since: string,
+): Promise<WorkoutReaction[]> {
+  const { data, error } = await supabase
+    .from('workout_reactions')
+    .select('*')
+    .eq('owner_id', me)
+    .gt('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error) fail(error);
+  return fromReactionRows(data as ReactionRow[] | null);
+}
+
+/**
+ * Reacts to a friend's workout, or changes the emoji. Returns the reaction
+ * id and whether it is new (only new ones notify the friend).
+ */
+export async function setReaction(
+  me: string,
+  ownerId: string,
+  workoutId: string,
+  emoji: ReactionEmoji,
+): Promise<{ id: number; created: boolean }> {
+  // Only the emoji can change (column grants), so no upsert here.
+  const changed = await supabase
+    .from('workout_reactions')
+    .update({ emoji, created_at: new Date().toISOString() })
+    .eq('owner_id', ownerId)
+    .eq('workout_id', workoutId)
+    .eq('user_id', me)
+    .select('id');
+  if (changed.error) fail(changed.error);
+  const existing = (changed.data as { id: number }[] | null)?.[0];
+  if (existing) return { id: existing.id, created: false };
+  const { data, error } = await supabase
+    .from('workout_reactions')
+    .insert({ owner_id: ownerId, workout_id: workoutId, user_id: me, emoji })
+    .select('id')
+    .single();
+  if (error) fail(error);
+  return { id: (data as { id: number }).id, created: true };
+}
+
+export async function removeReaction(
+  me: string,
+  ownerId: string,
+  workoutId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('workout_reactions')
+    .delete()
+    .eq('owner_id', ownerId)
+    .eq('workout_id', workoutId)
+    .eq('user_id', me);
+  if (error) fail(error);
 }

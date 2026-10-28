@@ -34,6 +34,7 @@ import { useOpenLink } from './features/useOpenLink';
 import { notify } from './features/notificationFeed';
 import { refreshPushRegistration } from './features/pushRegistration';
 import { refreshWorkoutNotification } from './features/workoutNotification';
+import { useLiveWorkoutPublisher } from './features/liveWorkouts';
 import { describeRecord } from './lib/training';
 import { clearInvite, peekInvite } from './features/invite';
 import {
@@ -173,6 +174,7 @@ function MainShell() {
       <MessageWatcher />
       <DeepLinkWatcher />
       <WorkoutNotifier />
+      <LivePublisher />
     </div>
   );
 }
@@ -258,6 +260,12 @@ function WorkoutNotifier() {
   useEffect(() => {
     if (!activeWorkout) refreshWorkoutNotification();
   }, [activeWorkout]);
+  return null;
+}
+
+/** Friends see the workout in progress ("Treinando agora"). */
+function LivePublisher() {
+  useLiveWorkoutPublisher();
   return null;
 }
 

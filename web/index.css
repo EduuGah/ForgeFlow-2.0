@@ -323,6 +323,98 @@
   --shadow-dock: 0 10px 30px rgb(15 17 21 / 0.14);
 }
 
+/*
+ * Accent colors (Configurações › Aparência). Brasa, the orange above, is the
+ * default; each accent swaps the brand tokens, with darker text for light mode.
+ */
+:root[data-accent='oceano'] {
+  --color-brand: #4c9aff;
+  --color-brand-press: #3784ec;
+  --color-on-brand: #04121f;
+  --color-brand-ink: #7cb6ff;
+  --color-brand-soft: rgb(76 154 255 / 0.16);
+  --color-chart: #4c9aff;
+}
+:root[data-theme='light'][data-accent='oceano'] {
+  --color-brand-ink: #1d4ed8;
+  --color-brand-soft: rgb(76 154 255 / 0.14);
+  --color-chart: #2563eb;
+}
+:root[data-accent='floresta'] {
+  --color-brand: #3fcf7f;
+  --color-brand-press: #2fb86c;
+  --color-on-brand: #04210f;
+  --color-brand-ink: #6ee7a1;
+  --color-brand-soft: rgb(63 207 127 / 0.16);
+  --color-chart: #3fcf7f;
+}
+:root[data-theme='light'][data-accent='floresta'] {
+  --color-brand-ink: #15803d;
+  --color-brand-soft: rgb(63 207 127 / 0.14);
+  --color-chart: #16a34a;
+}
+:root[data-accent='ametista'] {
+  --color-brand: #a78bfa;
+  --color-brand-press: #9575f5;
+  --color-on-brand: #170a33;
+  --color-brand-ink: #c4b5fd;
+  --color-brand-soft: rgb(167 139 250 / 0.16);
+  --color-chart: #a78bfa;
+}
+:root[data-theme='light'][data-accent='ametista'] {
+  --color-brand-ink: #6d28d9;
+  --color-brand-soft: rgb(167 139 250 / 0.14);
+  --color-chart: #7c3aed;
+}
+:root[data-accent='rubi'] {
+  --color-brand: #fb5677;
+  --color-brand-press: #ef3f63;
+  --color-on-brand: #2a0510;
+  --color-brand-ink: #fd8aa2;
+  --color-brand-soft: rgb(251 86 119 / 0.16);
+  --color-chart: #fb5677;
+}
+:root[data-theme='light'][data-accent='rubi'] {
+  --color-brand-ink: #be123c;
+  --color-brand-soft: rgb(251 86 119 / 0.14);
+  --color-chart: #e11d48;
+}
+:root[data-accent='solar'] {
+  --color-brand: #facc15;
+  --color-brand-press: #eab308;
+  --color-on-brand: #1f1600;
+  --color-brand-ink: #fde047;
+  --color-brand-soft: rgb(250 204 21 / 0.16);
+  --color-chart: #facc15;
+}
+:root[data-theme='light'][data-accent='solar'] {
+  --color-brand-ink: #a16207;
+  --color-brand-soft: rgb(250 204 21 / 0.14);
+  --color-chart: #ca8a04;
+}
+:root[data-accent='gelo'] {
+  --color-brand: #22d3ee;
+  --color-brand-press: #06b6d4;
+  --color-on-brand: #032a30;
+  --color-brand-ink: #67e8f9;
+  --color-brand-soft: rgb(34 211 238 / 0.16);
+  --color-chart: #22d3ee;
+}
+:root[data-theme='light'][data-accent='gelo'] {
+  --color-brand-ink: #0e7490;
+  --color-brand-soft: rgb(34 211 238 / 0.14);
+  --color-chart: #0891b2;
+}
+/* Pure black dark mode for OLED screens. */
+:root[data-theme='dark'][data-black] {
+  --color-canvas: #000000;
+  --color-surface: #0b0c0e;
+  --color-raised: #15171b;
+  --color-overlay: #1f2228;
+  --color-line: #1a1d22;
+  --color-line-strong: #2a2e35;
+}
+
 @layer base {
   html {
     background-color: var(--color-canvas);
@@ -455,7 +547,7 @@
     background: linear-gradient(
       100deg,
       transparent 0%,
-      rgb(255 122 26 / 0.38) 45%,
+      color-mix(in srgb, var(--color-brand) 38%, transparent) 45%,
       rgb(255 214 170 / 0.3) 50%,
       transparent 60%
     );
@@ -513,9 +605,91 @@
 @utility ember-glow {
   background: radial-gradient(
     60% 55% at 50% 45%,
-    rgb(255 122 26 / 0.22),
+    color-mix(in srgb, var(--color-brand) 22%, transparent),
     transparent 70%
   );
+}
+
+/*
+ * Scenes (ui/Scenes.tsx): a bar that types in, a figure that pops, a line
+ * that traces, a plate that slides on, a bar that grows, a lift, a reaction
+ * that floats up. Each plays once, when its scene comes into view.
+ */
+@keyframes scene-type {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes scene-trace {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes scene-slide {
+  from {
+    opacity: 0;
+    transform: translateX(var(--from-x, 0));
+  }
+}
+@keyframes scene-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes scene-lift {
+  to {
+    transform: translateY(var(--lift, -12px));
+  }
+}
+@keyframes scene-float {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.6);
+  }
+  70% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-6px) scale(1);
+  }
+}
+.play-type {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: scene-type 520ms var(--ease-decelerate) both;
+}
+.play-pop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pop 420ms var(--ease-decelerate) both;
+}
+.play-trace {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: scene-trace 1.2s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.play-fade {
+  animation: fade-in 600ms var(--ease-standard) both;
+}
+.play-slide {
+  animation: scene-slide 460ms var(--ease-decelerate) both;
+}
+.play-grow {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: scene-grow 520ms var(--ease-decelerate) both;
+}
+.play-lift {
+  animation: scene-lift 700ms var(--ease-decelerate) both;
+}
+.play-float {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: scene-float 900ms var(--ease-decelerate) both;
+}
+.scene:not([data-visible]) [class*='play-'] {
+  animation-play-state: paused;
 }
 
 @media (prefers-reduced-motion: reduce) {

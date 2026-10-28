@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { History } from 'lucide-react';
 import { useAppStore } from '../store';
 import type { CompletedWorkout } from '../lib/types';
 import { formatDurationMinutes, formatWeight, pluralize } from '../lib/format';
@@ -8,6 +7,7 @@ import { useNavigation } from '../navigation/Navigator';
 import { WorkoutCard } from '../features/WorkoutCard';
 import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/Feedback';
+import { WeekScene } from '../ui/Scenes';
 import { SegmentedControl } from '../ui/Form';
 import { StackHeader } from '../ui/Layout';
 
@@ -80,7 +80,7 @@ export function HistoryScreen({
         )}
         {history.length > 0 && shown.length === 0 && (
           <EmptyState
-            icon={History}
+            art="calendar"
             title="Nenhum treino aqui"
             message={
               gymFilter === 'none'
@@ -92,7 +92,7 @@ export function HistoryScreen({
         )}
         {history.length === 0 ? (
           <EmptyState
-            icon={History}
+            scene={<WeekScene />}
             title="Nenhum treino concluído"
             message="Seus treinos aparecem aqui assim que você concluir o primeiro. Para trazer treinos de outro app, use Configurações › Importar histórico."
             action={

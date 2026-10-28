@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   CalendarClock,
   ChevronRight,
+  Gauge,
+  Lightbulb,
   MoreHorizontal,
   Pencil,
   Plus,
-  Target,
   Trash2,
   TrendingUp,
 } from 'lucide-react';
@@ -20,8 +22,15 @@ import { formatDeadline, formatNumber } from '../lib/format';
 import {
   goalCurrentValue,
   goalIsAutomatic,
-  goalPercent,
+  goalProgress,
+  goalReached,
 } from '../lib/training';
+import { measurementSeries } from '../lib/measurements';
+import {
+  goalInsight,
+  goalSuggestions,
+  type GoalSuggestion,
+} from '../lib/projections';
 import type { GoalItem, GoalType } from '../lib/types';
 import { useNavigation } from '../navigation/Navigator';
 import { ExercisePicker } from '../features/ExercisePicker';
@@ -31,6 +40,7 @@ import { NumberField, SegmentedControl, TextField } from '../ui/Form';
 import { Card, SectionHeader, StackHeader } from '../ui/Layout';
 import { ActionSheet, Sheet, useConfirm, useToast } from '../ui/Overlay';
 import { cx } from '../ui/core';
+import { celebrate } from '../lib/celebrate';
 
 const TYPE_LABELS: Record<GoalType, string> = {
   exercise_weight: 'Carga no exercício',
@@ -47,12 +57,16 @@ const DEFAULT_UNITS: Record<GoalType, string> = {
 };
 
 export function GoalsScreen() {
-  const { goals } = useAppStore();
+  const { goals, history, prs } = useAppStore();
   const { pop } = useNavigation();
   const [formGoal, setFormGoal] = useState<GoalItem | 'new' | null>(null);
   const [progressGoal, setProgressGoal] = useState<GoalItem | null>(null);
   const active = goals.filter((goal) => goal.status === 'active');
   const completed = goals.filter((goal) => goal.status === 'completed');
+  const suggestions = useMemo(
+    () => goalSuggestions(history, prs, goals),
+    [history, prs, goals],
+  );
 
   return (
     <>
@@ -69,17 +83,22 @@ export function GoalsScreen() {
       />
       <div className="app-column space-y-6 px-4 pt-4">
         {goals.length === 0 ? (
-          <EmptyState
-            icon={Target}
-            title="Nenhuma meta definida"
-            message="Metas de carga e frequência são atualizadas automaticamente pelos seus treinos."
-            action={
-              <Button icon={Plus} onClick={() => setFormGoal('new')}>
-                Criar meta
-              </Button>
-            }
-            className="pt-16"
-          />
+          <>
+            <EmptyState
+              art="target"
+              title="Nenhuma meta definida"
+              message="Metas de carga e frequência são atualizadas automaticamente pelos seus treinos."
+              action={
+                <Button icon={Plus} onClick={() => setFormGoal('new')}>
+                  Criar meta
+                </Button>
+              }
+              className="pt-16"
+            />
+            {suggestions.length > 0 && (
+              <Suggestions suggestions={suggestions} />
+            )}
+          </>
         ) : (
           <>
             <section aria-labelledby="goals-active">
@@ -104,6 +123,9 @@ export function GoalsScreen() {
                 </ul>
               )}
             </section>
+            {suggestions.length > 0 && (
+              <Suggestions suggestions={suggestions} />
+            )}
             {completed.length > 0 && (
               <section aria-labelledby="goals-done">
                 <SectionHeader
@@ -143,13 +165,18 @@ function GoalCard({
   onEdit: () => void;
   onProgress: () => void;
 }) {
-  const { history, prs } = useAppStore();
+  const { history, prs, measurements } = useAppStore();
   const confirm = useConfirm();
   const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const current = goalCurrentValue(goal, history, prs);
-  const percent = goalPercent(current, goal.targetValue);
-  const done = goal.status === 'completed' || current >= goal.targetValue;
+  const percent = goalProgress(goal, current);
+  const done = goal.status === 'completed' || goalReached(goal, current);
+  const insight = goalInsight(goal, current, {
+    history,
+    bodyWeights:
+      goal.type === 'weight' ? measurementSeries(measurements, 'weightKg') : [],
+  });
   const automatic = goalIsAutomatic(goal);
   const deadline = goal.deadline ? parseLocalDateInput(goal.deadline) : null;
   const daysLeft = deadline ? daysBetween(new Date(), deadline) : null;
@@ -240,6 +267,29 @@ function GoalCard({
             </Button>
           )}
         </div>
+        {insight && (
+          <p
+            className={cx(
+              'text-footnote mt-3 flex items-start gap-2 rounded-md px-3 py-2',
+              insight.tone === 'good'
+                ? 'bg-success-soft text-success-ink'
+                : insight.tone === 'warn'
+                  ? 'bg-danger-soft text-danger-ink'
+                  : 'bg-raised text-ink-2',
+            )}
+          >
+            {insight.tone === 'warn' ? (
+              <AlertTriangle
+                size={15}
+                className="mt-0.5 shrink-0"
+                aria-hidden="true"
+              />
+            ) : (
+              <Gauge size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+            )}
+            {insight.text}
+          </p>
+        )}
         {automatic && !done && (
           <p className="text-caption mt-2 text-ink-3">
             {goal.type === 'frequency'
@@ -272,6 +322,58 @@ function GoalCard({
         ]}
       />
     </li>
+  );
+}
+
+/** Goals built from the person's own numbers, one tap to create. */
+function Suggestions({ suggestions }: { suggestions: GoalSuggestion[] }) {
+  const toast = useToast();
+  return (
+    <section aria-labelledby="goals-suggested">
+      <SectionHeader id="goals-suggested" title="Sugestões para você" />
+      <ul className="space-y-2" role="list">
+        {suggestions.map((suggestion) => (
+          <li key={suggestion.key}>
+            <Card as="div" className="flex items-center gap-3 p-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-md bg-brand-soft text-brand-ink">
+                <Lightbulb size={18} aria-hidden="true" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="text-callout block font-medium">
+                  {suggestion.title}
+                </span>
+                <span className="text-footnote block text-ink-2">
+                  {suggestion.why}
+                </span>
+              </span>
+              <Button
+                size="sm"
+                variant="tinted"
+                icon={Plus}
+                onClick={() => {
+                  actions.addGoal({
+                    title: suggestion.title,
+                    type: suggestion.type,
+                    currentValue: 0,
+                    targetValue: suggestion.targetValue,
+                    unit: suggestion.unit,
+                    deadline: suggestion.deadline,
+                    exerciseId: suggestion.exerciseId,
+                  });
+                  toast({
+                    tone: 'success',
+                    title: 'Meta criada',
+                    description: suggestion.title,
+                  });
+                }}
+              >
+                Criar
+              </Button>
+            </Card>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -555,8 +657,10 @@ function ProgressSheet({
           onClick={() => {
             if (!goal) return;
             actions.updateGoalProgress(goal.id, value);
+            const reached = goalReached(goal, value);
+            if (reached) celebrate('strong');
             toast(
-              value >= goal.targetValue
+              reached
                 ? {
                     tone: 'record',
                     title: 'Meta atingida!',

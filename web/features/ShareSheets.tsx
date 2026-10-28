@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Dumbbell, Folder, Send, Users } from 'lucide-react';
+import { Dumbbell, Folder, Send } from 'lucide-react';
 import { getState, useAppStore } from '../store';
 import {
   buildFolderShare,
@@ -116,7 +116,7 @@ export function SendToFriendSheet({
     >
       {!currentUser || list.length === 0 ? (
         <EmptyState
-          icon={Users}
+          art="friends"
           title={currentUser ? 'Nenhum amigo ainda' : 'Entre com o Google'}
           message={
             currentUser
@@ -234,7 +234,7 @@ export function PickRoutineSheet({
     >
       {templates.length === 0 ? (
         <EmptyState
-          icon={Dumbbell}
+          art="clipboard"
           title="Nenhuma rotina"
           message="Crie uma rotina na aba Rotinas para poder enviar."
           className="py-6"

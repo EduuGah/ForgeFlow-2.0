@@ -48,8 +48,10 @@ import {
   type ShareTarget,
 } from '../features/ShareSheets';
 import { refreshFriendsIfStale } from '../features/useFriends';
+import { duplicateFolder } from '../features/duplicateFolder';
 import { Button, IconButton } from '../ui/Button';
 import { EmptyState } from '../ui/Feedback';
+import { BarbellScene } from '../ui/Scenes';
 import {
   Card,
   ListGroup,
@@ -280,7 +282,7 @@ export function RoutinesScreen() {
           {templates.length === 0 && !hasFolders ? (
             <Card>
               <EmptyState
-                icon={ClipboardList}
+                scene={<BarbellScene />}
                 title="Nenhuma rotina ainda"
                 message="Monte uma rotina com seus exercícios, séries e cargas para começar o treino com um toque. Use pastas para separar por academia ou fase."
                 action={
@@ -1066,6 +1068,21 @@ function FolderSection({
     },
     { label: 'Nova subpasta', icon: FolderPlus, onSelect: onCreateSubfolder },
     { label: 'Renomear pasta', icon: Pencil, onSelect: onRename },
+    {
+      label: 'Duplicar pasta',
+      description: 'Copia a pasta com subpastas e rotinas',
+      icon: Copy,
+      onSelect: () => {
+        const copied = duplicateFolder(folder.id);
+        if (!copied) return;
+        haptic('success');
+        toast({
+          tone: 'success',
+          title: 'Pasta duplicada',
+          description: `${folder.name} (cópia) · ${pluralize(copied.routines, 'rotina', 'rotinas')}`,
+        });
+      },
+    },
     {
       label: 'Compartilhar com amigo',
       description: 'Envia uma cópia da pasta, com subpastas e rotinas',

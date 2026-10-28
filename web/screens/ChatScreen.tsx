@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, CheckCheck, MessageCircle, Send } from 'lucide-react';
+import { Check, CheckCheck, Send } from 'lucide-react';
 import { useAppStore, useProfilePhoto } from '../store';
 import { formatShortDate, formatTime } from '../lib/format';
 import { useNavigation, useScreen } from '../navigation/Navigator';
@@ -187,7 +187,7 @@ export function ChatScreen({ userId }: { userId: string }) {
         ) : messages && messages.length === 0 ? (
           <EmptyState
             className="mt-auto"
-            icon={MessageCircle}
+            art="chat"
             title="Comece a conversa"
             message={
               friend

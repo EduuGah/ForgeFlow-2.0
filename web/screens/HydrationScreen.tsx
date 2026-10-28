@@ -196,7 +196,7 @@ export function HydrationScreen() {
           {today.length === 0 ? (
             <Card>
               <EmptyState
-                icon={Droplet}
+                art="water"
                 title="Nenhum registro hoje"
                 message="Toque em um dos atalhos acima a cada copo ou garrafa."
               />

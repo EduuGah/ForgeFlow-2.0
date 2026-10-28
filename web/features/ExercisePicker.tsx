@@ -262,7 +262,7 @@ export function ExercisePicker({
         </div>
         {filtered.length === 0 ? (
           <EmptyState
-            icon={Search}
+            art="search"
             title="Nenhum exercício encontrado"
             message="Tente outro termo ou crie um exercício personalizado."
             action={

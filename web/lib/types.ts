@@ -155,6 +155,11 @@ export interface GoalItem {
   status: 'active' | 'completed';
   /** Links an exercise-weight goal to the personal records of one exercise. */
   exerciseId?: string;
+  /**
+   * Where a body-weight or custom goal started. A target below it is a goal
+   * that goes down (e.g. losing weight).
+   */
+  startValue?: number;
   createdAt?: string;
 }
 

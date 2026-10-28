@@ -897,6 +897,30 @@ export function goalPercent(current: number, target: number): number {
   return Math.max(0, Math.min(100, Math.round((current / target) * 100)));
 }
 
+/** A goal whose target is below where it started (losing weight, a time). */
+export function goalGoesDown(goal: GoalItem): boolean {
+  if (goal.type !== 'weight' && goal.type !== 'custom') return false;
+  return goal.targetValue < (goal.startValue ?? goal.currentValue);
+}
+
+export function goalReached(goal: GoalItem, current: number): boolean {
+  return goalGoesDown(goal)
+    ? current <= goal.targetValue
+    : current >= goal.targetValue;
+}
+
+/** 0..100 toward the target, in whichever direction the goal goes. */
+export function goalProgress(goal: GoalItem, current: number): number {
+  if (!goalGoesDown(goal)) return goalPercent(current, goal.targetValue);
+  const start = goal.startValue ?? current;
+  const span = start - goal.targetValue;
+  if (!(span > 0)) return 100;
+  return Math.max(
+    0,
+    Math.min(100, Math.round(((start - current) / span) * 100)),
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Routines                                                            */
 /* ------------------------------------------------------------------ */

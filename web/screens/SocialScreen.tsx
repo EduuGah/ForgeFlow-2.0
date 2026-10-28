@@ -2,9 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Check,
   Clock,
-  Activity,
   Copy,
-  Dumbbell,
   Inbox,
   Search,
   Share2,
@@ -23,9 +21,13 @@ import {
 } from '../lib/format';
 import {
   buildRanking,
+  exerciseBoards,
   inviteLink,
+  rankingValue,
   relationTo,
   type FriendLink,
+  type RankingEntry,
+  type RankingMetric,
   type SocialProfile,
 } from '../lib/friends';
 import { haptic } from '../lib/haptics';
@@ -33,10 +35,11 @@ import { useNavigation } from '../navigation/Navigator';
 import {
   SocialError,
   fetchFriendWorkouts,
+  fetchRecordsOf,
   findByUsername,
   searchPeople,
 } from '../social';
-import type { CompletedWorkout } from '../lib/types';
+import type { CompletedWorkout, PersonalRecordItem } from '../lib/types';
 import {
   friendActions,
   refreshFriends,
@@ -47,6 +50,9 @@ import {
 } from '../features/useFriends';
 import { describeShare } from '../lib/sharing';
 import { clearInvite } from '../features/invite';
+import { useLiveFriends } from '../features/liveWorkouts';
+import { ReactionBar, useReactions } from '../features/Reactions';
+import { FriendsTrainingNow, LiveLine } from '../features/TrainingNow';
 import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
 import { Button, Spinner } from '../ui/Button';
 import {
@@ -56,7 +62,14 @@ import {
   InlineNotice,
   Skeleton,
 } from '../ui/Feedback';
-import { SegmentedControl, Switch, Tabs, TextField } from '../ui/Form';
+import { FriendsScene } from '../ui/Scenes';
+import {
+  SegmentedControl,
+  SelectField,
+  Switch,
+  Tabs,
+  TextField,
+} from '../ui/Form';
 import { Card, GroupLabel, StackHeader } from '../ui/Layout';
 import { useConfirm, useToast } from '../ui/Overlay';
 import { cx } from '../ui/core';
@@ -198,7 +211,7 @@ function SignInPrompt({ invite }: { invite?: string }) {
   return (
     <div className="px-4 pt-4">
       <EmptyState
-        icon={Users}
+        scene={<FriendsScene />}
         title={invite ? `Convite de @${invite}` : 'Treine com seus amigos'}
         message={
           invite
@@ -767,7 +780,12 @@ function FriendsPanel({
 }) {
   const { push } = useNavigation();
   const { incoming, outgoing } = friends.lists;
-  const list = friends.lists.friends;
+  const live = useLiveFriends();
+  // Who is training right now comes first.
+  const list = [...friends.lists.friends].sort(
+    (a, b) =>
+      Number(live.has(b.other.userId)) - Number(live.has(a.other.userId)),
+  );
   const loading = friends.status === 'loading' && !friends.me;
 
   return (
@@ -813,7 +831,7 @@ function FriendsPanel({
         </div>
       ) : list.length === 0 ? (
         <EmptyState
-          icon={Users}
+          scene={<FriendsScene />}
           title="Nenhum amigo ainda"
           message="Toque em Convidar e mande o link, ou busque pelo @ de quem já usa o ForgeFlow."
           className="py-6"
@@ -822,16 +840,21 @@ function FriendsPanel({
         <ul className="divide-y divide-line bg-surface">
           {list.map((link) => {
             const unread = friends.unread[link.other.userId] ?? 0;
+            const training = live.get(link.other.userId);
             return (
               <PersonRow
                 key={link.id}
                 person={link.other}
                 subtitle={
-                  unread > 0
-                    ? `${unread} ${unread === 1 ? 'mensagem nova' : 'mensagens novas'}`
-                    : link.other.shareStats
-                      ? `@${link.other.username}`
-                      : `@${link.other.username} · treinos privados`
+                  unread > 0 ? (
+                    `${unread} ${unread === 1 ? 'mensagem nova' : 'mensagens novas'}`
+                  ) : training ? (
+                    <LiveLine live={training} />
+                  ) : link.other.shareStats ? (
+                    `@${link.other.username}`
+                  ) : (
+                    `@${link.other.username} · treinos privados`
+                  )
                 }
                 trailing={
                   unread > 0 ? (
@@ -889,6 +912,12 @@ function ActivityPanel({ friends }: { friends: FriendsState }) {
   const [failed, setFailed] = useState<string | null>(null);
   const list = friends.lists.friends;
   const sharing = list.filter((link) => link.other.shareStats);
+  const reactions = useReactions(
+    (feed ?? []).map(({ friend, workout }) => ({
+      ownerId: friend.userId,
+      workoutId: workout.id,
+    })),
+  );
 
   useEffect(() => {
     if (!isOnline || friends.status !== 'ready') return;
@@ -928,9 +957,10 @@ function ActivityPanel({ friends }: { friends: FriendsState }) {
       className="animate-fade-in space-y-3 px-4 pt-4 pb-6"
     >
       {failed && <InlineNotice tone="error">{failed}</InlineNotice>}
+      <FriendsTrainingNow />
       {list.length === 0 && friends.status === 'ready' ? (
         <EmptyState
-          icon={Activity}
+          art="friends"
           title="Nada por aqui ainda"
           message="Adicione amigos na aba Amigos para ver os treinos deles."
         />
@@ -941,7 +971,7 @@ function ActivityPanel({ friends }: { friends: FriendsState }) {
         </>
       ) : feed && feed.length === 0 ? (
         <EmptyState
-          icon={Dumbbell}
+          art="dumbbell"
           title="Nenhum treino recente"
           message={
             sharing.length === 0
@@ -954,46 +984,60 @@ function ActivityPanel({ friends }: { friends: FriendsState }) {
           const who = friend.name || `@${friend.username}`;
           const names = workout.exercises.map((e) => e.exerciseName);
           return (
-            <button
+            <article
               key={`${friend.userId}-${workout.id}`}
-              type="button"
-              onClick={() => push({ name: 'friend', userId: friend.userId })}
-              className="pressable block w-full rounded-lg border border-line bg-surface p-4 text-left"
+              className="rounded-lg border border-line bg-surface"
             >
-              <span className="flex items-center gap-3">
-                <Avatar name={who} photoUrl={friend.photoUrl} size={40} />
-                <span className="min-w-0 flex-1">
-                  <span className="text-callout block truncate">
-                    <span className="font-semibold">{who}</span> treinou{' '}
-                    <span className="font-semibold">{workout.name}</span>
+              <button
+                type="button"
+                onClick={() => push({ name: 'friend', userId: friend.userId })}
+                className="pressable block w-full p-4 pb-3 text-left"
+              >
+                <span className="flex items-center gap-3">
+                  <Avatar name={who} photoUrl={friend.photoUrl} size={40} />
+                  <span className="min-w-0 flex-1">
+                    <span className="text-callout block truncate">
+                      <span className="font-semibold">{who}</span> treinou{' '}
+                      <span className="font-semibold">{workout.name}</span>
+                    </span>
+                    <span className="text-footnote block text-ink-2">
+                      {formatRelativeDay(workout.completedAt)},{' '}
+                      {formatTime(workout.completedAt)}
+                    </span>
                   </span>
-                  <span className="text-footnote block text-ink-2">
-                    {formatRelativeDay(workout.completedAt)},{' '}
-                    {formatTime(workout.completedAt)}
+                  {workout.prsAchieved.length > 0 && (
+                    <Badge tone="record">
+                      {workout.prsAchieved.length}{' '}
+                      {workout.prsAchieved.length === 1
+                        ? 'recorde'
+                        : 'recordes'}
+                    </Badge>
+                  )}
+                </span>
+                <span className="text-footnote mt-3 flex gap-4 text-ink-2 tabular">
+                  <span>{formatDurationMinutes(workout.durationMinutes)}</span>
+                  <span>{formatCompact(workout.totalVolumeKg)} kg</span>
+                  <span>
+                    {workout.totalSets}{' '}
+                    {workout.totalSets === 1 ? 'série' : 'séries'}
                   </span>
                 </span>
-                {workout.prsAchieved.length > 0 && (
-                  <Badge tone="record">
-                    {workout.prsAchieved.length}{' '}
-                    {workout.prsAchieved.length === 1 ? 'recorde' : 'recordes'}
-                  </Badge>
+                {names.length > 0 && (
+                  <span className="text-footnote mt-1 block truncate text-ink-3">
+                    {names.slice(0, 4).join(' · ')}
+                    {names.length > 4 && ` +${names.length - 4}`}
+                  </span>
                 )}
-              </span>
-              <span className="text-footnote mt-3 flex gap-4 text-ink-2 tabular">
-                <span>{formatDurationMinutes(workout.durationMinutes)}</span>
-                <span>{formatCompact(workout.totalVolumeKg)} kg</span>
-                <span>
-                  {workout.totalSets}{' '}
-                  {workout.totalSets === 1 ? 'série' : 'séries'}
-                </span>
-              </span>
-              {names.length > 0 && (
-                <span className="text-footnote mt-1 block truncate text-ink-3">
-                  {names.slice(0, 4).join(' · ')}
-                  {names.length > 4 && ` +${names.length - 4}`}
-                </span>
-              )}
-            </button>
+              </button>
+              <ReactionBar
+                className="px-4 pb-4"
+                me={reactions.me}
+                reactions={reactions.of(friend.userId, workout.id)}
+                onReact={(emoji) =>
+                  void reactions.react(friend.userId, workout.id, emoji)
+                }
+              />
+            </article>
           );
         })
       )}
@@ -1001,16 +1045,65 @@ function ActivityPanel({ friends }: { friends: FriendsState }) {
   );
 }
 
-type Period = '7' | '30';
+type Period = '7' | '30' | '90';
+
+const METRICS: {
+  value: RankingMetric;
+  label: string;
+  format: (value: number) => string;
+}[] = [
+  { value: 'volume', label: 'Volume', format: (v) => `${formatCompact(v)} kg` },
+  {
+    value: 'workouts',
+    label: 'Treinos',
+    format: (v) => `${formatNumber(v, 0)} ${v === 1 ? 'treino' : 'treinos'}`,
+  },
+  { value: 'minutes', label: 'Tempo', format: formatDurationMinutes },
+  {
+    value: 'sets',
+    label: 'Séries',
+    format: (v) => `${formatNumber(v, 0)} ${v === 1 ? 'série' : 'séries'}`,
+  },
+  {
+    value: 'records',
+    label: 'Recordes',
+    format: (v) => `${formatNumber(v, 0)} ${v === 1 ? 'recorde' : 'recordes'}`,
+  },
+];
+
+/** Where the person stands and how much is missing to pass the next one. */
+function chaseLine(
+  ranking: RankingEntry[],
+  metric: (typeof METRICS)[number],
+): string | null {
+  const index = ranking.findIndex((entry) => entry.me);
+  if (index < 0 || ranking.length < 2) return null;
+  const mine = rankingValue(ranking[index], metric.value);
+  if (index === 0)
+    return mine > 0
+      ? `Você lidera em ${metric.label.toLowerCase()}. Segura a ponta!`
+      : null;
+  const ahead = ranking[index - 1];
+  const gap = rankingValue(ahead, metric.value) - mine;
+  if (gap <= 0) return null;
+  return `Você está em ${index + 1}º. Faltam ${metric.format(gap)} para passar ${ahead.name}.`;
+}
 
 function RankingPanel({ friends }: { friends: FriendsState }) {
-  const { history, userProfile, isOnline } = useAppStore();
+  const { history, prs, userProfile, isOnline } = useAppStore();
   const photo = useProfilePhoto();
   const { push } = useNavigation();
   const [period, setPeriod] = useState<Period>('7');
+  const [metricValue, setMetric] = useState<RankingMetric>('volume');
+  const metric =
+    METRICS.find((item) => item.value === metricValue) ?? METRICS[0];
   const [workouts, setWorkouts] = useState<Map<
     string,
     CompletedWorkout[]
+  > | null>(null);
+  const [records, setRecords] = useState<Map<
+    string,
+    PersonalRecordItem[]
   > | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -1023,14 +1116,19 @@ function RankingPanel({ friends }: { friends: FriendsState }) {
   useEffect(() => {
     if (!isOnline || friends.status !== 'ready') return;
     let alive = true;
-    const since = addDays(startOfDay(new Date()), -30);
-    fetchFriendWorkouts(sharingKey ? sharingKey.split(',') : [], since)
+    const since = addDays(startOfDay(new Date()), -90);
+    const ids = sharingKey ? sharingKey.split(',') : [];
+    fetchFriendWorkouts(ids, since)
       .then((found) => {
         if (!alive) return;
         setWorkouts(found);
         setFailed(null);
       })
       .catch((error: unknown) => alive && setFailed(socialErrorMessage(error)));
+    // Optional: the boards just stay hidden without it.
+    fetchRecordsOf(ids)
+      .then((found) => alive && setRecords(found))
+      .catch((error: unknown) => console.warn('ForgeFlow recordes:', error));
     return () => {
       alive = false;
     };
@@ -1056,10 +1154,36 @@ function RankingPanel({ friends }: { friends: FriendsState }) {
         })),
       ],
       since,
+      metricValue,
     );
-  }, [history, period, photo, sharing, userProfile.name, workouts]);
+  }, [
+    history,
+    period,
+    photo,
+    sharing,
+    userProfile.name,
+    workouts,
+    metricValue,
+  ]);
+
+  const boardPeople = useMemo(
+    () =>
+      records
+        ? [
+            { userId: 'me', name: 'Você', photoUrl: photo, records: prs },
+            ...sharing.map((link) => ({
+              userId: link.other.userId,
+              name: link.other.name || `@${link.other.username}`,
+              photoUrl: link.other.photoUrl,
+              records: records.get(link.other.userId) ?? [],
+            })),
+          ]
+        : null,
+    [records, photo, prs, sharing],
+  );
 
   const hidden = friends.lists.friends.length - sharing.length;
+  const chase = workouts ? chaseLine(ranking, metric) : null;
 
   return (
     <section
@@ -1070,34 +1194,62 @@ function RankingPanel({ friends }: { friends: FriendsState }) {
     >
       <div className="flex items-end justify-between gap-3 px-4 pb-3">
         <div>
-          <h2 className="text-headline font-semibold">Ranking de volume</h2>
-          <p className="text-footnote text-ink-2">
-            Séries de trabalho suas e dos seus amigos
-          </p>
+          <h2 className="text-headline font-semibold">Ranking</h2>
+          <p className="text-footnote text-ink-2">Você e seus amigos</p>
         </div>
         <SegmentedControl
           label="Período do ranking"
           value={period}
           onChange={setPeriod}
           options={[
-            { value: '7', label: '7 dias' },
-            { value: '30', label: '30 dias' },
+            { value: '7', label: '7d' },
+            { value: '30', label: '30d' },
+            { value: '90', label: '90d' },
           ]}
         />
+      </div>
+      <div
+        role="radiogroup"
+        aria-label="Medida do ranking"
+        className="flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none]"
+      >
+        {METRICS.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            role="radio"
+            aria-checked={item.value === metricValue}
+            onClick={() => setMetric(item.value)}
+            className={cx(
+              'pressable text-footnote h-8 shrink-0 rounded-full border px-3.5 font-semibold',
+              item.value === metricValue
+                ? 'border-brand bg-brand-soft text-brand-ink'
+                : 'border-line bg-surface text-ink-2',
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
       {failed && (
         <div className="px-4 pb-3">
           <InlineNotice tone="error">{failed}</InlineNotice>
         </div>
       )}
+      {chase && (
+        <p className="text-callout mx-4 mb-3 rounded-lg bg-brand-soft px-4 py-3 text-brand-ink">
+          {chase}
+        </p>
+      )}
       <ol className="divide-y divide-line bg-surface">
         {ranking.map((athlete, index) => {
+          const value = rankingValue(athlete, metricValue);
           const content = (
             <>
               <span
                 className={cx(
                   'text-footnote grid size-7 shrink-0 place-items-center rounded-full font-bold tabular',
-                  athlete.volumeKg > 0
+                  value > 0
                     ? (PODIUM[index] ?? 'bg-raised text-ink-2')
                     : 'bg-raised text-ink-2',
                 )}
@@ -1114,16 +1266,17 @@ function RankingPanel({ friends }: { friends: FriendsState }) {
                 <span className="text-body block truncate font-medium">
                   {athlete.me ? 'Você' : athlete.name}
                 </span>
-                <span className="text-footnote block text-ink-2">
-                  {formatNumber(athlete.workouts, 0)}{' '}
-                  {athlete.workouts === 1 ? 'treino' : 'treinos'}
+                <span className="text-footnote block truncate text-ink-2">
+                  {metricValue === 'workouts'
+                    ? `${formatCompact(athlete.volumeKg)} kg · ${formatDurationMinutes(athlete.minutes)}`
+                    : `${formatNumber(athlete.workouts, 0)} ${athlete.workouts === 1 ? 'treino' : 'treinos'}`}
                 </span>
               </span>
               <span className="text-body shrink-0 text-ink-2 tabular">
                 {!athlete.me && workouts === null ? (
                   <Spinner size={16} />
                 ) : (
-                  `${formatCompact(athlete.volumeKg)} kg`
+                  metric.format(value)
                 )}
               </span>
             </>
@@ -1164,7 +1317,75 @@ function RankingPanel({ friends }: { friends: FriendsState }) {
             : `${hidden} amigos não compartilham os treinos e ficam fora do ranking.`}
         </p>
       )}
+      {boardPeople && <ExerciseBoards people={boardPeople} />}
     </section>
+  );
+}
+
+/** Heaviest loads per exercise, between the person and their friends. */
+function ExerciseBoards({
+  people,
+}: {
+  people: {
+    userId: string;
+    name: string;
+    photoUrl: string | null;
+    records: PersonalRecordItem[];
+  }[];
+}) {
+  const boards = useMemo(() => exerciseBoards(people), [people]);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const board =
+    boards.find((item) => item.exerciseId === chosen) ?? boards[0] ?? null;
+  if (!board) return null;
+  const byId = new Map(people.map((person) => [person.userId, person]));
+  return (
+    <>
+      <GroupLabel>Recordes por exercício</GroupLabel>
+      <div className="px-4 pb-3">
+        <SelectField
+          label="Exercício"
+          value={board.exerciseId}
+          onChange={setChosen}
+          options={boards.map((item) => ({
+            value: item.exerciseId,
+            label: `${item.exerciseName} (${item.entries.length})`,
+          }))}
+        />
+      </div>
+      <ol className="divide-y divide-line bg-surface">
+        {board.entries.map((entry, index) => {
+          const person = byId.get(entry.userId);
+          if (!person) return null;
+          return (
+            <li
+              key={entry.userId}
+              className={cx(
+                'flex items-center gap-3 px-4 py-3',
+                entry.userId === 'me' && 'bg-brand-soft',
+              )}
+            >
+              <span
+                className={cx(
+                  'text-footnote grid size-7 shrink-0 place-items-center rounded-full font-bold tabular',
+                  PODIUM[index] ?? 'bg-raised text-ink-2',
+                )}
+                aria-label={`${index + 1}º lugar`}
+              >
+                {index + 1}
+              </span>
+              <Avatar name={person.name} photoUrl={person.photoUrl} size={36} />
+              <span className="text-body min-w-0 flex-1 truncate font-medium">
+                {person.name}
+              </span>
+              <span className="text-body shrink-0 font-semibold tabular">
+                {formatNumber(entry.valueKg)} kg
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </>
   );
 }
 

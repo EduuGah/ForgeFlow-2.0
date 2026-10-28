@@ -1,6 +1,6 @@
 // Supabase Edge Function "push": notifies a friend's devices (Web Push) when
-// someone messages them, sends or accepts a friend request, or sends a
-// routine. The app calls it right after the action with the person's own
+// someone messages them, sends or accepts a friend request, sends a routine
+// or reacts to one of their workouts. The app calls it right after the action with the person's own
 // session; the function re-reads the row and only sends when the caller
 // really is the one who did it.
 //
@@ -144,6 +144,31 @@ Deno.serve(async (req) => {
           link: 'social',
           tag: `share-${id}`,
         };
+      break;
+    }
+    case 'reaction': {
+      const { data } = await admin
+        .from('workout_reactions')
+        .select('owner_id, workout_id, user_id, emoji')
+        .eq('id', id)
+        .maybeSingle();
+      if (data?.user_id === me) {
+        const { data: workout } = await admin
+          .from('history')
+          .select('name:data->>name')
+          .eq('user_id', data.owner_id)
+          .eq('id', data.workout_id)
+          .maybeSingle();
+        notice = {
+          to: data.owner_id,
+          title: `${await nameOf(me)} reagiu ${data.emoji}`,
+          body: workout?.name
+            ? `Ao seu treino ${String(workout.name).slice(0, 60)}`
+            : 'Ao seu treino',
+          link: `mine:${data.workout_id}`,
+          tag: `reaction-${id}`,
+        };
+      }
       break;
     }
     default:

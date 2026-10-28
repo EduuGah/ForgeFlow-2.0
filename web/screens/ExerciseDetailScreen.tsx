@@ -2,10 +2,8 @@ import { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ChevronRight,
-  History,
   Lightbulb,
   Plus,
-  Search,
   Star,
   Wind,
   type LucideIcon,
@@ -110,7 +108,7 @@ export function ExerciseDetailView({
   if (!exercise) {
     return (
       <EmptyState
-        icon={Search}
+        art="search"
         title="Exercício não encontrado"
         message="Ele pode ter sido removido da biblioteca."
       />
@@ -287,7 +285,7 @@ export function ExerciseDetailView({
         >
           {sessions.length === 0 ? (
             <EmptyState
-              icon={History}
+              art="chart"
               title="Nenhum registro ainda"
               message="As séries deste exercício aparecem aqui depois de cada treino."
             />

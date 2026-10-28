@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import {
   Bell,
   CheckCheck,
+  Flame,
   FolderInput,
   MessageCircle,
   Target,
@@ -32,6 +33,7 @@ const ICONS: Record<FeedKind, LucideIcon> = {
   share: FolderInput,
   record: Trophy,
   goal: Target,
+  reaction: Flame,
 };
 
 export function NotificationsScreen() {
@@ -67,7 +69,7 @@ export function NotificationsScreen() {
         <PushSetup className="mb-4" />
         {items.length === 0 ? (
           <EmptyState
-            icon={Bell}
+            art="bell"
             title="Nada novo por aqui"
             message="Pedidos de amizade, mensagens, rotinas recebidas e recordes aparecem aqui."
           />

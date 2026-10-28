@@ -31,6 +31,7 @@ import {
   describeRecord,
   detectPersonalRecords,
   goalCurrentValue,
+  goalReached,
   hydrationDate,
   mealDate,
   previousSetsFor,
@@ -1408,7 +1409,7 @@ export const actions = {
     const goals = state.goals.map((goal) => {
       if (goal.status !== 'active') return goal;
       const current = goalCurrentValue(goal, history, records, now);
-      if (current < goal.targetValue) return goal;
+      if (!goalReached(goal, current)) return goal;
       const reached: GoalItem = {
         ...goal,
         currentValue: current,
@@ -1952,11 +1953,18 @@ export const actions = {
 
   /* Goals */
   addGoal: (goal: Omit<GoalItem, 'id' | 'status' | 'createdAt'>) => {
-    const created: GoalItem = {
+    const base: GoalItem = {
       ...goal,
+      ...(goal.type === 'weight' || goal.type === 'custom'
+        ? { startValue: goal.startValue ?? goal.currentValue }
+        : {}),
       id: uid('goal'),
-      status: goal.currentValue >= goal.targetValue ? 'completed' : 'active',
+      status: 'active',
       createdAt: new Date().toISOString(),
+    };
+    const created: GoalItem = {
+      ...base,
+      status: goalReached(base, base.currentValue) ? 'completed' : 'active',
     };
     setState({ goals: [...state.goals, created] });
     remoteSet(['goals', created.id], created);
@@ -1970,8 +1978,9 @@ export const actions = {
     const goal = state.goals.find((g) => g.id === id);
     if (!goal) return;
     const updated: GoalItem = { ...goal, ...updates };
-    updated.status =
-      updated.currentValue >= updated.targetValue ? 'completed' : 'active';
+    updated.status = goalReached(updated, updated.currentValue)
+      ? 'completed'
+      : 'active';
     setState({ goals: state.goals.map((g) => (g.id === id ? updated : g)) });
     remoteSet(['goals', id], updated);
   },
@@ -1979,10 +1988,16 @@ export const actions = {
   updateGoalProgress: (id: string, currentValue: number) => {
     const goal = state.goals.find((g) => g.id === id);
     if (!goal) return;
+    // Older goals learn where they started on their first update.
+    const started: GoalItem =
+      (goal.type === 'weight' || goal.type === 'custom') &&
+      goal.startValue === undefined
+        ? { ...goal, startValue: goal.currentValue }
+        : goal;
     const updated: GoalItem = {
-      ...goal,
+      ...started,
       currentValue,
-      status: currentValue >= goal.targetValue ? 'completed' : 'active',
+      status: goalReached(started, currentValue) ? 'completed' : 'active',
     };
     setState({ goals: state.goals.map((g) => (g.id === id ? updated : g)) });
     remoteSet(['goals', id], updated);

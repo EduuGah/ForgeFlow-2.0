@@ -1,4 +1,8 @@
-import type { CompletedWorkout, PersonalRecordItem } from './types';
+import type {
+  ActiveWorkoutState,
+  CompletedWorkout,
+  PersonalRecordItem,
+} from './types';
 
 export interface SocialProfile {
   userId: string;
@@ -139,6 +143,9 @@ export function inviteFromSearch(search: string): string | null {
 /* Ranking                                                             */
 /* ------------------------------------------------------------------ */
 
+export type RankingMetric =
+  'volume' | 'workouts' | 'minutes' | 'sets' | 'records';
+
 export interface RankingEntry {
   userId: string;
   name: string;
@@ -146,9 +153,20 @@ export interface RankingEntry {
   me: boolean;
   workouts: number;
   volumeKg: number;
+  minutes: number;
+  sets: number;
+  records: number;
 }
 
-/** Workouts and working-set volume per person since `since`, best first. */
+export function rankingValue(entry: RankingEntry, metric: RankingMetric) {
+  if (metric === 'workouts') return entry.workouts;
+  if (metric === 'minutes') return entry.minutes;
+  if (metric === 'sets') return entry.sets;
+  if (metric === 'records') return entry.records;
+  return entry.volumeKg;
+}
+
+/** Totals per person since `since`, best first by `metric`. */
 export function buildRanking(
   people: {
     userId: string;
@@ -158,26 +176,171 @@ export function buildRanking(
     history: CompletedWorkout[];
   }[],
   since: Date,
+  metric: RankingMetric = 'volume',
 ): RankingEntry[] {
   const from = since.getTime();
   return people
     .map(({ history, ...person }) => {
-      let workouts = 0;
-      let volumeKg = 0;
+      const entry = {
+        ...person,
+        workouts: 0,
+        volumeKg: 0,
+        minutes: 0,
+        sets: 0,
+        records: 0,
+      };
       for (const workout of history) {
         const time = Date.parse(workout.completedAt);
         if (Number.isNaN(time) || time < from) continue;
-        workouts += 1;
-        volumeKg += workout.totalVolumeKg || 0;
+        entry.workouts += 1;
+        entry.volumeKg += workout.totalVolumeKg || 0;
+        entry.minutes += workout.durationMinutes || 0;
+        entry.sets += workout.totalSets || 0;
+        entry.records += workout.prsAchieved?.length ?? 0;
       }
-      return { ...person, workouts, volumeKg };
+      return entry;
     })
     .sort(
       (a, b) =>
+        rankingValue(b, metric) - rankingValue(a, metric) ||
         b.volumeKg - a.volumeKg ||
         b.workouts - a.workouts ||
         Number(b.me) - Number(a.me),
     );
+}
+
+export interface ExerciseBoard {
+  exerciseId: string;
+  exerciseName: string;
+  /** Heaviest load per person, best first. */
+  entries: { userId: string; valueKg: number }[];
+}
+
+/**
+ * One leaderboard per exercise that at least `minPeople` people have a load
+ * record in; the most disputed exercises first.
+ */
+export function exerciseBoards(
+  people: { userId: string; records: PersonalRecordItem[] }[],
+  minPeople = 2,
+): ExerciseBoard[] {
+  const boards = new Map<string, ExerciseBoard>();
+  for (const person of people) {
+    for (const [exerciseId, record] of heaviest(person.records)) {
+      const board = boards.get(exerciseId) ?? {
+        exerciseId,
+        exerciseName: record.exerciseName,
+        entries: [],
+      };
+      board.entries.push({ userId: person.userId, valueKg: record.value });
+      boards.set(exerciseId, board);
+    }
+  }
+  return [...boards.values()]
+    .filter((board) => board.entries.length >= minPeople)
+    .map((board) => ({
+      ...board,
+      entries: board.entries.sort((a, b) => b.valueKg - a.valueKg),
+    }))
+    .sort(
+      (a, b) =>
+        b.entries.length - a.entries.length ||
+        a.exerciseName.localeCompare(b.exerciseName, 'pt-BR'),
+    );
+}
+
+/* ------------------------------------------------------------------ */
+/* Training now                                                        */
+/* ------------------------------------------------------------------ */
+
+export interface LiveWorkout {
+  userId: string;
+  name: string;
+  startedAt: string;
+  doneSets: number;
+  totalSets: number;
+  currentExercise: string | null;
+  endedAt: string | null;
+  updatedAt: string;
+}
+
+/** Quiet this long (app closed mid-workout), it no longer counts as now. */
+export const LIVE_QUIET_MS = 90 * 60_000;
+const LIVE_LONGEST_MS = 5 * 60 * 60_000;
+
+export function isLive(live: LiveWorkout, now: number = Date.now()): boolean {
+  if (live.endedAt) return false;
+  const updated = Date.parse(live.updatedAt);
+  const started = Date.parse(live.startedAt);
+  if (Number.isNaN(updated) || Number.isNaN(started)) return false;
+  return now - updated < LIVE_QUIET_MS && now - started < LIVE_LONGEST_MS;
+}
+
+/** What friends see of a workout in progress. */
+export function liveSnapshot(
+  workout: ActiveWorkoutState,
+): Pick<
+  LiveWorkout,
+  'name' | 'startedAt' | 'doneSets' | 'totalSets' | 'currentExercise'
+> {
+  const sets = workout.exercises.flatMap((exercise) => exercise.sets);
+  const current = workout.exercises.find((exercise) =>
+    exercise.sets.some((set) => !set.completed),
+  );
+  return {
+    name: workout.name.trim().slice(0, 80) || 'Treino',
+    startedAt: workout.startedAt,
+    doneSets: Math.min(500, sets.filter((set) => set.completed).length),
+    totalSets: Math.min(500, sets.length),
+    currentExercise: current ? current.exerciseName.slice(0, 80) : null,
+  };
+}
+
+/** "Upper B · 5/12 séries · 34 min". */
+export function liveLabel(live: LiveWorkout, now: number = Date.now()): string {
+  const minutes = Math.max(
+    0,
+    Math.floor((now - Date.parse(live.startedAt)) / 60_000),
+  );
+  const parts = [live.name];
+  if (live.totalSets > 0)
+    parts.push(`${live.doneSets}/${live.totalSets} séries`);
+  parts.push(`${minutes} min`);
+  return parts.join(' · ');
+}
+
+/* ------------------------------------------------------------------ */
+/* Reactions                                                           */
+/* ------------------------------------------------------------------ */
+
+export const REACTIONS = ['🔥', '💪', '👏', '🏆'] as const;
+export type ReactionEmoji = (typeof REACTIONS)[number];
+
+export interface WorkoutReaction {
+  id: number;
+  ownerId: string;
+  workoutId: string;
+  userId: string;
+  emoji: ReactionEmoji;
+  createdAt: string;
+}
+
+export function isReactionEmoji(value: unknown): value is ReactionEmoji {
+  return (REACTIONS as readonly unknown[]).includes(value);
+}
+
+export function reactionKey(ownerId: string, workoutId: string): string {
+  return `${ownerId}/${workoutId}`;
+}
+
+/** How many of each emoji, in the fixed order, leaving out the unused. */
+export function reactionCounts(
+  reactions: WorkoutReaction[],
+): { emoji: ReactionEmoji; count: number }[] {
+  return REACTIONS.map((emoji) => ({
+    emoji,
+    count: reactions.filter((reaction) => reaction.emoji === emoji).length,
+  })).filter((item) => item.count > 0);
 }
 
 /* ------------------------------------------------------------------ */

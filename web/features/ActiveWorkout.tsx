@@ -308,7 +308,7 @@ export function ActiveWorkoutScreen({
         <div className="app-column space-y-3 px-3 pt-3 pb-40">
           {workout.exercises.length === 0 ? (
             <EmptyState
-              icon={Dumbbell}
+              art="dumbbell"
               title="Treino vazio"
               message="Adicione os exercícios que você vai fazer hoje. Carga e repetições do último treino aparecem como referência."
             />

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Search, Star } from 'lucide-react';
+import { Plus, Star } from 'lucide-react';
 import { actions, useAppStore } from '../store';
 import { useNavigation } from '../navigation/Navigator';
 import {
@@ -49,7 +49,7 @@ export function LibraryScreen() {
         </p>
         {filtered.length === 0 ? (
           <EmptyState
-            icon={Search}
+            art="search"
             title="Nenhum exercício encontrado"
             message="Tente outro termo ou crie um exercício personalizado."
             action={

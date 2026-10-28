@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MapPin, Target } from 'lucide-react';
+import { MapPin, Share2, Target } from 'lucide-react';
 import { actions, useStoreValue, type FinishResult } from '../store';
 import {
   formatDurationMinutes,
@@ -9,8 +9,12 @@ import {
 } from '../lib/format';
 import { RECORD_LABELS } from '../lib/training';
 import { Button } from '../ui/Button';
+import { useToast } from '../ui/Overlay';
+import { shareWorkout } from './shareWorkout';
 import { Medal } from '../ui/Feedback';
 import { Stat } from '../ui/Layout';
+import { CountUp } from '../ui/Motion';
+import { celebrate } from '../lib/celebrate';
 import { cx, useBackLayer, usePresence, useScrollLock } from '../ui/core';
 import { GymChips } from './GymPicker';
 import { RoutineUpdateCard } from './RoutineUpdateCard';
@@ -26,9 +30,25 @@ export function WorkoutSummary({
   onOpenWorkout: (workoutId: string) => void;
 }) {
   const open = result !== null;
+  const toast = useToast();
   const { mounted, closing, onExited } = usePresence(open, 300);
   useBackLayer(open, onClose);
   useScrollLock(mounted);
+
+  // Confetti as it opens: a bigger burst for records and goals.
+  useEffect(() => {
+    if (!result) return;
+    const timer = setTimeout(
+      () =>
+        celebrate(
+          result.records.length > 0 || result.goalsReached.length > 0
+            ? 'strong'
+            : 'light',
+        ),
+      250,
+    );
+    return () => clearTimeout(timer);
+  }, [result]);
 
   // Keep the last result on screen while the overlay fades out.
   const [lastResult, setLastResult] = useState(result);
@@ -108,13 +128,20 @@ export function WorkoutSummary({
             />
             <Stat
               label="Volume"
-              value={formatWeight(workout.totalVolumeKg)}
+              value={
+                <CountUp value={workout.totalVolumeKg} format={formatWeight} />
+              }
               unit="kg"
               size="sm"
             />
             <Stat
               label="Séries"
-              value={formatNumber(workout.totalSets, 0)}
+              value={
+                <CountUp
+                  value={workout.totalSets}
+                  format={(value) => formatNumber(Math.round(value), 0)}
+                />
+              }
               size="sm"
             />
           </div>
@@ -197,6 +224,28 @@ export function WorkoutSummary({
         <div className="mt-8 space-y-2">
           <Button size="lg" block onClick={onClose}>
             Concluir
+          </Button>
+          <Button
+            size="lg"
+            variant="secondary"
+            block
+            icon={Share2}
+            onClick={async () => {
+              const result = await shareWorkout(workout);
+              if (result === 'copied')
+                toast({
+                  tone: 'success',
+                  title: 'Treino copiado',
+                  description: 'Cole no WhatsApp ou onde quiser.',
+                });
+              else if (result === 'failed')
+                toast({
+                  tone: 'error',
+                  title: 'Não foi possível compartilhar',
+                });
+            }}
+          >
+            Compartilhar treino
           </Button>
           <Button
             size="lg"

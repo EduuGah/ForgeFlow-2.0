@@ -27,6 +27,11 @@ export function targetOf(link: string): DeepTarget | null {
       return { kind: 'route', route: { name: 'social' } };
     case 'workout':
       return { kind: 'workout' };
+    case 'mine':
+      // One of the person's own finished workouts.
+      return valid(id)
+        ? { kind: 'route', route: { name: 'workout', workoutId: id } }
+        : null;
     case 'messages':
       return { kind: 'route', route: { name: 'messages' } };
     case 'notifications':

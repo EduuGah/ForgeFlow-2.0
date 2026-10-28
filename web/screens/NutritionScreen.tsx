@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Settings2, Trash2, Utensils } from 'lucide-react';
+import { Plus, Settings2, Trash2 } from 'lucide-react';
 import { actions, useAppStore } from '../store';
 import { formatNumber, formatTime } from '../lib/format';
 import { goalPercent, itemsOnDay, mealDate } from '../lib/training';
@@ -180,7 +180,7 @@ export function NutritionScreen() {
         {today.length === 0 ? (
           <Card>
             <EmptyState
-              icon={Utensils}
+              art="meal"
               title="Nenhuma refeição hoje"
               message="Registre calorias e macros para acompanhar sua alimentação."
               action={

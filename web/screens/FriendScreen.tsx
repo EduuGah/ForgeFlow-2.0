@@ -1,12 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Dumbbell,
-  EyeOff,
-  MessageCircle,
-  Send,
-  Trophy,
-  UserMinus,
-} from 'lucide-react';
+import { Flame, MessageCircle, Send, Trophy, UserMinus } from 'lucide-react';
 import { useAppStore } from '../store';
 import { addDays, startOfDay } from '../lib/dates';
 import {
@@ -16,13 +9,29 @@ import {
   formatRelativeDay,
   formatShortDate,
 } from '../lib/format';
-import { totalsBetween, type PeriodTotals } from '../lib/training';
-import { compareBests, type BestComparison } from '../lib/friends';
+import {
+  bucketHistory,
+  comparePeriods,
+  computeStreakWeeks,
+  percentChange,
+  totalsBetween,
+  type PeriodTotals,
+} from '../lib/training';
+import {
+  compareBests,
+  type BestComparison,
+  type ReactionEmoji,
+  type WorkoutReaction,
+} from '../lib/friends';
 import type { CompletedWorkout, PersonalRecordItem } from '../lib/types';
 import { useNavigation } from '../navigation/Navigator';
 import { fetchFriendRecords, fetchFriendWorkouts } from '../social';
 import { refreshFriendsIfStale, useFriends } from '../features/useFriends';
 import { PickRoutineSheet } from '../features/ShareSheets';
+import { useLiveFriends } from '../features/liveWorkouts';
+import { ReactionBar, useReactions } from '../features/Reactions';
+import { LiveLine } from '../features/TrainingNow';
+import { BarChart } from '../ui/Charts';
 import { Button } from '../ui/Button';
 import {
   Avatar,
@@ -31,7 +40,7 @@ import {
   InlineNotice,
   Skeleton,
 } from '../ui/Feedback';
-import { Card, GroupLabel, StackHeader, Stat } from '../ui/Layout';
+import { Card, Delta, GroupLabel, StackHeader, Stat } from '../ui/Layout';
 import { cx } from '../ui/core';
 import { socialErrorMessage, useRemoveFriend } from './SocialScreen';
 
@@ -53,6 +62,11 @@ export function FriendScreen({ userId }: { userId: string }) {
   } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  const training = useLiveFriends().get(userId);
+  const shown = useMemo(() => data?.workouts.slice(0, 15) ?? [], [data]);
+  const reactions = useReactions(
+    shown.map((workout) => ({ ownerId: userId, workoutId: workout.id })),
+  );
 
   useEffect(() => refreshFriendsIfStale(), []);
 
@@ -104,7 +118,7 @@ export function FriendScreen({ userId }: { userId: string }) {
         <div className="app-column px-4 pt-6">
           {friends.status === 'ready' || friends.status === 'error' ? (
             <EmptyState
-              icon={UserMinus}
+              art="friends"
               title="Vocês não são amigos"
               message="A amizade foi desfeita ou o pedido ainda não foi aceito."
               action={<Button onClick={pop}>Voltar</Button>}
@@ -134,6 +148,11 @@ export function FriendScreen({ userId }: { userId: string }) {
           <p className="text-footnote text-ink-2">
             @{person.username} · amigos desde {formatShortDate(link.since)}
           </p>
+          {training && (
+            <p className="text-footnote mt-2 max-w-full rounded-full bg-success-soft px-3 py-1.5">
+              <LiveLine live={training} />
+            </p>
+          )}
           <div className="mt-4 flex gap-2">
             <Button
               icon={MessageCircle}
@@ -160,7 +179,7 @@ export function FriendScreen({ userId }: { userId: string }) {
 
         {!sharing ? (
           <EmptyState
-            icon={EyeOff}
+            art="lock"
             title="Treinos privados"
             message={`${person.name || `@${person.username}`} não compartilha os treinos com amigos.`}
           />
@@ -192,6 +211,9 @@ export function FriendScreen({ userId }: { userId: string }) {
               />
             </Card>
 
+            <GroupLabel>Como está se saindo</GroupLabel>
+            <FriendPerformance workouts={data.workouts} />
+
             <GroupLabel>
               Você × {person.name || `@${person.username}`}
             </GroupLabel>
@@ -204,15 +226,23 @@ export function FriendScreen({ userId }: { userId: string }) {
             <GroupLabel>Últimos treinos</GroupLabel>
             {data.workouts.length === 0 ? (
               <EmptyState
-                icon={Dumbbell}
+                art="dumbbell"
                 title="Nenhum treino recente"
                 message={`Nada registrado nos últimos ${HISTORY_DAYS} dias.`}
                 className="py-6"
               />
             ) : (
               <div className="space-y-3 px-4">
-                {data.workouts.slice(0, 15).map((workout) => (
-                  <FriendWorkoutCard key={workout.id} workout={workout} />
+                {shown.map((workout) => (
+                  <FriendWorkoutCard
+                    key={workout.id}
+                    workout={workout}
+                    me={reactions.me}
+                    reactions={reactions.of(userId, workout.id)}
+                    onReact={(emoji) =>
+                      void reactions.react(userId, workout.id, emoji)
+                    }
+                  />
                 ))}
               </div>
             )}
@@ -262,7 +292,78 @@ export function FriendScreen({ userId }: { userId: string }) {
   );
 }
 
-function FriendWorkoutCard({ workout }: { workout: CompletedWorkout }) {
+/** Weekly volume, streak and the trend of the last 30 days. */
+function FriendPerformance({ workouts }: { workouts: CompletedWorkout[] }) {
+  const weeks = useMemo(
+    () =>
+      bucketHistory(workouts, '3m', 'volume').map((bucket) => ({
+        key: bucket.key,
+        label: bucket.label,
+        value: bucket.value,
+      })),
+    [workouts],
+  );
+  const streak = computeStreakWeeks(workouts);
+  const { current, previous } = comparePeriods(workouts, 30);
+  const perWeek =
+    totalsBetween(
+      workouts,
+      addDays(startOfDay(new Date()), -(HISTORY_DAYS - 1)),
+      addDays(startOfDay(new Date()), 1),
+    ).workouts /
+    (HISTORY_DAYS / 7);
+  return (
+    <Card className="mx-4 p-4">
+      <div className="grid grid-cols-3 gap-2">
+        <Stat
+          label="Sequência"
+          value={formatNumber(streak, 0)}
+          unit={streak === 1 ? 'semana' : 'semanas'}
+          tone={streak > 0 ? 'brand' : 'default'}
+          icon={
+            streak > 0 ? (
+              <Flame size={16} className="self-center" aria-hidden="true" />
+            ) : undefined
+          }
+        />
+        <Stat
+          label="Por semana"
+          value={formatNumber(perWeek, 1)}
+          unit="treinos"
+        />
+        <Stat label="Treinos (30d)" value={formatNumber(current.workouts, 0)} />
+      </div>
+      <p className="mt-2">
+        <Delta
+          value={percentChange(current.volumeKg, previous.volumeKg)}
+          suffix="de volume vs 30 dias antes"
+        />
+      </p>
+      <p className="text-footnote mt-4 mb-1 font-semibold text-ink-2">
+        Volume por semana
+      </p>
+      <BarChart
+        data={weeks}
+        label="Volume por semana nos últimos 3 meses"
+        formatValue={(value) => `${formatCompact(value)} kg`}
+        formatTick={formatCompact}
+        height={150}
+      />
+    </Card>
+  );
+}
+
+function FriendWorkoutCard({
+  workout,
+  me,
+  reactions,
+  onReact,
+}: {
+  workout: CompletedWorkout;
+  me: string | null;
+  reactions: WorkoutReaction[];
+  onReact: (emoji: ReactionEmoji) => void;
+}) {
   const shown = workout.exercises.slice(0, 5);
   const more = workout.exercises.length - shown.length;
   return (
@@ -306,6 +407,12 @@ function FriendWorkoutCard({ workout }: { workout: CompletedWorkout }) {
           </li>
         )}
       </ul>
+      <ReactionBar
+        className="mt-3"
+        me={me}
+        reactions={reactions}
+        onReact={onReact}
+      />
     </Card>
   );
 }

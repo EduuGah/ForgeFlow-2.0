@@ -446,6 +446,78 @@ BEGIN
 END $$;
 
 -- ============================================================
+-- "Treinando agora": o treino em andamento, visto só por amigos que
+-- recebem seus treinos. Uma linha por pessoa; ended_at marca o fim.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.live_workouts (
+  user_id TEXT PRIMARY KEY REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  name TEXT NOT NULL CHECK (char_length(name) <= 80),
+  started_at TIMESTAMPTZ NOT NULL,
+  done_sets INTEGER NOT NULL DEFAULT 0 CHECK (done_sets BETWEEN 0 AND 500),
+  total_sets INTEGER NOT NULL DEFAULT 0 CHECK (total_sets BETWEEN 0 AND 500),
+  current_exercise TEXT CHECK (char_length(current_exercise) <= 80),
+  ended_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.live_workouts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Cada um publica o próprio treino" ON public.live_workouts;
+CREATE POLICY "Cada um publica o próprio treino" ON public.live_workouts
+  FOR ALL TO authenticated
+  USING (user_id = (select auth.uid())::text)
+  WITH CHECK (user_id = (select auth.uid())::text);
+DROP POLICY IF EXISTS "Amigos veem quem está treinando" ON public.live_workouts;
+CREATE POLICY "Amigos veem quem está treinando" ON public.live_workouts
+  FOR SELECT TO authenticated USING (public.is_friend_sharing(user_id));
+
+-- ============================================================
+-- Reações aos treinos dos amigos (uma por pessoa e treino, trocável).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.workout_reactions (
+  id BIGINT GENERATED ALWAYS AS IDENTITY UNIQUE,
+  owner_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  workout_id TEXT NOT NULL CHECK (char_length(workout_id) <= 100),
+  user_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  emoji TEXT NOT NULL CHECK (emoji IN ('🔥', '💪', '👏', '🏆')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (owner_id, workout_id, user_id),
+  CHECK (owner_id <> user_id)
+);
+CREATE INDEX IF NOT EXISTS workout_reactions_user_idx
+  ON public.workout_reactions (user_id);
+ALTER TABLE public.workout_reactions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Dono, quem reagiu e amigos veem as reações" ON public.workout_reactions;
+CREATE POLICY "Dono, quem reagiu e amigos veem as reações" ON public.workout_reactions
+  FOR SELECT TO authenticated
+  USING (
+    (select auth.uid())::text IN (owner_id, user_id)
+    OR public.is_friend_sharing(owner_id)
+  );
+DROP POLICY IF EXISTS "Reage só a treinos de amigos, em seu nome" ON public.workout_reactions;
+CREATE POLICY "Reage só a treinos de amigos, em seu nome" ON public.workout_reactions
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    user_id = (select auth.uid())::text
+    AND public.is_friend_sharing(owner_id)
+  );
+DROP POLICY IF EXISTS "Troca a própria reação" ON public.workout_reactions;
+CREATE POLICY "Troca a própria reação" ON public.workout_reactions
+  FOR UPDATE TO authenticated
+  USING (user_id = (select auth.uid())::text)
+  WITH CHECK (
+    user_id = (select auth.uid())::text
+    AND public.is_friend_sharing(owner_id)
+  );
+DROP POLICY IF EXISTS "Quem reagiu ou o dono apagam" ON public.workout_reactions;
+CREATE POLICY "Quem reagiu ou o dono apagam" ON public.workout_reactions
+  FOR DELETE TO authenticated
+  USING ((select auth.uid())::text IN (owner_id, user_id));
+-- Trocar a reação muda só o emoji (e a data), nunca de quem ou de qual treino.
+REVOKE UPDATE ON public.workout_reactions FROM anon, authenticated;
+GRANT UPDATE (emoji, created_at) ON public.workout_reactions TO authenticated;
+
+-- ============================================================
 -- Notificações com o app fechado (Web Push)
 -- Cada aparelho que ativou as notificações; a função "push"
 -- (supabase/functions/push) envia para eles.
@@ -501,6 +573,9 @@ BEGIN
   DELETE FROM public.messages WHERE me IN (sender_id, recipient_id);
   -- E os aparelhos que recebiam notificações.
   DELETE FROM public.push_subscriptions WHERE user_id = me;
+  -- O treino em andamento e as reações (dadas e recebidas).
+  DELETE FROM public.live_workouts WHERE user_id = me;
+  DELETE FROM public.workout_reactions WHERE me IN (owner_id, user_id);
 END;
 $$;
 

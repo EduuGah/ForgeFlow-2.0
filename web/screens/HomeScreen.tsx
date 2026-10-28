@@ -5,15 +5,16 @@ import {
   Clock,
   Dumbbell,
   Flame,
+  CalendarRange,
   ListChecks,
   Play,
   Plus,
-  Target,
 } from 'lucide-react';
 import { actions, findExercise, useAppStore, useProfilePhoto } from '../store';
 import { addDays, startOfWeek } from '../lib/dates';
 import {
   formatClock,
+  formatCompact,
   formatNumber,
   formatRelativeDay,
   formatWeight,
@@ -24,10 +25,13 @@ import {
   RECORD_LABELS,
   goalCurrentValue,
   goalPercent,
+  goalProgress,
   hydrationDate,
   itemsOnDay,
   mealDate,
   muscleCode,
+  muscleLabel,
+  percentChange,
   recordDate,
   suggestNextTemplate,
   summarizeActiveWorkout,
@@ -37,6 +41,8 @@ import type { WorkoutTemplateItem } from '../lib/types';
 import { haptic } from '../lib/haptics';
 import { useNavigation } from '../navigation/Navigator';
 import { InstallBanner } from '../features/InstallApp';
+import { FriendsTrainingNow } from '../features/TrainingNow';
+import { monthForecast } from '../lib/projections';
 import { NotificationBell } from '../features/NotificationBell';
 import { MessagesButton } from '../features/MessagesButton';
 import { useWorkoutLauncher } from '../features/useWorkoutLauncher';
@@ -51,8 +57,10 @@ import {
   ProgressRing,
   Skeleton,
 } from '../ui/Feedback';
-import { Card, SectionHeader, Stat, TabHeader } from '../ui/Layout';
+import { WeekScene } from '../ui/Scenes';
+import { Card, Delta, SectionHeader, Stat, TabHeader } from '../ui/Layout';
 import { useToast } from '../ui/Overlay';
+import { Art } from '../ui/Art';
 import { cx, useNow } from '../ui/core';
 
 const WEEKDAYS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
@@ -116,7 +124,9 @@ export function HomeScreen() {
         <OfflineNotice />
         <InstallBanner />
         <TodayCard />
+        <FriendsTrainingNow />
         <WeekHeat />
+        <MonthCard />
         <HealthTiles />
         <GoalsPreview />
         <RecentRecords />
@@ -149,7 +159,7 @@ export function HomeScreen() {
           ) : history.length === 0 ? (
             <Card>
               <EmptyState
-                icon={Dumbbell}
+                scene={<WeekScene />}
                 title="Seu diário começa hoje"
                 message="Conclua seu primeiro treino para vê-lo aqui. Vindo de outro app? Importe seu histórico em Configurações."
                 action={
@@ -351,18 +361,38 @@ function WeekHeat() {
   const todayIndex = (today.getDay() + 6) % 7;
   const weekStart = startOfWeek(today);
 
-  const { days, week, weekRecords } = useMemo(() => {
+  const { days, week, lastWeek, weekRecords, muscles } = useMemo(() => {
     const start = startOfWeek(new Date());
     const perDay = Array.from({ length: 7 }, (_, i) =>
       totalsBetween(history, addDays(start, i), addDays(start, i + 1)),
     );
     const since = start.getTime();
+    // Last week up to the same weekday, so Wednesday compares with Wednesday.
+    const elapsed = ((new Date().getDay() + 6) % 7) + 1;
+    const trained = new Set<string>();
+    for (const workout of history) {
+      if (Date.parse(workout.completedAt) < since) continue;
+      for (const exercise of workout.exercises) {
+        const group =
+          exercise.primaryMuscleGroup ??
+          (exercise.exerciseId
+            ? findExercise(exercise.exerciseId)?.primaryMuscleGroup
+            : undefined);
+        if (group) trained.add(group);
+      }
+    }
     return {
       days: perDay,
       week: totalsBetween(history, start, addDays(start, 7)),
+      lastWeek: totalsBetween(
+        history,
+        addDays(start, -7),
+        addDays(start, -7 + elapsed),
+      ),
       weekRecords: prs.filter(
         (record) => (recordDate(record)?.getTime() ?? 0) >= since,
       ).length,
+      muscles: [...trained],
     };
   }, [history, prs]);
   const maxVolume = Math.max(1, ...days.map((day) => day.volumeKg));
@@ -456,6 +486,109 @@ function WeekHeat() {
           }
         />
       </div>
+      {(week.volumeKg > 0 || lastWeek.volumeKg > 0) && (
+        <p className="mt-2">
+          <Delta
+            value={percentChange(week.volumeKg, lastWeek.volumeKg)}
+            suffix="de volume vs semana passada até hoje"
+          />
+        </p>
+      )}
+      {muscles.length > 0 && (
+        <div
+          className="mt-3 flex flex-wrap gap-1.5"
+          aria-label="Músculos treinados na semana"
+        >
+          {muscles.map((group) => (
+            <span
+              key={group}
+              className="text-caption rounded-sm bg-brand-soft px-2 py-1 font-semibold text-brand-ink"
+            >
+              {muscleLabel(group)}
+            </span>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+/** The month so far, where this pace ends it, and last month for scale. */
+function MonthCard() {
+  const { history } = useAppStore();
+  const forecast = useMemo(() => monthForecast(history), [history]);
+  const { soFar, lastMonth } = forecast;
+  if (soFar.workouts === 0 && lastMonth.workouts === 0) return null;
+  const month = new Date().toLocaleDateString('pt-BR', { month: 'long' });
+  const rows = [
+    {
+      label: 'Treinos',
+      now: soFar.workouts,
+      projected: forecast.projectedWorkouts,
+      last: lastMonth.workouts,
+      format: (value: number) => formatNumber(value, 0),
+    },
+    {
+      label: 'Volume',
+      now: soFar.volumeKg,
+      projected: forecast.projectedVolumeKg,
+      last: lastMonth.volumeKg,
+      format: (value: number) => `${formatCompact(value)} kg`,
+    },
+  ];
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-headline font-semibold first-letter:uppercase">
+          {month}
+        </h2>
+        <span className="text-footnote flex items-center gap-1.5 text-ink-3">
+          <CalendarRange size={14} aria-hidden="true" />
+          dia {forecast.dayOfMonth} de {forecast.daysInMonth}
+        </span>
+      </div>
+      <ul className="mt-3 space-y-3">
+        {rows.map((row) => {
+          const scale = Math.max(row.projected, row.last, 1);
+          return (
+            <li key={row.label}>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-callout font-medium">{row.label}</span>
+                <span className="text-footnote text-ink-2 tabular">
+                  <span className="font-semibold text-ink">
+                    {row.format(row.now)}
+                  </span>{' '}
+                  · no ritmo: {row.format(row.projected)}
+                </span>
+              </div>
+              <div
+                className="relative mt-1.5 h-2 overflow-hidden rounded-full bg-raised"
+                aria-hidden="true"
+              >
+                <span
+                  className="absolute inset-y-0 left-0 rounded-full bg-brand-soft"
+                  style={{ width: `${(row.projected / scale) * 100}%` }}
+                />
+                <span
+                  className="absolute inset-y-0 left-0 rounded-full bg-brand"
+                  style={{ width: `${(row.now / scale) * 100}%` }}
+                />
+                {row.last > 0 && (
+                  <span
+                    className="absolute inset-y-0 w-0.5 bg-ink-2"
+                    style={{ left: `calc(${(row.last / scale) * 100}% - 1px)` }}
+                  />
+                )}
+              </div>
+              <p className="text-caption mt-1 text-ink-3 tabular">
+                Mês passado: {row.format(row.last)}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
     </Card>
   );
 }
@@ -601,9 +734,7 @@ function GoalsPreview() {
           onClick={() => push({ name: 'goals' })}
           className="flex w-full items-center gap-3 rounded-lg border border-line bg-surface p-4 text-left active:bg-raised"
         >
-          <span className="grid size-10 place-items-center rounded-full bg-brand-soft text-brand-ink">
-            <Target size={20} aria-hidden="true" />
-          </span>
+          <Art name="target" size={44} className="shrink-0" />
           <span className="text-callout flex-1 text-ink-2">
             {goals.length > 0
               ? 'Todas as metas foram concluídas. Defina a próxima.'
@@ -615,7 +746,7 @@ function GoalsPreview() {
         <div className="grid gap-2">
           {active.map((goal) => {
             const current = goalCurrentValue(goal, history, prs);
-            const percent = goalPercent(current, goal.targetValue);
+            const percent = goalProgress(goal, current);
             return (
               <button
                 key={goal.id}

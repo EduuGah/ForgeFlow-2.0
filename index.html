@@ -51,10 +51,18 @@
               : window.matchMedia('(prefers-color-scheme: light)').matches
                 ? 'light'
                 : 'dark';
-          document.documentElement.dataset.theme = theme;
+          var root = document.documentElement;
+          root.dataset.theme = theme;
+          var accent = localStorage.getItem('forgeflow_accent');
+          if (accent) root.dataset.accent = accent;
+          var black = localStorage.getItem('forgeflow_black') === '1';
+          if (black) root.dataset.black = '';
           document
             .querySelector('meta[name="theme-color"]')
-            .setAttribute('content', theme === 'light' ? '#f3f4f6' : '#0d0f12');
+            .setAttribute(
+              'content',
+              theme === 'light' ? '#f3f4f6' : black ? '#000000' : '#0d0f12',
+            );
         } catch (error) {}
       })();
     </script>

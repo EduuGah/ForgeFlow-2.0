@@ -1,13 +1,5 @@
 import { useMemo, useState } from 'react';
-import {
-  Award,
-  Calculator,
-  Check,
-  ChevronRight,
-  Lock,
-  MapPin,
-  Ruler,
-} from 'lucide-react';
+import { Calculator, Check, ChevronRight, Lock, MapPin } from 'lucide-react';
 import { findExercise, useAppStore } from '../store';
 import { addDays, startOfDay } from '../lib/dates';
 import {
@@ -32,12 +24,21 @@ import type { PersonalRecordItem, PersonalRecordType } from '../lib/types';
 import { useNavigation } from '../navigation/Navigator';
 import { BarChart, LineChart, RankedBars } from '../ui/Charts';
 import { measurementSeries } from '../lib/measurements';
+import {
+  strengthTrend,
+  trackedLifts,
+  weeklySetsByMuscle,
+  weightTrend,
+  type VolumeZone,
+} from '../lib/projections';
 import { filterByGym, type GymFilter } from '../lib/gyms';
 import { Button } from '../ui/Button';
 import { EmptyState, Medal, ProgressBar } from '../ui/Feedback';
 import { NumberField, SegmentedControl } from '../ui/Form';
 import { Card, Delta, SectionHeader, Stat, TabHeader } from '../ui/Layout';
 import { cx } from '../ui/core';
+import { ProgressScene } from '../ui/Scenes';
+import { Art } from '../ui/Art';
 
 type PeriodDays = '7' | '30' | '90' | '365';
 
@@ -282,6 +283,8 @@ export function ProgressScreen() {
           />
         )}
 
+        <StrengthCard />
+
         <BodyWeightCard />
 
         <section aria-labelledby="stats-muscles">
@@ -305,12 +308,14 @@ export function ProgressScreen() {
           </Card>
         </section>
 
+        <MuscleBalanceCard />
+
         <section aria-labelledby="stats-records">
           <SectionHeader id="stats-records" title="Recordes pessoais" />
           {recordsByExercise.length === 0 ? (
             <Card>
               <EmptyState
-                icon={Award}
+                art="trophy"
                 title="Nenhum recorde ainda"
                 message="Complete séries de trabalho nos treinos para registrar seus recordes."
               />
@@ -573,6 +578,10 @@ function BodyWeightCard() {
   );
   const latest = series.at(-1);
   const first = series[0];
+  const trend = useMemo(
+    () => weightTrend(measurementSeries(measurements, 'weightKg')),
+    [measurements],
+  );
 
   return (
     <section aria-labelledby="stats-weight">
@@ -603,6 +612,15 @@ function BodyWeightCard() {
               ? `${latest.value >= first.value ? '▲' : '▼'} ${formatNumber(Math.abs(latest.value - first.value), 2)} kg nas últimas ${series.length} medições`
               : `Medido em ${formatShortDate(latest.date)}`}
           </p>
+          {trend && (
+            <p className="text-caption mt-1 text-ink-2 tabular">
+              Tendência: {trend.perWeekKg > 0 ? '+' : ''}
+              {formatNumber(trend.perWeekKg, 2)} kg/semana · em 4 semanas ≈{' '}
+              <span className="text-ink">
+                {formatNumber(trend.in4Weeks, 1)} kg
+              </span>
+            </p>
+          )}
           {series.length > 1 && (
             <div className="mt-3">
               <LineChart
@@ -622,9 +640,7 @@ function BodyWeightCard() {
         </Card>
       ) : (
         <Card className="flex items-center gap-3 p-4">
-          <span className="grid size-10 shrink-0 place-items-center rounded-md bg-brand-soft text-brand-ink">
-            <Ruler size={20} aria-hidden="true" />
-          </span>
+          <Art name="tape" size={44} className="shrink-0" />
           <p className="text-callout min-w-0 flex-1 text-ink-2">
             Registre peso e medidas para acompanhar o corpo junto com os
             treinos.
@@ -634,6 +650,206 @@ function BodyWeightCard() {
           </Button>
         </Card>
       )}
+    </section>
+  );
+}
+
+/** Estimated 1RM per session of the most trained lifts, and where it heads. */
+function StrengthCard() {
+  const { history } = useAppStore();
+  const { push } = useNavigation();
+  const lifts = useMemo(() => trackedLifts(history), [history]);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const lift = lifts.find((item) => item.exerciseId === chosen) ?? lifts[0];
+  const trend = useMemo(
+    () =>
+      lift ? strengthTrend(history, lift.exerciseId, lift.exerciseName) : null,
+    [history, lift],
+  );
+
+  return (
+    <section aria-labelledby="stats-strength">
+      <SectionHeader
+        id="stats-strength"
+        title="Evolução de força"
+        action={
+          lift && findExercise(lift.exerciseId) ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              trailingIcon={ChevronRight}
+              onClick={() =>
+                push({ name: 'exercise', exerciseId: lift.exerciseId })
+              }
+            >
+              Exercício
+            </Button>
+          ) : undefined
+        }
+      />
+      {!lift || !trend ? (
+        <Card className="p-4">
+          <ProgressScene className="mx-auto max-w-xs" />
+          <p className="text-callout mt-2 text-center text-ink-2">
+            Faça o mesmo exercício com carga em 2 treinos para ver a evolução e
+            a projeção de força.
+          </p>
+        </Card>
+      ) : (
+        <Card className="p-4">
+          <div
+            role="radiogroup"
+            aria-label="Exercício"
+            className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none]"
+          >
+            {lifts.map((item) => (
+              <button
+                key={item.exerciseId}
+                type="button"
+                role="radio"
+                aria-checked={item.exerciseId === lift.exerciseId}
+                onClick={() => setChosen(item.exerciseId)}
+                className={cx(
+                  'pressable text-footnote h-8 max-w-56 shrink-0 truncate rounded-full border px-3.5 font-semibold',
+                  item.exerciseId === lift.exerciseId
+                    ? 'border-brand bg-brand-soft text-brand-ink'
+                    : 'border-line bg-surface text-ink-2',
+                )}
+              >
+                {item.exerciseName}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Stat
+              label="1RM estimado"
+              value={formatWeight(trend.latest)}
+              unit="kg"
+              size="sm"
+            />
+            <Stat
+              label="Ritmo"
+              value={
+                trend.perMonthKg === null
+                  ? '—'
+                  : `${trend.perMonthKg > 0 ? '+' : ''}${formatNumber(trend.perMonthKg, 1)}`
+              }
+              unit={trend.perMonthKg === null ? undefined : 'kg/mês'}
+              size="sm"
+              tone={
+                trend.perMonthKg !== null && trend.perMonthKg > 0
+                  ? 'success'
+                  : 'default'
+              }
+            />
+            <Stat
+              label="Em 3 meses"
+              value={
+                trend.projections.length > 0
+                  ? formatWeight(trend.projections[1].oneRepMax)
+                  : '—'
+              }
+              unit={trend.projections.length > 0 ? 'kg' : undefined}
+              size="sm"
+              tone={trend.projections.length > 0 ? 'brand' : 'default'}
+            />
+          </div>
+          <div className="mt-3">
+            <LineChart
+              zoom
+              height={150}
+              data={trend.sessions.map((session) => ({
+                key: session.date,
+                label: formatShortDate(session.date),
+                value: session.oneRepMax,
+              }))}
+              label={`1RM estimado de ${lift.exerciseName} por treino`}
+              formatValue={(value) => `${formatWeight(value)} kg`}
+              formatTick={(value) => formatNumber(value, 0)}
+            />
+          </div>
+          <p className="text-caption mt-2 text-ink-3">
+            {trend.perMonthKg === null
+              ? 'Com 3 treinos desse exercício aparece o ritmo e a projeção.'
+              : trend.projections.length > 0
+                ? `Projeção pela tendência dos últimos 6 meses: ${formatWeight(trend.projections[0].oneRepMax)} kg em 4 semanas. Na prática o ganho desacelera com o tempo.`
+                : 'Estável ou caindo nos últimos 6 meses: vale revisar carga, volume e descanso.'}
+          </p>
+        </Card>
+      )}
+    </section>
+  );
+}
+
+const ZONES: Record<VolumeZone, { label: string; className: string }> = {
+  low: { label: 'Pouco', className: 'bg-warmup-soft text-warmup' },
+  ok: { label: 'Ideal', className: 'bg-success-soft text-success-ink' },
+  high: { label: 'Alto', className: 'bg-danger-soft text-danger-ink' },
+};
+
+/** Working sets per week for each muscle over the last 4 weeks. */
+function MuscleBalanceCard() {
+  const { history } = useAppStore();
+  const rows = useMemo(
+    () =>
+      weeklySetsByMuscle(history, 4, (exercise) =>
+        exercise.exerciseId
+          ? findExercise(exercise.exerciseId)?.primaryMuscleGroup
+          : undefined,
+      ),
+    [history],
+  );
+  if (rows.length === 0) return null;
+  const max = Math.max(20, ...rows.map((row) => row.weeklySets));
+  return (
+    <section aria-labelledby="stats-balance">
+      <SectionHeader id="stats-balance" title="Séries por semana" />
+      <Card as="div" className="p-4">
+        <p className="text-footnote mb-3 text-ink-2">
+          Média das últimas 4 semanas. Entre 10 e 20 séries por músculo é a
+          faixa mais usada para crescer.
+        </p>
+        <ul className="space-y-3">
+          {rows.map((row) => (
+            <li key={row.group}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-callout truncate font-medium">
+                  {muscleLabel(row.group)}
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="text-footnote text-ink-2 tabular">
+                    {formatNumber(row.weeklySets, 1)} séries
+                  </span>
+                  <span
+                    className={cx(
+                      'text-caption rounded-full px-2 py-0.5 font-semibold',
+                      ZONES[row.zone].className,
+                    )}
+                  >
+                    {ZONES[row.zone].label}
+                  </span>
+                </span>
+              </div>
+              <div
+                className="relative mt-1.5 h-1.5 overflow-hidden rounded-full bg-raised"
+                aria-hidden="true"
+              >
+                <span
+                  className="absolute inset-y-0 bg-success-soft"
+                  style={{
+                    left: `${(10 / max) * 100}%`,
+                    width: `${(10 / max) * 100}%`,
+                  }}
+                />
+                <span
+                  className="absolute inset-y-0 left-0 rounded-full bg-brand"
+                  style={{ width: `${(row.weeklySets / max) * 100}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Card>
     </section>
   );
 }

@@ -7,7 +7,6 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
-  SearchX,
   Trash2,
 } from 'lucide-react';
 import { actions, findExercise, useAppStore } from '../store';
@@ -60,7 +59,7 @@ export function GymsScreen() {
       <div className="app-column space-y-5 px-4 pt-4">
         {gyms.length === 0 ? (
           <EmptyState
-            icon={MapPin}
+            art="pin"
             title="Nenhuma academia ainda"
             message="Ao concluir um treino, escolha onde treinou. Assim você vê quantas vezes foi a cada academia, o tempo e o volume em cada uma."
             action={
@@ -154,7 +153,7 @@ export function GymDetailScreen({ gymId }: { gymId: string }) {
       <>
         <StackHeader title="Academia" onBack={pop} />
         <EmptyState
-          icon={SearchX}
+          art="search"
           title="Academia não encontrada"
           message="Ela pode ter sido excluída em outro aparelho."
           className="pt-20"
@@ -228,7 +227,7 @@ export function GymDetailScreen({ gymId }: { gymId: string }) {
         {stats.workouts === 0 ? (
           <Card>
             <EmptyState
-              icon={History}
+              art="calendar"
               title="Nenhum treino nesta academia"
               message="Escolha esta academia no resumo ao concluir um treino, ou no detalhe de um treino do diário."
               action={

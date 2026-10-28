@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronRight, MapPin, SearchX } from 'lucide-react';
+import { ChevronRight, MapPin, Share2 } from 'lucide-react';
 import { actions, findExercise, useAppStore } from '../store';
 import { gymOf } from '../lib/gyms';
 import { GymPickerSheet } from '../features/GymPicker';
@@ -19,20 +19,29 @@ import {
 import { useNavigation } from '../navigation/Navigator';
 import { EmptyState, ExerciseThumb, Medal, RecordBadge } from '../ui/Feedback';
 import { Stat, StackHeader } from '../ui/Layout';
+import { IconButton } from '../ui/Button';
+import { useToast } from '../ui/Overlay';
+import { shareWorkout } from '../features/shareWorkout';
+import { ReceivedReactions, useReactions } from '../features/Reactions';
 import { cx } from '../ui/core';
 
 export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
-  const { history, gyms } = useAppStore();
+  const { history, gyms, currentUser } = useAppStore();
   const { pop, push } = useNavigation();
   const [gymOpen, setGymOpen] = useState(false);
+  const toast = useToast();
   const workout = history.find((item) => item.id === workoutId);
+  const reactions = useReactions(
+    currentUser && workout ? [{ ownerId: currentUser.uid, workoutId }] : [],
+  );
+  const received = currentUser ? reactions.of(currentUser.uid, workoutId) : [];
 
   if (!workout) {
     return (
       <>
         <StackHeader title="Treino" onBack={pop} />
         <EmptyState
-          icon={SearchX}
+          art="search"
           title="Treino não encontrado"
           message="Ele pode ter sido removido em outro aparelho."
           className="pt-20"
@@ -53,7 +62,30 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
 
   return (
     <>
-      <StackHeader title={workout.name} onBack={pop} />
+      <StackHeader
+        title={workout.name}
+        onBack={pop}
+        right={
+          <IconButton
+            icon={Share2}
+            label="Compartilhar treino"
+            onClick={async () => {
+              const result = await shareWorkout(workout);
+              if (result === 'copied')
+                toast({
+                  tone: 'success',
+                  title: 'Treino copiado',
+                  description: 'Cole no WhatsApp ou onde quiser.',
+                });
+              else if (result === 'failed')
+                toast({
+                  tone: 'error',
+                  title: 'Não foi possível compartilhar',
+                });
+            }}
+          />
+        }
+      />
       <div className="app-column pb-6">
         <div className="px-4 pt-5">
           <p className="text-footnote text-ink-2 first-letter:uppercase">
@@ -114,6 +146,18 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+
+        {received.length > 0 && (
+          <section
+            className="mx-4 mt-5 rounded-lg border border-line bg-surface p-4"
+            aria-label="Reações dos amigos"
+          >
+            <h3 className="text-footnote mb-2 font-semibold text-ink-2">
+              Reações dos amigos
+            </h3>
+            <ReceivedReactions reactions={received} />
           </section>
         )}
 

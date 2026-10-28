@@ -4,19 +4,29 @@ import { cx } from './core';
 import { initials } from '../lib/format';
 import { muscleCode, muscleLabel } from '../lib/training';
 import { exerciseMedia } from '../data/exerciseMedia';
+import { Art, type ArtName } from './Art';
+import { useAppear } from './Motion';
 
 /* ------------------------------------------------------------------ */
 /* Empty / loading / error                                             */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Nothing here yet: a painted figure (`art`), an animated scene (`scene`)
+ * or, for small notices, a plain icon.
+ */
 export function EmptyState({
   icon: Icon,
+  art,
+  scene,
   title,
   message,
   action,
   className,
 }: {
-  icon: LucideIcon;
+  icon?: LucideIcon;
+  art?: ArtName;
+  scene?: ReactNode;
   title: string;
   message?: ReactNode;
   action?: ReactNode;
@@ -29,9 +39,17 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="mb-4 grid size-16 place-items-center rounded-full bg-raised text-ink-2">
-        <Icon size={28} strokeWidth={1.75} aria-hidden="true" />
-      </div>
+      {scene ? (
+        <div className="mb-4 w-full max-w-xs">{scene}</div>
+      ) : art ? (
+        <div className="ember-glow mb-4 grid size-24 animate-pop place-items-center rounded-full bg-raised">
+          <Art name={art} size={60} />
+        </div>
+      ) : Icon ? (
+        <div className="mb-4 grid size-16 place-items-center rounded-full bg-raised text-ink-2">
+          <Icon size={28} strokeWidth={1.75} aria-hidden="true" />
+        </div>
+      ) : null}
       <h3 className="text-headline font-semibold">{title}</h3>
       {message && (
         <p className="text-callout mt-1.5 max-w-xs text-ink-2">{message}</p>
@@ -135,6 +153,7 @@ export function ProgressBar({
   thickness?: 'sm' | 'md';
 }) {
   const clamped = Math.max(0, Math.min(100, value));
+  const shown = useAppear(clamped);
   return (
     <div
       role="progressbar"
@@ -153,7 +172,7 @@ export function ProgressBar({
           'h-full rounded-full transition-[width] duration-700 ease-decelerate',
           FILLS[tone],
         )}
-        style={{ width: `${clamped}%` }}
+        style={{ width: `${shown}%` }}
       />
     </div>
   );
@@ -186,6 +205,7 @@ export function ProgressRing({
   children?: ReactNode;
 }) {
   const clamped = Math.max(0, Math.min(100, value));
+  const shown = useAppear(clamped);
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   return (
@@ -216,7 +236,7 @@ export function ProgressRing({
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
-          strokeDashoffset={circumference * (1 - clamped / 100)}
+          strokeDashoffset={circumference * (1 - shown / 100)}
           style={{
             transition: 'stroke-dashoffset 700ms var(--ease-decelerate)',
           }}

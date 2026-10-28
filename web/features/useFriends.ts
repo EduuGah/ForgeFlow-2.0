@@ -13,6 +13,7 @@ import {
   SocialError,
   acceptFriendRequest,
   deleteShare,
+  fetchReceivedReactions,
   getSocialProfile,
   getSocialProfiles,
   listFriendships,
@@ -89,6 +90,11 @@ function subscribe(listener: () => void) {
 }
 
 const SIGNED_OUT = initialState(null);
+
+/** Outside React: the lists as they are now. */
+export function getFriendsState(): FriendsState {
+  return friends;
+}
 
 export function useFriends(): FriendsState {
   const uid = useStoreValue((current) => current.currentUser?.uid ?? null);
@@ -204,6 +210,9 @@ export function refreshFriends(): Promise<void> {
         loadedAt: Date.now(),
       });
       notifyFriendEvents(before, lists, inbox, unread.latest, profiles);
+      notify(await reactionNews(user.uid, profiles), {
+        system: 'friendAlerts',
+      });
     } catch (error) {
       console.warn('ForgeFlow amigos:', error);
       update({
@@ -237,6 +246,48 @@ async function loadInbox(
     }));
   } catch (error) {
     console.warn('ForgeFlow rotinas recebidas:', error);
+    return [];
+  }
+}
+
+/**
+ * Reactions friends left since the last look, once each. Optional like the
+ * inbox: an older database just has none.
+ */
+async function reactionNews(
+  userId: string,
+  profiles: Map<string, SocialProfile>,
+): Promise<NewNotification[]> {
+  const key = `forgeflow_reactions_seen_${userId}`;
+  let since = new Date(Date.now() - 3 * 86_400_000).toISOString();
+  try {
+    since = localStorage.getItem(key) ?? since;
+  } catch {
+    // Private mode: the last three days, like a first visit.
+  }
+  try {
+    const found = await fetchReceivedReactions(userId, since);
+    if (found.length > 0) {
+      try {
+        localStorage.setItem(key, found[0].createdAt);
+      } catch {
+        // The bell skips repeats anyway.
+      }
+    }
+    const { history } = getState();
+    return found.map((reaction) => {
+      const workout = history.find((item) => item.id === reaction.workoutId);
+      return {
+        id: `reaction-${reaction.id}-${reaction.emoji}`,
+        kind: 'reaction',
+        title: `${nameOf(profiles.get(reaction.userId))} reagiu ${reaction.emoji}`,
+        body: workout ? `Ao seu treino ${workout.name}` : 'Ao seu treino',
+        link: `mine:${reaction.workoutId}`,
+        createdAt: reaction.createdAt,
+      };
+    });
+  } catch (error) {
+    console.warn('ForgeFlow reações:', error);
     return [];
   }
 }

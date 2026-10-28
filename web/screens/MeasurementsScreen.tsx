@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, Plus, Ruler, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, Trash2 } from 'lucide-react';
 import { actions, useAppStore } from '../store';
 import type { BodyMeasurement } from '../lib/types';
 import {
@@ -140,7 +140,7 @@ export function MeasurementsScreen() {
       <div className="app-column pb-6">
         {measurements.length === 0 ? (
           <EmptyState
-            icon={Ruler}
+            art="tape"
             title="Nenhuma medição ainda"
             message="Registre peso, gordura corporal e circunferências para acompanhar sua composição. Vindo do Hevy? Importe o arquivo de medidas em Configurações."
             action={

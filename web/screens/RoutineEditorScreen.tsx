@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
-  ClipboardList,
   Info,
   MoreVertical,
   Plus,
@@ -205,7 +204,7 @@ export function RoutineEditorScreen({
           {items.length === 0 ? (
             <Card>
               <EmptyState
-                icon={ClipboardList}
+                art="clipboard"
                 title="Nenhum exercício"
                 message="Adicione os exercícios na ordem em que você costuma fazê-los."
               />

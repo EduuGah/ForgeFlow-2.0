@@ -1,7 +1,7 @@
 /* The bell's list: pure helpers (see features/notificationFeed). */
 
 export type FeedKind =
-  'message' | 'request' | 'friend' | 'share' | 'record' | 'goal';
+  'message' | 'request' | 'friend' | 'share' | 'record' | 'goal' | 'reaction';
 
 export interface FeedItem {
   /** Stable per event, so the same event is never listed twice. */
