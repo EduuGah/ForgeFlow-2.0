@@ -20,6 +20,7 @@ import {
   Timer,
   Trash2,
   Trophy,
+  Users,
 } from 'lucide-react';
 import { actions, useAppStore, type FinishResult } from '../store';
 import type {
@@ -79,6 +80,7 @@ import { ExercisePicker } from './ExercisePicker';
 import { RestTimerBar } from './RestTimer';
 import { HoldTimerSheet, PlateCalculatorSheet } from './WorkoutTools';
 import { MuscleMapCard, activeMuscleWork } from './MuscleMap';
+import { DuoInviteBanner, DuoInviteSheet, DuoPanel } from './Duo';
 import { isTimedExercise } from '../lib/plates';
 import { ExerciseDetailView } from '../screens/ExerciseDetailScreen';
 import { SwipeToDelete, usePullDown } from '../ui/Swipe';
@@ -124,6 +126,7 @@ export function ActiveWorkoutScreen({
   const [renaming, setRenaming] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [restPickerOpen, setRestPickerOpen] = useState(false);
+  const [duoOpen, setDuoOpen] = useState(false);
   const [infoExerciseId, setInfoExerciseId] = useState<string | null>(null);
   const [swapIndex, setSwapIndex] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -319,6 +322,8 @@ export function ActiveWorkoutScreen({
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
       >
         <div className="app-column space-y-3 px-3 pt-3 pb-40">
+          <DuoInviteBanner />
+          <DuoPanel />
           {workout.exercises.length === 0 ? (
             <EmptyState
               art="dumbbell"
@@ -407,6 +412,13 @@ export function ActiveWorkoutScreen({
             onSelect: () => setRestPickerOpen(true),
           },
           {
+            label: 'Treinar junto',
+            description:
+              'Acompanhe um amigo ao vivo (ou teste com um parceiro simulado)',
+            icon: Users,
+            onSelect: () => setDuoOpen(true),
+          },
+          {
             label: 'Descartar treino',
             icon: Trash2,
             tone: 'danger',
@@ -414,6 +426,7 @@ export function ActiveWorkoutScreen({
           },
         ]}
       />
+      <DuoInviteSheet open={duoOpen} onClose={() => setDuoOpen(false)} />
       <ExercisePicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}

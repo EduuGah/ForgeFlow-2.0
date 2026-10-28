@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { formatShortDate, formatWeight } from '../lib/format';
 import { exerciseSessions } from '../lib/training';
 import type { CompletedWorkout } from '../lib/types';
-import { cx } from '../ui/core';
+import { OptionPicker } from '../ui/OptionPicker';
 
 /*
  * One exercise, two lines: the person's estimated 1RM per session next to a
@@ -108,29 +108,17 @@ export function ExerciseCompare({
 
   return (
     <div className="mx-4 rounded-lg border border-line bg-surface p-4">
-      <div
-        role="radiogroup"
-        aria-label="Exercício para comparar"
-        className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none]"
-      >
-        {shared.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="radio"
-            aria-checked={item.id === exercise.id}
-            onClick={() => setChosen(item.id)}
-            className={cx(
-              'pressable text-footnote h-8 max-w-56 shrink-0 truncate rounded-full border px-3.5 font-semibold',
-              item.id === exercise.id
-                ? 'border-brand bg-brand-soft text-brand-ink'
-                : 'border-line bg-surface text-ink-2',
-            )}
-          >
-            {item.name}
-          </button>
-        ))}
-      </div>
+      <OptionPicker
+        label="Exercício"
+        value={exercise.id}
+        onChange={setChosen}
+        options={shared.map((item) => ({
+          value: item.id,
+          label: item.name,
+          detail: `${item.sessions} treinos somando vocês dois`,
+        }))}
+        className="mb-3"
+      />
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
@@ -178,15 +166,17 @@ export function ExerciseCompare({
           {formatShortDate(new Date(maxTime).toISOString())}
         </text>
         {[
-          { points: friend, color: 'var(--color-water)' },
-          { points: me, color: 'var(--color-brand)' },
-        ].map(({ points, color }) => (
+          // The friend's line is dashed too, not told apart by colour alone.
+          { points: friend, color: 'var(--color-compare)', dash: '6 5' },
+          { points: me, color: 'var(--color-brand)', dash: undefined },
+        ].map(({ points, color, dash }) => (
           <g key={color}>
             <polyline
               points={line(points)}
               fill="none"
               stroke={color}
               strokeWidth="3"
+              strokeDasharray={dash}
               strokeLinejoin="round"
               strokeLinecap="round"
             />
@@ -206,12 +196,18 @@ export function ExerciseCompare({
       </svg>
       <div className="text-footnote mt-2 flex flex-wrap gap-x-4 gap-y-1">
         <span className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full bg-brand" aria-hidden="true" />
+          <span
+            className="h-[3px] w-5 rounded-full bg-brand"
+            aria-hidden="true"
+          />
           Você:{' '}
           <span className="font-semibold">{formatWeight(last(me))} kg</span>
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full bg-water" aria-hidden="true" />
+          <span
+            className="w-5 border-t-[3px] border-dashed border-compare"
+            aria-hidden="true"
+          />
           {friendName}:{' '}
           <span className="font-semibold">{formatWeight(last(friend))} kg</span>
         </span>

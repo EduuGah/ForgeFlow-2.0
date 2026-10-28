@@ -1,6 +1,7 @@
 // Supabase Edge Function "push": notifies a friend's devices (Web Push) when
 // someone messages them, sends or accepts a friend request, sends a routine,
-// reacts to or comments on one of their workouts, or invites them to a group. The app calls it right after the action with the person's own
+// reacts to or comments on one of their workouts, invites them to a group or
+// to train together. The app calls it right after the action with the person's own
 // session; the function re-reads the row and only sends when the caller
 // really is the one who did it.
 //
@@ -210,6 +211,30 @@ Deno.serve(async (req) => {
             tag: `group-${id}`,
           };
       }
+      break;
+    }
+    case 'duo': {
+      const { data } = await admin
+        .from('duo_sessions')
+        .select('host_id, guest_id, status')
+        .eq('id', id)
+        .maybeSingle();
+      if (data?.host_id === me && data.status === 'invited')
+        notice = {
+          to: data.guest_id,
+          title: `${await nameOf(me)} te chamou para treinar junto`,
+          body: 'Aceite e acompanhem as séries um do outro ao vivo.',
+          link: 'home',
+          tag: `duo-${id}`,
+        };
+      else if (data?.guest_id === me && data.status === 'active')
+        notice = {
+          to: data.host_id,
+          title: `${await nameOf(me)} topou treinar junto`,
+          body: 'Abra seu treino para ver as séries dele ao vivo.',
+          link: 'treinar',
+          tag: `duo-${id}`,
+        };
       break;
     }
     default:

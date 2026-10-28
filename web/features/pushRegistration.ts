@@ -65,7 +65,8 @@ export type PushEvent =
   | { type: 'share'; id: number }
   | { type: 'reaction'; id: number }
   | { type: 'comment'; id: number }
-  | { type: 'group'; id: number };
+  | { type: 'group'; id: number }
+  | { type: 'duo'; id: number };
 
 /**
  * Asks the server to notify the other person. Fire-and-forget: the action

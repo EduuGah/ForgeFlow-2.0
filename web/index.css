@@ -79,6 +79,8 @@
 
   /* Health trackers */
   --color-water: #38bdf8;
+  /* A second series next to the theme colour (you × a friend). */
+  --color-compare: #38bdf8;
   --color-water-soft: rgb(56 189 248 / 0.14);
   --color-protein: #e8604c;
   --color-carbs: #1fa88a;
@@ -314,6 +316,7 @@
   --color-danger-ink: #c62828;
   --color-danger-soft: rgb(217 54 54 / 0.1);
   --color-water: #0369a1;
+  --color-compare: #0369a1;
   --color-water-soft: rgb(3 105 161 / 0.1);
   --color-protein: #d4553f;
   --color-carbs: #12937a;
@@ -334,11 +337,13 @@
   --color-brand-ink: #7cb6ff;
   --color-brand-soft: rgb(76 154 255 / 0.16);
   --color-chart: #4c9aff;
+  --color-compare: #fbbf24;
 }
 :root[data-theme='light'][data-accent='oceano'] {
   --color-brand-ink: #1d4ed8;
   --color-brand-soft: rgb(76 154 255 / 0.14);
   --color-chart: #2563eb;
+  --color-compare: #b45309;
 }
 :root[data-accent='floresta'] {
   --color-brand: #3fcf7f;
@@ -360,11 +365,13 @@
   --color-brand-ink: #c4b5fd;
   --color-brand-soft: rgb(167 139 250 / 0.16);
   --color-chart: #a78bfa;
+  --color-compare: #fbbf24;
 }
 :root[data-theme='light'][data-accent='ametista'] {
   --color-brand-ink: #6d28d9;
   --color-brand-soft: rgb(167 139 250 / 0.14);
   --color-chart: #7c3aed;
+  --color-compare: #b45309;
 }
 :root[data-accent='rubi'] {
   --color-brand: #fb5677;
@@ -399,11 +406,13 @@
   --color-brand-ink: #67e8f9;
   --color-brand-soft: rgb(34 211 238 / 0.16);
   --color-chart: #22d3ee;
+  --color-compare: #fbbf24;
 }
 :root[data-theme='light'][data-accent='gelo'] {
   --color-brand-ink: #0e7490;
   --color-brand-soft: rgb(34 211 238 / 0.14);
   --color-chart: #0891b2;
+  --color-compare: #b45309;
 }
 /* Pure black dark mode for OLED screens. */
 :root[data-theme='dark'][data-black] {

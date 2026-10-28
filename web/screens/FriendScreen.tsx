@@ -6,6 +6,7 @@ import {
   Send,
   Trophy,
   UserMinus,
+  Users,
 } from 'lucide-react';
 import { actions, findExercise, useAppStore } from '../store';
 import { workoutToRoutine } from '../lib/workoutToRoutine';
@@ -42,6 +43,7 @@ import { useLiveFriends } from '../features/liveWorkouts';
 import { ReactionBar, useReactions } from '../features/Reactions';
 import { LiveLine } from '../features/TrainingNow';
 import { ExerciseCompare } from '../features/ExerciseCompare';
+import { duoActions } from '../features/duoSession';
 import { BarChart } from '../ui/Charts';
 import { Button, IconButton } from '../ui/Button';
 import {
@@ -205,6 +207,30 @@ export function FriendScreen({ userId }: { userId: string }) {
             </Button>
           </div>
         </div>
+        {person.shareStats && (
+          <div className="flex justify-center px-4 pt-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Users}
+              onClick={async () => {
+                try {
+                  await duoActions.invite(person);
+                  toast({
+                    tone: 'success',
+                    title: 'Convite para treinar junto enviado',
+                    description:
+                      'Quando aceitar, vocês se veem na tela do treino.',
+                  });
+                } catch {
+                  toast({ tone: 'error', title: 'Não foi possível convidar' });
+                }
+              }}
+            >
+              Chamar para treinar junto
+            </Button>
+          </div>
+        )}
         <PickRoutineSheet
           friend={person}
           open={picking}

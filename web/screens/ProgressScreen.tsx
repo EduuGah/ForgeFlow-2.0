@@ -1,5 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Calculator, ChevronRight, MapPin, Share2 } from 'lucide-react';
+import {
+  Calculator,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ListTree,
+  MapPin,
+  Share2,
+} from 'lucide-react';
 import { findExercise, useAppStore } from '../store';
 import { addDays, startOfDay } from '../lib/dates';
 import {
@@ -34,12 +42,13 @@ import {
   type VolumeZone,
 } from '../lib/projections';
 import { filterByGym, type GymFilter } from '../lib/gyms';
-import { Button } from '../ui/Button';
+import { Button, IconButton } from '../ui/Button';
 import { EmptyState, Medal } from '../ui/Feedback';
 import { NumberField, SegmentedControl, TextField } from '../ui/Form';
-import { Sheet } from '../ui/Overlay';
+import { ActionSheet, Sheet } from '../ui/Overlay';
 import { Card, Delta, SectionHeader, Stat, TabHeader } from '../ui/Layout';
 import { cx } from '../ui/core';
+import { OptionPicker } from '../ui/OptionPicker';
 import { ProgressScene } from '../ui/Scenes';
 import { MuscleMapCard, historyMuscleWork } from '../features/MuscleMap';
 import { SummarySheet } from '../features/SummarySheet';
@@ -92,7 +101,7 @@ function jumpTo(id: string) {
     (element) => element.offsetParent !== null,
   );
   if (!target) return;
-  const top = target.getBoundingClientRect().top + window.scrollY - 176;
+  const top = target.getBoundingClientRect().top + window.scrollY - 140;
   window.scrollTo({ top, behavior: 'smooth' });
 }
 
@@ -104,6 +113,8 @@ export function ProgressScreen() {
   const [metric, setMetric] = useState<ChartMetric>('volume');
   const [gymFilter, setGymFilter] = useState<GymFilter>('all');
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [jumpOpen, setJumpOpen] = useState(false);
+  const [gymSheet, setGymSheet] = useState(false);
   const days = Number(period);
   // The gym filter scopes the period numbers, chart and muscles; records and
   // achievements stay global. A deleted gym falls back to every workout.
@@ -181,15 +192,45 @@ export function ProgressScreen() {
       <TabHeader
         title="Evolução"
         actions={
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={Share2}
-            onClick={() => setSummaryOpen(true)}
-          >
-            Resumo
-          </Button>
+          <>
+            <IconButton
+              icon={ListTree}
+              label="Ir para uma seção"
+              onClick={() => setJumpOpen(true)}
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={Share2}
+              onClick={() => setSummaryOpen(true)}
+            >
+              Resumo
+            </Button>
+          </>
         }
+      />
+      <ActionSheet
+        open={jumpOpen}
+        onClose={() => setJumpOpen(false)}
+        title="Ir para"
+        actions={JUMPS.map(([id, label]) => ({
+          label,
+          onSelect: () => jumpTo(id),
+        }))}
+      />
+      <ActionSheet
+        open={gymSheet}
+        onClose={() => setGymSheet(false)}
+        title="Academia"
+        actions={[{ id: 'all', name: 'Todas as academias' }, ...gyms].map(
+          (gym) => ({
+            label: gym.name,
+            icon: gym.id === activeGym ? Check : MapPin,
+            tone:
+              gym.id === activeGym ? ('brand' as const) : ('default' as const),
+            onSelect: () => setGymFilter(gym.id),
+          }),
+        )}
       />
       <SummarySheet open={summaryOpen} onClose={() => setSummaryOpen(false)} />
       <div className="app-column space-y-6 px-4 pt-2">
@@ -200,32 +241,17 @@ export function ProgressScreen() {
             value={period}
             onChange={setPeriod}
           />
-          <nav
-            aria-label="Ir para"
-            className="-mx-4 mt-2 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none]"
-          >
-            {JUMPS.map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => jumpTo(id)}
-                className="pressable text-caption h-7 shrink-0 rounded-full bg-raised px-3 font-semibold text-ink-2"
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
           {gyms.length > 0 && (
-            <SegmentedControl
-              label="Academia"
-              options={[
-                { value: 'all', label: 'Todas as academias' },
-                ...gyms.map((gym) => ({ value: gym.id, label: gym.name })),
-              ]}
-              value={activeGym}
-              onChange={setGymFilter}
-              className="mt-2"
-            />
+            <button
+              type="button"
+              onClick={() => setGymSheet(true)}
+              className="text-footnote mt-2 inline-flex items-center gap-1 font-semibold text-ink-2"
+            >
+              <MapPin size={14} aria-hidden="true" />
+              {gyms.find((gym) => gym.id === activeGym)?.name ??
+                'Todas as academias'}
+              <ChevronDown size={14} aria-hidden="true" />
+            </button>
           )}
         </div>
 
@@ -682,29 +708,17 @@ function StrengthCard() {
         </Card>
       ) : (
         <Card className="p-4">
-          <div
-            role="radiogroup"
-            aria-label="Exercício"
-            className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-3 [scrollbar-width:none]"
-          >
-            {lifts.map((item) => (
-              <button
-                key={item.exerciseId}
-                type="button"
-                role="radio"
-                aria-checked={item.exerciseId === lift.exerciseId}
-                onClick={() => setChosen(item.exerciseId)}
-                className={cx(
-                  'pressable text-footnote h-8 max-w-56 shrink-0 truncate rounded-full border px-3.5 font-semibold',
-                  item.exerciseId === lift.exerciseId
-                    ? 'border-brand bg-brand-soft text-brand-ink'
-                    : 'border-line bg-surface text-ink-2',
-                )}
-              >
-                {item.exerciseName}
-              </button>
-            ))}
-          </div>
+          <OptionPicker
+            label="Exercício"
+            value={lift.exerciseId}
+            onChange={setChosen}
+            options={lifts.map((item) => ({
+              value: item.exerciseId,
+              label: item.exerciseName,
+              detail: `${item.sessions} ${item.sessions === 1 ? 'treino' : 'treinos'} nos últimos 6 meses`,
+            }))}
+            className="mb-3"
+          />
           <div className="grid grid-cols-3 gap-2">
             <Stat
               label="1RM estimado"

@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import {
   LIVE_QUIET_MS,
   isReactionEmoji,
+  readLiveDetail,
   type FriendshipRow,
   type LiveWorkout,
   type ReactionEmoji,
@@ -514,6 +515,7 @@ interface LiveRow {
   done_sets: number;
   total_sets: number;
   current_exercise: string | null;
+  detail: unknown;
   ended_at: string | null;
   updated_at: string;
 }
@@ -523,7 +525,12 @@ export async function publishLiveWorkout(
   me: string,
   live: Pick<
     LiveWorkout,
-    'name' | 'startedAt' | 'doneSets' | 'totalSets' | 'currentExercise'
+    | 'name'
+    | 'startedAt'
+    | 'doneSets'
+    | 'totalSets'
+    | 'currentExercise'
+    | 'detail'
   >,
 ): Promise<void> {
   const { error } = await supabase.from('live_workouts').upsert({
@@ -533,6 +540,7 @@ export async function publishLiveWorkout(
     done_sets: live.doneSets,
     total_sets: live.totalSets,
     current_exercise: live.currentExercise,
+    detail: live.detail,
     ended_at: null,
     updated_at: new Date().toISOString(),
   });
@@ -569,6 +577,7 @@ export async function listLiveWorkouts(
     doneSets: row.done_sets,
     totalSets: row.total_sets,
     currentExercise: row.current_exercise,
+    detail: readLiveDetail(row.detail),
     endedAt: row.ended_at,
     updatedAt: row.updated_at,
   }));
@@ -927,4 +936,80 @@ export async function deleteGroup(groupId: number): Promise<void> {
     .delete()
     .eq('id', groupId);
   if (error) fail(error);
+}
+
+/* ------------------------------------------------------------------ */
+/* Training together                                                   */
+/* ------------------------------------------------------------------ */
+
+export interface DuoSession {
+  id: number;
+  hostId: string;
+  guestId: string;
+  status: 'invited' | 'active' | 'ended';
+  createdAt: string;
+  endedAt: string | null;
+}
+
+interface DuoRow {
+  id: number;
+  host_id: string;
+  guest_id: string;
+  status: DuoSession['status'];
+  created_at: string;
+  ended_at: string | null;
+}
+
+/** RLS only accepts inviting a friend. */
+export async function inviteDuo(me: string, friendId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('duo_sessions')
+    .insert({ host_id: me, guest_id: friendId })
+    .select('id')
+    .single();
+  if (error) fail(error);
+  return (data as { id: number }).id;
+}
+
+/** This person's sessions of the last 12 hours, newest first. */
+export async function listDuos(): Promise<DuoSession[]> {
+  const since = new Date(Date.now() - 12 * 3_600_000).toISOString();
+  const { data, error } = await supabase
+    .from('duo_sessions')
+    .select('*')
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(10);
+  if (error) fail(error);
+  return ((data as DuoRow[] | null) ?? []).map((row) => ({
+    id: row.id,
+    hostId: row.host_id,
+    guestId: row.guest_id,
+    status: row.status,
+    createdAt: row.created_at,
+    endedAt: row.ended_at,
+  }));
+}
+
+export async function setDuoStatus(
+  id: number,
+  status: 'active' | 'ended',
+): Promise<void> {
+  const { error } = await supabase
+    .from('duo_sessions')
+    .update(
+      status === 'ended'
+        ? { status, ended_at: new Date().toISOString() }
+        : { status },
+    )
+    .eq('id', id);
+  if (error) fail(error);
+}
+
+/** A friend's workout in progress, fresh (no caching), or null. */
+export async function fetchPartnerLive(
+  userId: string,
+): Promise<LiveWorkout | null> {
+  const [live] = await listLiveWorkouts([userId]);
+  return live ?? null;
 }

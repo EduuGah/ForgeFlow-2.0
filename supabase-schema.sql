@@ -459,6 +459,15 @@ CREATE TABLE IF NOT EXISTS public.live_workouts (
   ended_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- As séries feitas, para a dupla acompanhar ao vivo (tamanho limitado).
+ALTER TABLE public.live_workouts ADD COLUMN IF NOT EXISTS detail JSONB;
+DO $$
+BEGIN
+  ALTER TABLE public.live_workouts
+    ADD CONSTRAINT live_workouts_detail_size
+    CHECK (detail IS NULL OR pg_column_size(detail) < 6000);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 ALTER TABLE public.live_workouts ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Cada um publica o próprio treino" ON public.live_workouts;
@@ -666,6 +675,49 @@ REVOKE UPDATE ON public.friend_group_members FROM anon, authenticated;
 GRANT UPDATE (status) ON public.friend_group_members TO authenticated;
 
 -- ============================================================
+-- Treinar junto: uma sessão em dupla entre amigos. Quem chama cria o
+-- convite; o amigo aceita; qualquer um encerra. Cada um vê o treino do
+-- outro pelo live_workouts.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.duo_sessions (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  host_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  guest_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'invited' CHECK (status IN ('invited', 'active', 'ended')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ended_at TIMESTAMPTZ,
+  CHECK (host_id <> guest_id)
+);
+CREATE INDEX IF NOT EXISTS duo_sessions_host_idx ON public.duo_sessions (host_id);
+CREATE INDEX IF NOT EXISTS duo_sessions_guest_idx ON public.duo_sessions (guest_id);
+ALTER TABLE public.duo_sessions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "A dupla vê a própria sessão" ON public.duo_sessions;
+CREATE POLICY "A dupla vê a própria sessão" ON public.duo_sessions
+  FOR SELECT TO authenticated
+  USING ((select auth.uid())::text IN (host_id, guest_id));
+DROP POLICY IF EXISTS "Chama um amigo para treinar" ON public.duo_sessions;
+CREATE POLICY "Chama um amigo para treinar" ON public.duo_sessions
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    host_id = (select auth.uid())::text
+    AND status = 'invited'
+    AND public.are_friends(guest_id)
+  );
+DROP POLICY IF EXISTS "A dupla aceita ou encerra" ON public.duo_sessions;
+CREATE POLICY "A dupla aceita ou encerra" ON public.duo_sessions
+  FOR UPDATE TO authenticated
+  USING ((select auth.uid())::text IN (host_id, guest_id))
+  WITH CHECK ((select auth.uid())::text IN (host_id, guest_id));
+DROP POLICY IF EXISTS "A dupla apaga a sessão" ON public.duo_sessions;
+CREATE POLICY "A dupla apaga a sessão" ON public.duo_sessions
+  FOR DELETE TO authenticated
+  USING ((select auth.uid())::text IN (host_id, guest_id));
+-- Aceitar ou encerrar muda só o status e o fim; ninguém troca a dupla.
+REVOKE UPDATE ON public.duo_sessions FROM anon, authenticated;
+GRANT UPDATE (status, ended_at) ON public.duo_sessions TO authenticated;
+
+-- ============================================================
 -- Agenda da semana e lembrete de treino. A função "reminders" lê esta
 -- tabela (com a chave de serviço) e avisa no horário escolhido.
 -- ============================================================
@@ -772,6 +824,7 @@ BEGIN
   DELETE FROM public.live_workouts WHERE user_id = me;
   DELETE FROM public.workout_reactions WHERE me IN (owner_id, user_id);
   DELETE FROM public.training_plans WHERE user_id = me;
+  DELETE FROM public.duo_sessions WHERE me IN (host_id, guest_id);
   DELETE FROM public.workout_comments WHERE me IN (owner_id, user_id);
   DELETE FROM public.friend_group_members WHERE user_id = me;
   DELETE FROM public.friend_groups WHERE owner_id = me;

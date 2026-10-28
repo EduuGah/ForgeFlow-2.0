@@ -37,6 +37,7 @@ import { refreshPushRegistration } from './features/pushRegistration';
 import { refreshWorkoutNotification } from './features/workoutNotification';
 import { useLiveWorkoutPublisher } from './features/liveWorkouts';
 import { syncPlan } from './features/trainingPlan';
+import { useDuoWatcher } from './features/duoSession';
 import { describeRecord } from './lib/training';
 import { clearInvite, peekInvite } from './features/invite';
 import {
@@ -179,6 +180,7 @@ function MainShell() {
       <DeepLinkWatcher />
       <WorkoutNotifier />
       <LivePublisher />
+      <DuoWatcher />
     </div>
   );
 }
@@ -271,6 +273,12 @@ function WorkoutNotifier() {
 /** Friends see the workout in progress ("Treinando agora"). */
 function LivePublisher() {
   useLiveWorkoutPublisher();
+  return null;
+}
+
+/** Treinar junto: invitations, the partner's live workout, the end. */
+function DuoWatcher() {
+  useDuoWatcher();
   return null;
 }
 

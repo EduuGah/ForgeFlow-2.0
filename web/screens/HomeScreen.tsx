@@ -44,6 +44,7 @@ import { useNavigation } from '../navigation/Navigator';
 import { InstallBanner } from '../features/InstallApp';
 import { FriendsTrainingNow } from '../features/TrainingNow';
 import { QuickAccess } from '../features/QuickAccess';
+import { DuoInviteBanner } from '../features/Duo';
 import { MuscleMapCard, historyMuscleWork } from '../features/MuscleMap';
 import { monthForecast } from '../lib/projections';
 import {
@@ -133,6 +134,7 @@ export function HomeScreen() {
       <div className="app-column space-y-6 px-4 pt-2">
         <OfflineNotice />
         <InstallBanner />
+        <DuoInviteBanner />
         <TodayCard />
         <QuickAccess />
         <DeloadSuggestion />

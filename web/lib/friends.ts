@@ -260,8 +260,40 @@ export interface LiveWorkout {
   doneSets: number;
   totalSets: number;
   currentExercise: string | null;
+  /** The sets done so far, for a training partner to follow. */
+  detail: LiveDetail | null;
   endedAt: string | null;
   updatedAt: string;
+}
+
+/** Compact on purpose (it rides along every update): name, done sets, total. */
+export interface LiveDetail {
+  e: { n: string; s: [kg: number, reps: number][]; t: number }[];
+}
+
+/** Reads a detail from the server, keeping only well-formed parts. */
+export function readLiveDetail(raw: unknown): LiveDetail | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const list = (raw as { e?: unknown }).e;
+  if (!Array.isArray(list)) return null;
+  const e: LiveDetail['e'] = [];
+  for (const item of list.slice(0, 15)) {
+    if (!item || typeof item !== 'object') continue;
+    const { n, s, t } = item as { n?: unknown; s?: unknown; t?: unknown };
+    if (typeof n !== 'string') continue;
+    const sets = Array.isArray(s)
+      ? s
+          .filter(
+            (set): set is [number, number] =>
+              Array.isArray(set) &&
+              typeof set[0] === 'number' &&
+              typeof set[1] === 'number',
+          )
+          .slice(0, 20)
+      : [];
+    e.push({ n: n.slice(0, 80), s: sets, t: typeof t === 'number' ? t : 0 });
+  }
+  return { e };
 }
 
 /** Quiet this long (app closed mid-workout), it no longer counts as now. */
@@ -281,7 +313,7 @@ export function liveSnapshot(
   workout: ActiveWorkoutState,
 ): Pick<
   LiveWorkout,
-  'name' | 'startedAt' | 'doneSets' | 'totalSets' | 'currentExercise'
+  'name' | 'startedAt' | 'doneSets' | 'totalSets' | 'currentExercise' | 'detail'
 > {
   const sets = workout.exercises.flatMap((exercise) => exercise.sets);
   const current = workout.exercises.find((exercise) =>
@@ -293,6 +325,16 @@ export function liveSnapshot(
     doneSets: Math.min(500, sets.filter((set) => set.completed).length),
     totalSets: Math.min(500, sets.length),
     currentExercise: current ? current.exerciseName.slice(0, 80) : null,
+    detail: {
+      e: workout.exercises.slice(0, 15).map((exercise) => ({
+        n: exercise.exerciseName.slice(0, 60),
+        s: exercise.sets
+          .filter((set) => set.completed && set.setType === 'working')
+          .slice(0, 20)
+          .map((set): [number, number] => [set.weightKg, set.repetitions]),
+        t: exercise.sets.filter((set) => set.setType === 'working').length,
+      })),
+    },
   };
 }
 

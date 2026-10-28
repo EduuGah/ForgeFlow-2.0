@@ -18,7 +18,12 @@ import { getFriendsState, useFriends } from './useFriends';
 /** Same snapshot again only after this long (keeps it from going quiet). */
 const HEARTBEAT_MS = 10 * 60_000;
 /** At most one update this often; the latest waits for the next slot. */
-const MIN_GAP_MS = 15_000;
+let minGapMs = 15_000;
+
+/** Training together: updates go out faster so the partner sees each set. */
+export function setLivePace(fast: boolean) {
+  minGapMs = fast ? 4_000 : 15_000;
+}
 
 let published: { userId: string; key: string; at: number } | null = null;
 /** A row may still say "training" (app closed mid-workout, offline finish). */
@@ -57,7 +62,7 @@ export function syncLiveWorkout() {
   const now = Date.now();
   if (published?.userId === userId) {
     if (published.key === key && now - published.at < HEARTBEAT_MS) return;
-    const wait = MIN_GAP_MS - (now - published.at);
+    const wait = minGapMs - (now - published.at);
     if (wait > 0) {
       trailing ??= setTimeout(() => {
         trailing = null;

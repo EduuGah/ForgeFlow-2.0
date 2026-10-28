@@ -4,6 +4,7 @@ import {
   isLive,
   liveLabel,
   liveSnapshot,
+  readLiveDetail,
   reactionCounts,
   type LiveWorkout,
   type WorkoutReaction,
@@ -116,6 +117,7 @@ describe('training now', () => {
     doneSets: 5,
     totalSets: 12,
     currentExercise: 'Supino',
+    detail: null,
     endedAt: null,
     updatedAt: '2026-10-22T19:58:00.000Z',
     ...fields,
@@ -191,7 +193,32 @@ describe('training now', () => {
       doneSets: 1,
       totalSets: 2,
       currentExercise: 'Leg press',
+      detail: {
+        e: [
+          { n: 'Agachamento', s: [[100, 5]], t: 1 },
+          { n: 'Leg press', s: [], t: 1 },
+        ],
+      },
     });
+  });
+
+  it('reads only well-formed live details', () => {
+    expect(readLiveDetail(null)).toBeNull();
+    expect(
+      readLiveDetail({
+        e: [
+          {
+            n: 'Supino',
+            s: [
+              [70, 8],
+              ['x', 1],
+            ],
+            t: 3,
+          },
+          { n: 5 },
+        ],
+      }),
+    ).toEqual({ e: [{ n: 'Supino', s: [[70, 8]], t: 3 }] });
   });
 });
 
