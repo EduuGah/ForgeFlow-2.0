@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ArrowRight,
   ChevronRight,
@@ -8,6 +8,7 @@ import {
   CalendarRange,
   ListChecks,
   Play,
+  Share2,
   Plus,
 } from 'lucide-react';
 import { actions, findExercise, useAppStore, useProfilePhoto } from '../store';
@@ -30,7 +31,6 @@ import {
   itemsOnDay,
   mealDate,
   muscleCode,
-  muscleLabel,
   percentChange,
   recordDate,
   suggestNextTemplate,
@@ -42,7 +42,15 @@ import { haptic } from '../lib/haptics';
 import { useNavigation } from '../navigation/Navigator';
 import { InstallBanner } from '../features/InstallApp';
 import { FriendsTrainingNow } from '../features/TrainingNow';
+import { MuscleMapCard, historyMuscleWork } from '../features/MuscleMap';
 import { monthForecast } from '../lib/projections';
+import {
+  plannedRoutine,
+  startDeload,
+  suggestDeload,
+} from '../lib/trainingPlan';
+import { updatePlan, useTrainingPlan } from '../features/trainingPlan';
+import { SummarySheet } from '../features/SummarySheet';
 import { NotificationBell } from '../features/NotificationBell';
 import { MessagesButton } from '../features/MessagesButton';
 import { useWorkoutLauncher } from '../features/useWorkoutLauncher';
@@ -124,6 +132,7 @@ export function HomeScreen() {
         <OfflineNotice />
         <InstallBanner />
         <TodayCard />
+        <DeloadSuggestion />
         <FriendsTrainingNow />
         <WeekHeat />
         <MonthCard />
@@ -198,10 +207,15 @@ function TodayCard() {
   const { activeWorkout, templates, history } = useAppStore();
   const { selectTab, push } = useNavigation();
   const launcher = useWorkoutLauncher();
-  const next = useMemo(
+  const plan = useTrainingPlan();
+  const planned = plannedRoutine(plan, templates);
+  const restDay =
+    !planned && plan.days.some((id) => templates.some((t) => t.id === id));
+  const suggested = useMemo(
     () => suggestNextTemplate(templates, history),
     [templates, history],
   );
+  const next = planned ?? suggested;
 
   if (activeWorkout) {
     const summary = summarizeActiveWorkout(activeWorkout);
@@ -284,7 +298,11 @@ function TodayCard() {
       <div className="p-4">
         <div className="flex items-center justify-between gap-3">
           <p className="text-micro font-semibold tracking-wider text-brand-ink uppercase">
-            Próximo treino
+            {planned
+              ? 'Hoje na agenda'
+              : restDay
+                ? 'Descanso na agenda · sugestão'
+                : 'Próximo treino'}
           </p>
           <p className="text-caption text-ink-3">
             {lastDone
@@ -361,7 +379,7 @@ function WeekHeat() {
   const todayIndex = (today.getDay() + 6) % 7;
   const weekStart = startOfWeek(today);
 
-  const { days, week, lastWeek, weekRecords, muscles } = useMemo(() => {
+  const { days, week, lastWeek, weekRecords, weekWork } = useMemo(() => {
     const start = startOfWeek(new Date());
     const perDay = Array.from({ length: 7 }, (_, i) =>
       totalsBetween(history, addDays(start, i), addDays(start, i + 1)),
@@ -369,18 +387,6 @@ function WeekHeat() {
     const since = start.getTime();
     // Last week up to the same weekday, so Wednesday compares with Wednesday.
     const elapsed = ((new Date().getDay() + 6) % 7) + 1;
-    const trained = new Set<string>();
-    for (const workout of history) {
-      if (Date.parse(workout.completedAt) < since) continue;
-      for (const exercise of workout.exercises) {
-        const group =
-          exercise.primaryMuscleGroup ??
-          (exercise.exerciseId
-            ? findExercise(exercise.exerciseId)?.primaryMuscleGroup
-            : undefined);
-        if (group) trained.add(group);
-      }
-    }
     return {
       days: perDay,
       week: totalsBetween(history, start, addDays(start, 7)),
@@ -392,7 +398,7 @@ function WeekHeat() {
       weekRecords: prs.filter(
         (record) => (recordDate(record)?.getTime() ?? 0) >= since,
       ).length,
-      muscles: [...trained],
+      weekWork: historyMuscleWork(history, start),
     };
   }, [history, prs]);
   const maxVolume = Math.max(1, ...days.map((day) => day.volumeKg));
@@ -494,21 +500,72 @@ function WeekHeat() {
           />
         </p>
       )}
-      {muscles.length > 0 && (
-        <div
-          className="mt-3 flex flex-wrap gap-1.5"
-          aria-label="Músculos treinados na semana"
-        >
-          {muscles.map((group) => (
-            <span
-              key={group}
-              className="text-caption rounded-sm bg-brand-soft px-2 py-1 font-semibold text-brand-ink"
-            >
-              {muscleLabel(group)}
-            </span>
-          ))}
-        </div>
+      {week.workouts > 0 && (
+        <MuscleMapCard
+          work={weekWork}
+          full={12}
+          height={120}
+          className="mt-3 border-t border-line pt-3"
+        />
       )}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+const DELOAD_DISMISSED = 'forgeflow_deload_dismissed';
+
+/** After 6 weeks in a row, an easier week helps: offered, never forced. */
+function DeloadSuggestion() {
+  const { history } = useAppStore();
+  const plan = useTrainingPlan();
+  const toast = useToast();
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      const at = Number(localStorage.getItem(DELOAD_DISMISSED));
+      return Date.now() - at < 14 * 86_400_000;
+    } catch {
+      return false;
+    }
+  });
+  if (dismissed || !suggestDeload(history, plan)) return null;
+  const dismiss = () => {
+    setDismissed(true);
+    try {
+      localStorage.setItem(DELOAD_DISMISSED, String(Date.now()));
+    } catch {
+      // Hidden for this visit.
+    }
+  };
+  return (
+    <Card className="flex items-start gap-3 p-4">
+      <Art name="flame" size={44} className="shrink-0" />
+      <div className="min-w-0 flex-1">
+        <h2 className="text-headline font-semibold">Hora de um deload?</h2>
+        <p className="text-callout mt-0.5 text-ink-2">
+          Você treina há 6 semanas ou mais sem parar. Uma semana mais leve, com
+          metade das séries, ajuda a recuperar e voltar mais forte.
+        </p>
+        <div className="mt-3 flex gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              updatePlan((current) => startDeload(current));
+              toast({
+                tone: 'success',
+                title: 'Deload ativado',
+                description: 'Até domingo, rotinas com metade das séries.',
+              });
+            }}
+          >
+            Fazer esta semana
+          </Button>
+          <Button size="sm" variant="secondary" onClick={dismiss}>
+            Agora não
+          </Button>
+        </div>
+      </div>
     </Card>
   );
 }
@@ -518,6 +575,7 @@ function WeekHeat() {
 /** The month so far, where this pace ends it, and last month for scale. */
 function MonthCard() {
   const { history } = useAppStore();
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const forecast = useMemo(() => monthForecast(history), [history]);
   const { soFar, lastMonth } = forecast;
   if (soFar.workouts === 0 && lastMonth.workouts === 0) return null;
@@ -589,6 +647,20 @@ function MonthCard() {
           );
         })}
       </ul>
+      <Button
+        variant="ghost"
+        size="sm"
+        icon={Share2}
+        className="mt-2 -ml-2"
+        onClick={() => setSummaryOpen(true)}
+      >
+        Ver e compartilhar resumo
+      </Button>
+      <SummarySheet
+        open={summaryOpen}
+        onClose={() => setSummaryOpen(false)}
+        initial="month"
+      />
     </Card>
   );
 }

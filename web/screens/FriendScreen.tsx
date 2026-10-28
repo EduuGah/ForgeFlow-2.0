@@ -1,6 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Flame, MessageCircle, Send, Trophy, UserMinus } from 'lucide-react';
-import { useAppStore } from '../store';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  CopyPlus,
+  Flame,
+  MessageCircle,
+  Send,
+  Trophy,
+  UserMinus,
+} from 'lucide-react';
+import { actions, findExercise, useAppStore } from '../store';
+import { workoutToRoutine } from '../lib/workoutToRoutine';
+import { CommentsThread, useComments } from '../features/Comments';
+import { useToast } from '../ui/Overlay';
 import { addDays, startOfDay } from '../lib/dates';
 import {
   formatCompact,
@@ -31,8 +41,9 @@ import { PickRoutineSheet } from '../features/ShareSheets';
 import { useLiveFriends } from '../features/liveWorkouts';
 import { ReactionBar, useReactions } from '../features/Reactions';
 import { LiveLine } from '../features/TrainingNow';
+import { ExerciseCompare } from '../features/ExerciseCompare';
 import { BarChart } from '../ui/Charts';
-import { Button } from '../ui/Button';
+import { Button, IconButton } from '../ui/Button';
 import {
   Avatar,
   Badge,
@@ -64,9 +75,32 @@ export function FriendScreen({ userId }: { userId: string }) {
   const [picking, setPicking] = useState(false);
   const training = useLiveFriends().get(userId);
   const shown = useMemo(() => data?.workouts.slice(0, 15) ?? [], [data]);
-  const reactions = useReactions(
-    shown.map((workout) => ({ ownerId: userId, workoutId: workout.id })),
+  const targets = useMemo(
+    () => shown.map((workout) => ({ ownerId: userId, workoutId: workout.id })),
+    [shown, userId],
   );
+  const reactions = useReactions(targets);
+  const comments = useComments(targets);
+  const toast = useToast();
+  const saveAsRoutine = (workout: CompletedWorkout) => {
+    const exercises = workoutToRoutine(workout, (id) =>
+      Boolean(findExercise(id)),
+    );
+    if (exercises.length === 0) {
+      toast({ tone: 'error', title: 'Nenhum exercício para copiar' });
+      return;
+    }
+    actions.createTemplate({
+      name: workout.name,
+      description: `Copiada do treino de ${link?.other.name || 'um amigo'}`,
+      exercises,
+    });
+    toast({
+      tone: 'success',
+      title: 'Rotina salva',
+      description: `${workout.name} está em Rotinas, sem as cargas dele.`,
+    });
+  };
 
   useEffect(() => refreshFriendsIfStale(), []);
 
@@ -223,6 +257,13 @@ export function FriendScreen({ userId }: { userId: string }) {
               bests={compareBests(prs, data.records)}
             />
 
+            <GroupLabel>Evolução lado a lado</GroupLabel>
+            <ExerciseCompare
+              mine={history}
+              theirs={data.workouts}
+              friendName={person.name || `@${person.username}`}
+            />
+
             <GroupLabel>Últimos treinos</GroupLabel>
             {data.workouts.length === 0 ? (
               <EmptyState
@@ -242,6 +283,17 @@ export function FriendScreen({ userId }: { userId: string }) {
                     onReact={(emoji) =>
                       void reactions.react(userId, workout.id, emoji)
                     }
+                    footer={
+                      <CommentsThread
+                        className="mt-2"
+                        comments={comments.of(userId, workout.id)}
+                        me={comments.me}
+                        ownerId={userId}
+                        onAdd={(body) => comments.add(userId, workout.id, body)}
+                        onRemove={(comment) => void comments.remove(comment)}
+                      />
+                    }
+                    onSaveRoutine={() => saveAsRoutine(workout)}
                   />
                 ))}
               </div>
@@ -358,11 +410,15 @@ function FriendWorkoutCard({
   me,
   reactions,
   onReact,
+  footer,
+  onSaveRoutine,
 }: {
   workout: CompletedWorkout;
   me: string | null;
   reactions: WorkoutReaction[];
   onReact: (emoji: ReactionEmoji) => void;
+  footer?: ReactNode;
+  onSaveRoutine: () => void;
 }) {
   const shown = workout.exercises.slice(0, 5);
   const more = workout.exercises.length - shown.length;
@@ -407,12 +463,25 @@ function FriendWorkoutCard({
           </li>
         )}
       </ul>
-      <ReactionBar
-        className="mt-3"
-        me={me}
-        reactions={reactions}
-        onReact={onReact}
-      />
+      {workout.prsAchieved.length > 0 && (
+        <ul className="mt-3 space-y-1 rounded-md bg-record-soft px-3 py-2">
+          {workout.prsAchieved.slice(0, 3).map((text) => (
+            <li key={text} className="text-footnote">
+              🏆 {text}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <ReactionBar me={me} reactions={reactions} onReact={onReact} />
+        <IconButton
+          icon={CopyPlus}
+          label="Salvar como rotina"
+          size="sm"
+          onClick={onSaveRoutine}
+        />
+      </div>
+      {footer}
     </Card>
   );
 }

@@ -20,21 +20,27 @@ import { useNavigation } from '../navigation/Navigator';
 import { EmptyState, ExerciseThumb, Medal, RecordBadge } from '../ui/Feedback';
 import { Stat, StackHeader } from '../ui/Layout';
 import { IconButton } from '../ui/Button';
-import { useToast } from '../ui/Overlay';
-import { shareWorkout } from '../features/shareWorkout';
+import { shareWorkout, shareWorkoutImage } from '../features/shareWorkout';
+import { ShareSheet } from '../features/ShareSheet';
 import { ReceivedReactions, useReactions } from '../features/Reactions';
+import { CommentsThread, useComments } from '../features/Comments';
+import { MuscleMapCard, historyMuscleWork } from '../features/MuscleMap';
 import { cx } from '../ui/core';
 
 export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
   const { history, gyms, currentUser } = useAppStore();
   const { pop, push } = useNavigation();
   const [gymOpen, setGymOpen] = useState(false);
-  const toast = useToast();
+  const [sharing, setSharing] = useState(false);
   const workout = history.find((item) => item.id === workoutId);
   const reactions = useReactions(
     currentUser && workout ? [{ ownerId: currentUser.uid, workoutId }] : [],
   );
   const received = currentUser ? reactions.of(currentUser.uid, workoutId) : [];
+  const comments = useComments(
+    currentUser && workout ? [{ ownerId: currentUser.uid, workoutId }] : [],
+  );
+  const thread = currentUser ? comments.of(currentUser.uid, workoutId) : [];
 
   if (!workout) {
     return (
@@ -69,22 +75,16 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
           <IconButton
             icon={Share2}
             label="Compartilhar treino"
-            onClick={async () => {
-              const result = await shareWorkout(workout);
-              if (result === 'copied')
-                toast({
-                  tone: 'success',
-                  title: 'Treino copiado',
-                  description: 'Cole no WhatsApp ou onde quiser.',
-                });
-              else if (result === 'failed')
-                toast({
-                  tone: 'error',
-                  title: 'Não foi possível compartilhar',
-                });
-            }}
+            onClick={() => setSharing(true)}
           />
         }
+      />
+      <ShareSheet
+        open={sharing}
+        onClose={() => setSharing(false)}
+        title="Compartilhar treino"
+        text={() => shareWorkout(workout)}
+        image={() => shareWorkoutImage(workout)}
       />
       <div className="app-column pb-6">
         <div className="px-4 pt-5">
@@ -149,6 +149,13 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
           </section>
         )}
 
+        <section
+          className="mx-4 mt-5 rounded-lg border border-line bg-surface p-4"
+          aria-label="Músculos trabalhados"
+        >
+          <MuscleMapCard work={historyMuscleWork([workout])} full={6} />
+        </section>
+
         {received.length > 0 && (
           <section
             className="mx-4 mt-5 rounded-lg border border-line bg-surface p-4"
@@ -158,6 +165,22 @@ export function WorkoutDetailScreen({ workoutId }: { workoutId: string }) {
               Reações dos amigos
             </h3>
             <ReceivedReactions reactions={received} />
+          </section>
+        )}
+
+        {currentUser && thread.length > 0 && (
+          <section
+            className="mx-4 mt-5 rounded-lg border border-line bg-surface p-4"
+            aria-label="Comentários"
+          >
+            <CommentsThread
+              startOpen
+              comments={thread}
+              me={comments.me}
+              ownerId={currentUser.uid}
+              onAdd={(body) => comments.add(currentUser.uid, workoutId, body)}
+              onRemove={(comment) => void comments.remove(comment)}
+            />
           </section>
         )}
 

@@ -16,6 +16,8 @@ import {
   UserRound,
   UserX,
   Utensils,
+  Volume2,
+  Sheet as SheetIcon,
 } from 'lucide-react';
 import { actions, useAppStore } from '../store';
 import {
@@ -34,14 +36,24 @@ import {
   offlinePhotosSupported,
 } from '../lib/offlineMedia';
 import { ACCENTS, useTheme, type ThemePreference } from '../lib/theme';
+import { workoutsToCsv } from '../lib/exportCsv';
+import {
+  REST_SOUNDS,
+  REST_VIBRATIONS,
+  playRestSound,
+  primeRestSound,
+  setRestAlertPrefs,
+  useRestAlertPrefs,
+  vibrateRestEnd,
+} from '../lib/restAlert';
 import { useNavigation } from '../navigation/Navigator';
 import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
 import { InstallSheet, useInstallState } from '../features/InstallApp';
 import { PushSetup } from '../features/PushSetup';
 import { unregisterPush } from '../features/pushRegistration';
-import { Button } from '../ui/Button';
+import { Button, IconButton } from '../ui/Button';
 import { Medal } from '../ui/Feedback';
-import { NumberField, Switch } from '../ui/Form';
+import { NumberField, SegmentedControl, Switch } from '../ui/Form';
 import { GroupLabel, ListGroup, ListRow, StackHeader } from '../ui/Layout';
 import { Sheet, useConfirm, useToast } from '../ui/Overlay';
 import { cx } from '../ui/core';
@@ -205,6 +217,23 @@ export function SettingsScreen() {
     });
   };
 
+  const exportCsv = () => {
+    const blob = new Blob([workoutsToCsv(store.history)], {
+      type: 'text/csv;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `forgeflow-treinos-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast({
+      tone: 'success',
+      title: 'Planilha baixada',
+      description: `${store.history.length} treinos em ${link.download}`,
+    });
+  };
+
   const syncLabel = !currentUser
     ? 'Desativada'
     : syncStatus === 'syncing'
@@ -269,6 +298,12 @@ export function SettingsScreen() {
             title="Exportar backup (JSON)"
             subtitle="Treinos, rotinas, recordes, metas, medidas e diário"
             onClick={exportBackup}
+          />
+          <ListRow
+            icon={SheetIcon}
+            title="Exportar treinos (CSV)"
+            subtitle="Planilha com cada série; abre no Excel e importa no Hevy"
+            onClick={exportCsv}
           />
         </ListGroup>
 
@@ -605,7 +640,73 @@ function NotificationsSheet({
           </li>
         ))}
       </ul>
+      {notificationPrefs.restTimerAlerts && <RestAlertSettings />}
     </Sheet>
+  );
+}
+
+/** How the end of the rest sounds and vibrates on this device. */
+function RestAlertSettings() {
+  const prefs = useRestAlertPrefs();
+  return (
+    <section
+      aria-labelledby="rest-alert-title"
+      className="mt-2 space-y-3 rounded-lg bg-raised p-3"
+    >
+      <h3 id="rest-alert-title" className="text-callout font-semibold">
+        Fim do descanso neste aparelho
+      </h3>
+      <div>
+        <p className="text-footnote mb-1.5 text-ink-2">Som</p>
+        <div className="flex items-center gap-2">
+          <SegmentedControl
+            label="Som do fim do descanso"
+            value={prefs.sound}
+            onChange={(sound) => {
+              setRestAlertPrefs({ sound });
+              playRestSound(sound);
+            }}
+            options={REST_SOUNDS}
+            className="flex-1"
+          />
+          <IconButton
+            icon={Volume2}
+            label="Ouvir o som"
+            size="sm"
+            disabled={prefs.sound === 'off'}
+            onClick={() => playRestSound(prefs.sound)}
+          />
+        </div>
+      </div>
+      <div>
+        <p className="text-footnote mb-1.5 text-ink-2">Vibração</p>
+        <SegmentedControl
+          label="Vibração do fim do descanso"
+          value={prefs.vibration}
+          onChange={(vibration) => {
+            setRestAlertPrefs({ vibration });
+            vibrateRestEnd(vibration);
+          }}
+          options={REST_VIBRATIONS}
+        />
+      </div>
+      <div className="flex items-center gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-body">Contagem 3, 2, 1</p>
+          <p className="text-footnote text-ink-2">
+            Um toque curto em cada um dos últimos 3 segundos
+          </p>
+        </div>
+        <Switch
+          label="Contagem 3, 2, 1"
+          checked={prefs.countdown}
+          onChange={(countdown) => {
+            setRestAlertPrefs({ countdown });
+            if (countdown) primeRestSound();
+          }}
+        />
+      </div>
+    </section>
   );
 }
 

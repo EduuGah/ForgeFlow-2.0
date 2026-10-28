@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { CloudOff, FileUp, LineChart } from 'lucide-react';
 import { actions } from '../store';
 import { SetTableDemo } from '../features/Demos';
+import { FriendsScene, ProgressScene } from '../ui/Scenes';
 import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
 import { Button } from '../ui/Button';
 import { BrandMark } from '../ui/Feedback';
@@ -28,7 +30,7 @@ export function WelcomeScreen() {
               className="ember-glow pointer-events-none absolute -inset-x-10 -inset-y-12"
               aria-hidden="true"
             />
-            <SetTableDemo loopMs={7000} className="relative" />
+            <HeroCarousel />
           </div>
 
           <h1 className="text-display mt-7 font-bold">
@@ -81,6 +83,28 @@ export function WelcomeScreen() {
           </p>
         </footer>
       </div>
+    </div>
+  );
+}
+
+const HERO_MS = 7000;
+
+/** The set table, then a strength chart, then friends: one at a time. */
+function HeroCarousel() {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setIndex((value) => (value + 1) % 3), HERO_MS);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div key={index} className="relative animate-fade-in">
+      {index === 0 ? (
+        <SetTableDemo className="relative" />
+      ) : index === 1 ? (
+        <ProgressScene className="mx-auto max-w-sm" />
+      ) : (
+        <FriendsScene className="mx-auto max-w-sm" />
+      )}
     </div>
   );
 }

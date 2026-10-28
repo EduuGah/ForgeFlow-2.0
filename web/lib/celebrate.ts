@@ -31,7 +31,14 @@ const FADE_MS = 700;
 /** Physics steps are tuned for 60 fps; other refresh rates scale them. */
 const FRAME_MS = 1000 / 60;
 
-export function celebrate(strength: 'light' | 'strong' = 'light'): void {
+/**
+ * `origin` (screen coordinates) bursts from that point, smaller: a record set
+ * pops out of its own ✓ button.
+ */
+export function celebrate(
+  strength: 'light' | 'strong' = 'light',
+  origin?: { x: number; y: number },
+): void {
   if (typeof document === 'undefined' || !allowsMotion()) return;
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
@@ -59,22 +66,25 @@ export function celebrate(strength: 'light' | 'strong' = 'light'): void {
       .getPropertyValue('--color-brand')
       .trim() || '#ff7a1a';
   const colors = [brand, '#ffd166', '#2fbf71', '#5ec2e6', '#ffffff'];
-  // Strong: two cannons from the sides; light: one from the middle.
-  const origins =
-    strength === 'strong'
+  // Strong: two cannons from the sides; light: one from the middle; or a
+  // small pop from the given point.
+  const low = height * 0.7;
+  const cannons = origin
+    ? [{ x: origin.x, y: origin.y, angle: -Math.PI / 2 }]
+    : strength === 'strong'
       ? [
-          { x: width * 0.15, angle: -Math.PI / 3 },
-          { x: width * 0.85, angle: (-2 * Math.PI) / 3 },
+          { x: width * 0.15, y: low, angle: -Math.PI / 3 },
+          { x: width * 0.85, y: low, angle: (-2 * Math.PI) / 3 },
         ]
-      : [{ x: width / 2, angle: -Math.PI / 2 }];
-  const perOrigin = strength === 'strong' ? 80 : 90;
-  const pieces: Piece[] = origins.flatMap((origin, side) =>
-    Array.from({ length: perOrigin }, (_, index) => {
-      const angle = origin.angle + (Math.random() - 0.5) * 1.1;
-      const speed = 8 + Math.random() * 9;
+      : [{ x: width / 2, y: low, angle: -Math.PI / 2 }];
+  const perCannon = origin ? 45 : strength === 'strong' ? 80 : 90;
+  const pieces: Piece[] = cannons.flatMap((cannon, side) =>
+    Array.from({ length: perCannon }, (_, index) => {
+      const angle = cannon.angle + (Math.random() - 0.5) * 1.1;
+      const speed = (origin ? 5 : 8) + Math.random() * (origin ? 6 : 9);
       return {
-        x: origin.x,
-        y: height * 0.7,
+        x: cannon.x,
+        y: cannon.y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         size: 6 + Math.random() * 6,

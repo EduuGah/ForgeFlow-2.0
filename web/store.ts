@@ -39,6 +39,7 @@ import {
   replayRecords,
   sortByCompletedDesc,
 } from './lib/training';
+import { deloadSets } from './lib/trainingPlan';
 import { reconcileCollection } from './lib/sync';
 import {
   describeRoutineChanges,
@@ -1136,9 +1137,14 @@ export const actions = {
   },
 
   /* Active workout */
-  startWorkoutFromTemplate: (templateId: string): boolean => {
+  startWorkoutFromTemplate: (
+    templateId: string,
+    options: { deload?: boolean } = {},
+  ): boolean => {
     const template = state.templates.find((t) => t.id === templateId);
     if (!template) return false;
+    const workingSets = (sets: number) =>
+      options.deload ? deloadSets(sets) : Math.max(1, sets);
     const exercises: ActiveExerciseSession[] = template.exercises.map(
       (item) => {
         const catalog = findExercise(item.exerciseId);
@@ -1158,7 +1164,7 @@ export const actions = {
             ...Array.from({ length: Math.max(0, item.warmupSets ?? 0) }, () =>
               newSet(0, 'warmup', 0, 0),
             ),
-            ...Array.from({ length: Math.max(1, item.targetSets) }, () =>
+            ...Array.from({ length: workingSets(item.targetSets) }, () =>
               newSet(
                 0,
                 'working',
@@ -1177,6 +1183,7 @@ export const actions = {
         templateId: template.id,
         startedAt: new Date().toISOString(),
         exercises,
+        ...(options.deload ? { deload: true } : {}),
       },
       restTimer: IDLE_REST_TIMER,
     });

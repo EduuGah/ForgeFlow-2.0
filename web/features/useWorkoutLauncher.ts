@@ -3,6 +3,8 @@ import { actions, getState } from '../store';
 import { useNavigation } from '../navigation/Navigator';
 import { useConfirm } from '../ui/Overlay';
 import { haptic } from '../lib/haptics';
+import { deloadActive } from '../lib/trainingPlan';
+import { getTrainingPlan } from './trainingPlan';
 
 /**
  * Starting a workout used to overwrite an unfinished session silently; every
@@ -28,7 +30,8 @@ export function useWorkoutLauncher() {
   return {
     startRoutine: async (templateId: string) => {
       if (!(await canReplaceActive())) return;
-      if (actions.startWorkoutFromTemplate(templateId)) {
+      const deload = deloadActive(getTrainingPlan());
+      if (actions.startWorkoutFromTemplate(templateId, { deload })) {
         haptic('success');
         openWorkout();
       }

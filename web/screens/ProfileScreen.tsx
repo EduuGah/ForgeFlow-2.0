@@ -18,6 +18,7 @@ import { formatNumber } from '../lib/format';
 import { tutorial } from '../lib/tutorial';
 import { useNavigation } from '../navigation/Navigator';
 import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
+import { LevelCard } from '../features/Medals';
 import { SyncBadge } from '../features/StatusBits';
 import { NotificationBell } from '../features/NotificationBell';
 import { MessagesButton } from '../features/MessagesButton';
@@ -128,6 +129,7 @@ export function ProfileScreen() {
               </div>
             ))}
           </dl>
+          <LevelCard className="border-t border-line px-4 py-3" />
         </Card>
 
         {since && (

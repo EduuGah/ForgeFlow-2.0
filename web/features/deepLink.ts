@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { Route } from '../navigation/Navigator';
+import type { Route, Tab } from '../navigation/Navigator';
 
 /*
  * Notifications open the app at "/?abrir=<link>". A link is read once at
@@ -7,7 +7,12 @@ import type { Route } from '../navigation/Navigator';
  */
 const PARAM = 'abrir';
 
-export type DeepTarget = { kind: 'route'; route: Route } | { kind: 'workout' };
+export type DeepTarget =
+  | { kind: 'route'; route: Route }
+  | { kind: 'workout' }
+  | { kind: 'tab'; tab: Tab }
+  /** The workout in progress, or the routines to start one. */
+  | { kind: 'train' };
 
 /** What a link opens; null for anything unknown. */
 export function targetOf(link: string): DeepTarget | null {
@@ -27,6 +32,12 @@ export function targetOf(link: string): DeepTarget | null {
       return { kind: 'route', route: { name: 'social' } };
     case 'workout':
       return { kind: 'workout' };
+    case 'home':
+    case 'routines':
+    case 'progress':
+      return { kind: 'tab', tab: kind };
+    case 'treinar':
+      return { kind: 'train' };
     case 'mine':
       // One of the person's own finished workouts.
       return valid(id)

@@ -35,6 +35,7 @@ import { notify } from './features/notificationFeed';
 import { refreshPushRegistration } from './features/pushRegistration';
 import { refreshWorkoutNotification } from './features/workoutNotification';
 import { useLiveWorkoutPublisher } from './features/liveWorkouts';
+import { syncPlan } from './features/trainingPlan';
 import { describeRecord } from './lib/training';
 import { clearInvite, peekInvite } from './features/invite';
 import {
@@ -212,6 +213,7 @@ function MessageWatcher() {
   useEffect(() => {
     if (!currentUser) return;
     void resumeFriends();
+    void syncPlan();
     refreshPushRegistration();
     return onIncomingMessage((message) => {
       if (chatOpenWith() === message.senderId) return;

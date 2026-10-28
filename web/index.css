@@ -548,7 +548,7 @@
       100deg,
       transparent 0%,
       color-mix(in srgb, var(--color-brand) 38%, transparent) 45%,
-      rgb(255 214 170 / 0.3) 50%,
+      color-mix(in srgb, var(--color-brand-ink) 30%, transparent) 50%,
       transparent 60%
     );
     transform: translateX(-100%);
@@ -690,6 +690,19 @@
 }
 .scene:not([data-visible]) [class*='play-'] {
   animation-play-state: paused;
+}
+
+/* A done set: a ring of light leaves the ✓. */
+@keyframes set-shine {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-brand) 60%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+.animate-set-shine {
+  animation: set-shine 650ms var(--ease-decelerate) both;
 }
 
 @media (prefers-reduced-motion: reduce) {

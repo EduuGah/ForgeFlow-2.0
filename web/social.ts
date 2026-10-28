@@ -700,3 +700,231 @@ export async function removeReaction(
     .eq('user_id', me);
   if (error) fail(error);
 }
+
+/* ------------------------------------------------------------------ */
+/* Comments                                                            */
+/* ------------------------------------------------------------------ */
+
+export interface WorkoutComment {
+  id: number;
+  ownerId: string;
+  workoutId: string;
+  userId: string;
+  body: string;
+  createdAt: string;
+}
+
+interface CommentRow {
+  id: number;
+  owner_id: string;
+  workout_id: string;
+  user_id: string;
+  body: string;
+  created_at: string;
+}
+
+const fromCommentRow = (row: CommentRow): WorkoutComment => ({
+  id: row.id,
+  ownerId: row.owner_id,
+  workoutId: row.workout_id,
+  userId: row.user_id,
+  body: row.body,
+  createdAt: row.created_at,
+});
+
+/** Comments on the given workouts of the given people, oldest first. */
+export async function fetchComments(
+  ownerIds: string[],
+  workoutIds: string[],
+): Promise<WorkoutComment[]> {
+  if (ownerIds.length === 0 || workoutIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('workout_comments')
+    .select('*')
+    .in('owner_id', ownerIds)
+    .in('workout_id', workoutIds)
+    .order('created_at', { ascending: true })
+    .limit(500);
+  if (error) fail(error);
+  return ((data as CommentRow[] | null) ?? []).map(fromCommentRow);
+}
+
+/** RLS only accepts it on one's own workout or a friend's. */
+export async function addComment(
+  me: string,
+  ownerId: string,
+  workoutId: string,
+  body: string,
+): Promise<WorkoutComment> {
+  const { data, error } = await supabase
+    .from('workout_comments')
+    .insert({
+      owner_id: ownerId,
+      workout_id: workoutId,
+      user_id: me,
+      body: body.trim().slice(0, 300),
+    })
+    .select('*')
+    .single();
+  if (error) fail(error);
+  return fromCommentRow(data as CommentRow);
+}
+
+export async function deleteComment(id: number): Promise<void> {
+  const { error } = await supabase
+    .from('workout_comments')
+    .delete()
+    .eq('id', id);
+  if (error) fail(error);
+}
+
+/** Comments friends left on this person's workouts since `since`. */
+export async function fetchReceivedComments(
+  me: string,
+  since: string,
+): Promise<WorkoutComment[]> {
+  const { data, error } = await supabase
+    .from('workout_comments')
+    .select('*')
+    .eq('owner_id', me)
+    .neq('user_id', me)
+    .gt('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error) fail(error);
+  return ((data as CommentRow[] | null) ?? []).map(fromCommentRow);
+}
+
+/* ------------------------------------------------------------------ */
+/* Groups and challenges                                               */
+/* ------------------------------------------------------------------ */
+
+export type GroupMetric = 'volume' | 'workouts' | 'sets' | 'minutes';
+
+export interface FriendGroup {
+  id: number;
+  ownerId: string;
+  name: string;
+  /** Null for a group; set (with dates) for a challenge. */
+  metric: GroupMetric | null;
+  startsOn: string | null;
+  endsOn: string | null;
+  createdAt: string;
+  members: { userId: string; status: 'invited' | 'joined' }[];
+}
+
+interface GroupRow {
+  id: number;
+  owner_id: string;
+  name: string;
+  metric: GroupMetric | null;
+  starts_on: string | null;
+  ends_on: string | null;
+  created_at: string;
+  friend_group_members:
+    { user_id: string; status: 'invited' | 'joined' }[] | null;
+}
+
+/** Groups and challenges this person created, joined or was invited to. */
+export async function listGroups(): Promise<FriendGroup[]> {
+  const { data, error } = await supabase
+    .from('friend_groups')
+    .select('*, friend_group_members(user_id, status)')
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) fail(error);
+  return ((data as GroupRow[] | null) ?? []).map((row) => ({
+    id: row.id,
+    ownerId: row.owner_id,
+    name: row.name,
+    metric: row.metric,
+    startsOn: row.starts_on,
+    endsOn: row.ends_on,
+    createdAt: row.created_at,
+    members: (row.friend_group_members ?? []).map((member) => ({
+      userId: member.user_id,
+      status: member.status,
+    })),
+  }));
+}
+
+/** Creates the group, joins it and invites the chosen friends. */
+export async function createGroup(
+  me: string,
+  group: {
+    name: string;
+    metric: GroupMetric | null;
+    startsOn: string | null;
+    endsOn: string | null;
+  },
+  friendIds: string[],
+): Promise<number> {
+  const { data, error } = await supabase
+    .from('friend_groups')
+    .insert({
+      owner_id: me,
+      name: group.name.trim().slice(0, 60),
+      metric: group.metric,
+      starts_on: group.startsOn,
+      ends_on: group.endsOn,
+    })
+    .select('id')
+    .single();
+  if (error) fail(error);
+  const id = (data as { id: number }).id;
+  const members = await supabase.from('friend_group_members').insert([
+    { group_id: id, user_id: me, status: 'joined' },
+    ...friendIds.map((userId) => ({
+      group_id: id,
+      user_id: userId,
+      status: 'invited',
+    })),
+  ]);
+  if (members.error) fail(members.error);
+  return id;
+}
+
+export async function inviteToGroup(
+  groupId: number,
+  friendIds: string[],
+): Promise<void> {
+  if (friendIds.length === 0) return;
+  const { error } = await supabase.from('friend_group_members').insert(
+    friendIds.map((userId) => ({
+      group_id: groupId,
+      user_id: userId,
+      status: 'invited',
+    })),
+  );
+  if (error) fail(error);
+}
+
+export async function joinGroup(me: string, groupId: number): Promise<void> {
+  const { error } = await supabase
+    .from('friend_group_members')
+    .update({ status: 'joined' })
+    .eq('group_id', groupId)
+    .eq('user_id', me);
+  if (error) fail(error);
+}
+
+/** Leaves (or declines) a group; the owner removing someone uses `userId`. */
+export async function leaveGroup(
+  groupId: number,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('friend_group_members')
+    .delete()
+    .eq('group_id', groupId)
+    .eq('user_id', userId);
+  if (error) fail(error);
+}
+
+export async function deleteGroup(groupId: number): Promise<void> {
+  const { error } = await supabase
+    .from('friend_groups')
+    .delete()
+    .eq('id', groupId);
+  if (error) fail(error);
+}

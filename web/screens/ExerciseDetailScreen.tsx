@@ -37,6 +37,7 @@ import { SegmentedControl, Tabs } from '../ui/Form';
 import { StackHeader } from '../ui/Layout';
 import { useToast } from '../ui/Overlay';
 import { cx } from '../ui/core';
+import { repRangeBests } from '../lib/summaries';
 
 type DetailTab = 'summary' | 'history' | 'instructions';
 type Metric = 'weight' | 'oneRepMax' | 'volume';
@@ -116,6 +117,7 @@ export function ExerciseDetailView({
   }
 
   const records = prs.filter((record) => record.exerciseId === exercise.id);
+  const repBests = repRangeBests(sessions);
   const recordOf = (type: PersonalRecordType) =>
     records.find((record) => record.type === type);
   const chartData = [...sessions]
@@ -272,6 +274,19 @@ export function ExerciseDetailView({
                 );
               })}
             </ul>
+            {repBests.length > 0 && (
+              <p className="text-footnote mt-3 text-ink-2">
+                <span className="font-semibold text-ink-3">
+                  Melhor carga por repetições:{' '}
+                </span>
+                {repBests
+                  .map(
+                    (item) =>
+                      `${item.reps} ${item.reps === 1 ? 'rep' : 'reps'} ${formatWeight(item.weightKg)} kg`,
+                  )
+                  .join(' · ')}
+              </p>
+            )}
           </section>
         </div>
       )}

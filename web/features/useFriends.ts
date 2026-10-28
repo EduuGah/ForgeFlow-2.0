@@ -13,6 +13,7 @@ import {
   SocialError,
   acceptFriendRequest,
   deleteShare,
+  fetchReceivedComments,
   fetchReceivedReactions,
   getSocialProfile,
   getSocialProfiles,
@@ -210,9 +211,13 @@ export function refreshFriends(): Promise<void> {
         loadedAt: Date.now(),
       });
       notifyFriendEvents(before, lists, inbox, unread.latest, profiles);
-      notify(await reactionNews(user.uid, profiles), {
-        system: 'friendAlerts',
-      });
+      notify(
+        [
+          ...(await reactionNews(user.uid, profiles)),
+          ...(await commentNews(user.uid, profiles)),
+        ],
+        { system: 'friendAlerts' },
+      );
     } catch (error) {
       console.warn('ForgeFlow amigos:', error);
       update({
@@ -288,6 +293,41 @@ async function reactionNews(
     });
   } catch (error) {
     console.warn('ForgeFlow reações:', error);
+    return [];
+  }
+}
+
+/** Comments friends left since the last look, once each. */
+async function commentNews(
+  userId: string,
+  profiles: Map<string, SocialProfile>,
+): Promise<NewNotification[]> {
+  const key = `forgeflow_comments_seen_${userId}`;
+  let since = new Date(Date.now() - 3 * 86_400_000).toISOString();
+  try {
+    since = localStorage.getItem(key) ?? since;
+  } catch {
+    // Private mode: the last three days.
+  }
+  try {
+    const found = await fetchReceivedComments(userId, since);
+    if (found.length > 0) {
+      try {
+        localStorage.setItem(key, found[0].createdAt);
+      } catch {
+        // The bell skips repeats anyway.
+      }
+    }
+    return found.map((comment) => ({
+      id: `comment-${comment.id}`,
+      kind: 'comment',
+      title: `${nameOf(profiles.get(comment.userId))} comentou no seu treino`,
+      body: comment.body,
+      link: `mine:${comment.workoutId}`,
+      createdAt: comment.createdAt,
+    }));
+  } catch (error) {
+    console.warn('ForgeFlow comentários:', error);
     return [];
   }
 }

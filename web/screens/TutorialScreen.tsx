@@ -8,6 +8,7 @@ import {
   SetTableDemo,
 } from '../features/Demos';
 import { Button, IconButton } from '../ui/Button';
+import { BarbellScene, FriendsScene, WeekScene } from '../ui/Scenes';
 import { cx, useBackLayer, useScrollLock } from '../ui/core';
 
 interface Slide {
@@ -28,9 +29,24 @@ const SLIDES: Slide[] = [
     demo: <RestRingDemo />,
   },
   {
+    title: 'Programas prontos e agenda',
+    text: 'Comece com um programa pronto (tem para iniciantes) ou monte suas rotinas. Escolha a rotina de cada dia e receba um lembrete na hora de treinar.',
+    demo: <BarbellScene className="mx-auto max-w-sm" />,
+  },
+  {
     title: 'Veja sua evolução',
     text: 'Na aba Evolução você acompanha volume, duração e repetições por período. Recordes de carga e de 1RM estimado são detectados na hora.',
     demo: <ProgressDemo loopMs={6000} />,
+  },
+  {
+    title: 'Sua semana, músculo por músculo',
+    text: 'Durante o treino os músculos acendem no mapa do corpo. Mantenha a sequência de semanas e veja o mês e o ano inteiro de treinos.',
+    demo: <WeekScene className="mx-auto max-w-sm" />,
+  },
+  {
+    title: 'Treine com seus amigos',
+    text: 'Veja quem está treinando agora, reaja, comente e dispute desafios e rankings. Dá até para salvar o treino de um amigo como rotina.',
+    demo: <FriendsScene className="mx-auto max-w-sm" />,
   },
   {
     title: 'Seus dados, do seu jeito',

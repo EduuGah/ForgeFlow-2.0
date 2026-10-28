@@ -1,16 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import {
-  Check,
-  Clock,
-  Copy,
-  Inbox,
-  Search,
-  Share2,
-  UserCheck,
-  UserPlus,
-  Users,
-} from 'lucide-react';
-import { actions, useAppStore, useProfilePhoto } from '../store';
+import { Copy, Inbox, Search, Share2, UserCheck, UserPlus } from 'lucide-react';
+import { useAppStore, useProfilePhoto } from '../store';
 import { addDays, startOfDay } from '../lib/dates';
 import {
   formatCompact,
@@ -52,6 +42,8 @@ import { describeShare } from '../lib/sharing';
 import { clearInvite } from '../features/invite';
 import { useLiveFriends } from '../features/liveWorkouts';
 import { ReactionBar, useReactions } from '../features/Reactions';
+import { CommentsThread, useComments } from '../features/Comments';
+import { GroupsPanel } from '../features/Groups';
 import { FriendsTrainingNow, LiveLine } from '../features/TrainingNow';
 import { GoogleButton, useGoogleSignIn } from '../features/GoogleSignIn';
 import { Button, Spinner } from '../ui/Button';
@@ -75,35 +67,6 @@ import { useConfirm, useToast } from '../ui/Overlay';
 import { cx } from '../ui/core';
 
 type SocialTab = 'friends' | 'activity' | 'ranking' | 'challenges';
-
-const CHALLENGES = [
-  {
-    id: 'ch-volume',
-    title: '30 dias de volume',
-    description:
-      'Acumule o máximo de volume em 30 dias de treinos consistentes.',
-    metric: 'Volume total',
-    participants: 142,
-    daysLeft: 18,
-  },
-  {
-    id: 'ch-consistency',
-    title: '20 treinos no mês',
-    description: 'Complete 20 treinos válidos dentro do mês.',
-    metric: 'Frequência',
-    participants: 98,
-    daysLeft: 22,
-  },
-  {
-    id: 'ch-squat',
-    title: 'Agachamento pesado',
-    description:
-      'Aumente sua carga de trabalho no agachamento livre com segurança.',
-    metric: 'Carga máxima',
-    participants: 65,
-    daysLeft: 12,
-  },
-];
 
 /* Medal metals: the same in both themes, always with dark text. */
 const PODIUM = [
@@ -129,15 +92,13 @@ export function SocialScreen({ invite }: { invite?: string }) {
   const { currentUser, isOnline } = useAppStore();
   const { pop } = useNavigation();
   const friends = useFriends();
-  const [tab, setTab] = useState<SocialTab>(
-    invite || currentUser ? 'friends' : 'challenges',
-  );
+  const [tab, setTab] = useState<SocialTab>('friends');
 
   useEffect(() => {
     if (currentUser && isOnline) void refreshFriends();
   }, [currentUser, isOnline]);
 
-  const needsAccount = !currentUser && tab !== 'challenges';
+  const needsAccount = !currentUser;
   const pending =
     friends.lists.incoming.length + friends.inbox.length + totalUnread(friends);
 
@@ -157,7 +118,7 @@ export function SocialScreen({ invite }: { invite?: string }) {
               },
               { value: 'activity', label: 'Atividade' },
               { value: 'ranking', label: 'Ranking' },
-              { value: 'challenges', label: 'Desafios' },
+              { value: 'challenges', label: 'Grupos' },
             ]}
           />
         </div>
@@ -166,14 +127,14 @@ export function SocialScreen({ invite }: { invite?: string }) {
           <SignInPrompt invite={invite} />
         ) : (
           <>
-            {!isOnline && tab !== 'challenges' && (
+            {!isOnline && (
               <div className="px-4 pt-4">
                 <InlineNotice tone="offline">
                   Sem conexão. Amigos e ranking precisam de internet.
                 </InlineNotice>
               </div>
             )}
-            {friends.status === 'error' && tab !== 'challenges' && (
+            {friends.status === 'error' && (
               <div className="px-4 pt-4">
                 <InlineNotice
                   tone="error"
@@ -198,9 +159,9 @@ export function SocialScreen({ invite }: { invite?: string }) {
             )}
             {tab === 'activity' && <ActivityPanel friends={friends} />}
             {tab === 'ranking' && <RankingPanel friends={friends} />}
+            {tab === 'challenges' && <GroupsPanel friends={friends} />}
           </>
         )}
-        {tab === 'challenges' && <ChallengesPanel />}
       </div>
     </>
   );
@@ -912,12 +873,16 @@ function ActivityPanel({ friends }: { friends: FriendsState }) {
   const [failed, setFailed] = useState<string | null>(null);
   const list = friends.lists.friends;
   const sharing = list.filter((link) => link.other.shareStats);
-  const reactions = useReactions(
-    (feed ?? []).map(({ friend, workout }) => ({
-      ownerId: friend.userId,
-      workoutId: workout.id,
-    })),
+  const targets = useMemo(
+    () =>
+      (feed ?? []).map(({ friend, workout }) => ({
+        ownerId: friend.userId,
+        workoutId: workout.id,
+      })),
+    [feed],
   );
+  const reactions = useReactions(targets);
+  const comments = useComments(targets);
 
   useEffect(() => {
     if (!isOnline || friends.status !== 'ready') return;
@@ -1029,13 +994,30 @@ function ActivityPanel({ friends }: { friends: FriendsState }) {
                   </span>
                 )}
               </button>
+              {workout.prsAchieved.length > 0 && (
+                <ul className="mx-4 mb-3 space-y-1 rounded-md bg-record-soft px-3 py-2">
+                  {workout.prsAchieved.slice(0, 3).map((text) => (
+                    <li key={text} className="text-footnote">
+                      🏆 {text}
+                    </li>
+                  ))}
+                </ul>
+              )}
               <ReactionBar
-                className="px-4 pb-4"
+                className="px-4"
                 me={reactions.me}
                 reactions={reactions.of(friend.userId, workout.id)}
                 onReact={(emoji) =>
                   void reactions.react(friend.userId, workout.id, emoji)
                 }
+              />
+              <CommentsThread
+                className="px-4 pt-1 pb-3"
+                comments={comments.of(friend.userId, workout.id)}
+                me={comments.me}
+                ownerId={friend.userId}
+                onAdd={(body) => comments.add(friend.userId, workout.id, body)}
+                onRemove={(comment) => void comments.remove(comment)}
               />
             </article>
           );
@@ -1386,71 +1368,6 @@ function ExerciseBoards({
         })}
       </ol>
     </>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Challenges (still sample data)                                      */
-/* ------------------------------------------------------------------ */
-
-function ChallengesPanel() {
-  const { social } = useAppStore();
-  const toast = useToast();
-  return (
-    <section
-      id="panel-challenges"
-      role="tabpanel"
-      aria-labelledby="tab-challenges"
-      className="animate-fade-in space-y-3 px-4 pt-4 pb-6"
-    >
-      <InlineNotice tone="info">
-        Desafios de demonstração: em breve, disputados com seus amigos.
-      </InlineNotice>
-      {CHALLENGES.map((challenge) => {
-        const joined = social.joinedChallenges.includes(challenge.id);
-        return (
-          <Card key={challenge.id} as="article" className="p-4">
-            <div className="flex items-center justify-between gap-3">
-              <Badge tone="warmup">{challenge.metric}</Badge>
-              <span className="text-footnote flex items-center gap-1 text-ink-2">
-                <Clock size={14} aria-hidden="true" /> {challenge.daysLeft} dias
-                restantes
-              </span>
-            </div>
-            <h3 className="text-headline mt-2 font-semibold">
-              {challenge.title}
-            </h3>
-            <p className="text-callout mt-1 text-ink-2">
-              {challenge.description}
-            </p>
-            <p className="text-footnote mt-2 flex items-center gap-1.5 text-ink-3">
-              <Users size={14} aria-hidden="true" />{' '}
-              {challenge.participants + (joined ? 1 : 0)} participantes
-            </p>
-            <Button
-              block
-              className="mt-4"
-              variant={joined ? 'tinted' : 'primary'}
-              icon={joined ? Check : undefined}
-              aria-pressed={joined}
-              onClick={() => {
-                actions.toggleChallenge(challenge.id);
-                haptic('tap');
-                toast({
-                  tone: 'success',
-                  title: joined
-                    ? 'Você saiu do desafio'
-                    : 'Inscrição confirmada',
-                  description: challenge.title,
-                });
-              }}
-            >
-              {joined ? 'Inscrito' : 'Participar'}
-            </Button>
-          </Card>
-        );
-      })}
-    </section>
   );
 }
 

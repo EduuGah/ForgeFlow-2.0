@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Calculator, Check, ChevronRight, Lock, MapPin } from 'lucide-react';
+import { Calculator, ChevronRight, MapPin, Share2 } from 'lucide-react';
 import { findExercise, useAppStore } from '../store';
 import { addDays, startOfDay } from '../lib/dates';
 import {
@@ -33,11 +33,15 @@ import {
 } from '../lib/projections';
 import { filterByGym, type GymFilter } from '../lib/gyms';
 import { Button } from '../ui/Button';
-import { EmptyState, Medal, ProgressBar } from '../ui/Feedback';
+import { EmptyState, Medal } from '../ui/Feedback';
 import { NumberField, SegmentedControl } from '../ui/Form';
 import { Card, Delta, SectionHeader, Stat, TabHeader } from '../ui/Layout';
 import { cx } from '../ui/core';
 import { ProgressScene } from '../ui/Scenes';
+import { MuscleMapCard, historyMuscleWork } from '../features/MuscleMap';
+import { SummarySheet } from '../features/SummarySheet';
+import { LevelCard, MedalWall } from '../features/Medals';
+import { YearCalendar } from '../features/YearCalendar';
 import { Art } from '../ui/Art';
 
 type PeriodDays = '7' | '30' | '90' | '365';
@@ -71,11 +75,12 @@ function formatMetricTick(metric: ChartMetric, value: number): string {
 
 /** Evolution tab: one period filter above everything it scopes. */
 export function ProgressScreen() {
-  const { history: allHistory, prs, streakWeeks, gyms } = useAppStore();
+  const { history: allHistory, prs, gyms } = useAppStore();
   const { push } = useNavigation();
   const [period, setPeriod] = useState<PeriodDays>('30');
   const [metric, setMetric] = useState<ChartMetric>('volume');
   const [gymFilter, setGymFilter] = useState<GymFilter>('all');
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const days = Number(period);
   // The gym filter scopes the period numbers, chart and muscles; records and
   // achievements stay global. A deleted gym falls back to every workout.
@@ -135,53 +140,23 @@ export function ProgressScreen() {
   }, [prs]);
 
   const { current, previous } = comparison;
-  const totalVolume = allHistory.reduce(
-    (total, workout) => total + workout.totalVolumeKg,
-    0,
-  );
-
-  const achievements = [
-    {
-      title: 'Primeiro treino',
-      description: 'Conclua seu primeiro treino.',
-      progress: Math.min(1, allHistory.length),
-      target: 1,
-    },
-    {
-      title: 'Primeiro recorde',
-      description: 'Estabeleça uma marca pessoal.',
-      progress: Math.min(1, prs.length),
-      target: 1,
-    },
-    {
-      title: 'Constância',
-      description: '3 semanas seguidas treinando.',
-      progress: Math.min(3, streakWeeks),
-      target: 3,
-    },
-    {
-      title: '10 treinos',
-      description: 'Finalize 10 sessões completas.',
-      progress: Math.min(10, allHistory.length),
-      target: 10,
-    },
-    {
-      title: 'Clube das 10 toneladas',
-      description: '10.000 kg de volume acumulado.',
-      progress: Math.min(10000, totalVolume),
-      target: 10000,
-    },
-    {
-      title: 'Clube das 50 toneladas',
-      description: '50.000 kg de volume acumulado.',
-      progress: Math.min(50000, totalVolume),
-      target: 50000,
-    },
-  ];
 
   return (
     <>
-      <TabHeader title="Evolução" />
+      <TabHeader
+        title="Evolução"
+        actions={
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={Share2}
+            onClick={() => setSummaryOpen(true)}
+          >
+            Resumo
+          </Button>
+        }
+      />
+      <SummarySheet open={summaryOpen} onClose={() => setSummaryOpen(false)} />
       <div className="app-column space-y-6 px-4 pt-2">
         <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-10 -mx-4 bg-canvas/90 px-4 py-2 backdrop-blur-md">
           <SegmentedControl
@@ -283,6 +258,13 @@ export function ProgressScreen() {
           />
         )}
 
+        <section aria-labelledby="stats-year">
+          <SectionHeader id="stats-year" title="Seu ano" />
+          <Card className="p-4">
+            <YearCalendar />
+          </Card>
+        </section>
+
         <StrengthCard />
 
         <BodyWeightCard />
@@ -363,53 +345,10 @@ export function ProgressScreen() {
         </section>
 
         <section aria-labelledby="stats-achievements">
-          <SectionHeader id="stats-achievements" title="Conquistas" />
-          <Card as="div" className="divide-y divide-line">
-            {achievements.map((achievement) => {
-              const unlocked = achievement.progress >= achievement.target;
-              return (
-                <div
-                  key={achievement.title}
-                  className="flex items-center gap-3 px-4 py-3"
-                >
-                  <span
-                    className={cx(
-                      'grid size-10 shrink-0 place-items-center rounded-full',
-                      unlocked
-                        ? 'bg-record-soft text-record'
-                        : 'bg-raised text-ink-3',
-                    )}
-                  >
-                    {unlocked ? (
-                      <Check size={20} strokeWidth={3} aria-hidden="true" />
-                    ) : (
-                      <Lock size={18} aria-hidden="true" />
-                    )}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-callout font-medium">
-                      {achievement.title}
-                      <span className="sr-only">
-                        {unlocked ? ', desbloqueada' : ', bloqueada'}
-                      </span>
-                    </p>
-                    <p className="text-footnote text-ink-2">
-                      {achievement.description}
-                    </p>
-                    {!unlocked && (
-                      <ProgressBar
-                        value={
-                          (achievement.progress / achievement.target) * 100
-                        }
-                        label={`Progresso de ${achievement.title}`}
-                        thickness="sm"
-                        className="mt-2"
-                      />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <SectionHeader id="stats-achievements" title="Nível e medalhas" />
+          <Card className="space-y-5 p-4">
+            <LevelCard />
+            <MedalWall />
           </Card>
         </section>
 
@@ -805,6 +744,15 @@ function MuscleBalanceCard() {
     <section aria-labelledby="stats-balance">
       <SectionHeader id="stats-balance" title="Séries por semana" />
       <Card as="div" className="p-4">
+        <MuscleMapCard
+          work={historyMuscleWork(
+            history,
+            addDays(startOfDay(new Date()), -27),
+          )}
+          full={48}
+          height={130}
+          className="mb-4 border-b border-line pb-4"
+        />
         <p className="text-footnote mb-3 text-ink-2">
           Média das últimas 4 semanas. Entre 10 e 20 séries por músculo é a
           faixa mais usada para crescer.

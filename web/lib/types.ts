@@ -32,6 +32,8 @@ export interface ActiveWorkoutState {
   templateId?: string;
   exercises: ActiveExerciseSession[];
   notes?: string;
+  /** Started during a deload week (half the sets). */
+  deload?: boolean;
 }
 
 /** Extra set markers kept from imports (Hevy/Strong "F" and "D" sets). */

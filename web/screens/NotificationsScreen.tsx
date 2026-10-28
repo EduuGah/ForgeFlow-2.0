@@ -5,10 +5,12 @@ import {
   Flame,
   FolderInput,
   MessageCircle,
+  MessageSquare,
   Target,
   Trophy,
   UserCheck,
   UserPlus,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import { formatRelativeDay, formatTime } from '../lib/format';
@@ -34,6 +36,8 @@ const ICONS: Record<FeedKind, LucideIcon> = {
   record: Trophy,
   goal: Target,
   reaction: Flame,
+  comment: MessageSquare,
+  group: Users,
 };
 
 export function NotificationsScreen() {

@@ -49,6 +49,11 @@ import {
 } from '../features/ShareSheets';
 import { refreshFriendsIfStale } from '../features/useFriends';
 import { duplicateFolder } from '../features/duplicateFolder';
+import {
+  AgendaSheet,
+  ProgramsSheet,
+  WeekPlanCard,
+} from '../features/PlanSheets';
 import { Button, IconButton } from '../ui/Button';
 import { EmptyState } from '../ui/Feedback';
 import { BarbellScene } from '../ui/Scenes';
@@ -145,6 +150,8 @@ export function RoutinesScreen() {
   const toast = useToast();
   const { collapsed, toggle, expand } = useCollapsedFolders();
   const [folderSheet, setFolderSheet] = useState<FolderSheetState | null>(null);
+  const [agendaOpen, setAgendaOpen] = useState(false);
+  const [programsOpen, setProgramsOpen] = useState(false);
   const groups = useMemo(
     () => groupRoutines(templates, folders),
     [templates, folders],
@@ -252,6 +259,16 @@ export function RoutinesScreen() {
             />
           </div>
         )}
+
+        <WeekPlanCard
+          onEdit={() => setAgendaOpen(true)}
+          onPrograms={() => setProgramsOpen(true)}
+        />
+        <AgendaSheet open={agendaOpen} onClose={() => setAgendaOpen(false)} />
+        <ProgramsSheet
+          open={programsOpen}
+          onClose={() => setProgramsOpen(false)}
+        />
 
         <section aria-labelledby="routines-title">
           <SectionHeader

@@ -518,6 +518,201 @@ REVOKE UPDATE ON public.workout_reactions FROM anon, authenticated;
 GRANT UPDATE (emoji, created_at) ON public.workout_reactions TO authenticated;
 
 -- ============================================================
+-- Comentários nos treinos (do dono e dos amigos que veem o treino).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.workout_comments (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  owner_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  workout_id TEXT NOT NULL CHECK (char_length(workout_id) <= 100),
+  user_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  body TEXT NOT NULL CHECK (char_length(btrim(body)) BETWEEN 1 AND 300),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS workout_comments_workout_idx
+  ON public.workout_comments (owner_id, workout_id);
+CREATE INDEX IF NOT EXISTS workout_comments_user_idx
+  ON public.workout_comments (user_id);
+ALTER TABLE public.workout_comments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Quem vê o treino vê os comentários" ON public.workout_comments;
+CREATE POLICY "Quem vê o treino vê os comentários" ON public.workout_comments
+  FOR SELECT TO authenticated
+  USING (
+    (select auth.uid())::text IN (owner_id, user_id)
+    OR public.is_friend_sharing(owner_id)
+  );
+DROP POLICY IF EXISTS "Comenta em seu nome no próprio treino ou de amigo" ON public.workout_comments;
+CREATE POLICY "Comenta em seu nome no próprio treino ou de amigo" ON public.workout_comments
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    user_id = (select auth.uid())::text
+    AND (owner_id = user_id OR public.is_friend_sharing(owner_id))
+  );
+DROP POLICY IF EXISTS "Autor ou dono apagam o comentário" ON public.workout_comments;
+CREATE POLICY "Autor ou dono apagam o comentário" ON public.workout_comments
+  FOR DELETE TO authenticated
+  USING ((select auth.uid())::text IN (owner_id, user_id));
+
+-- ============================================================
+-- Grupos e desafios entre amigos. Um grupo sem métrica é uma turma com
+-- ranking próprio; com métrica e datas, um desafio. Só amigos do criador
+-- podem ser convidados.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.friend_groups (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  owner_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  name TEXT NOT NULL CHECK (char_length(btrim(name)) BETWEEN 1 AND 60),
+  metric TEXT CHECK (metric IN ('volume', 'workouts', 'sets', 'minutes')),
+  starts_on DATE,
+  ends_on DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK ((metric IS NULL) = (starts_on IS NULL) AND (starts_on IS NULL) = (ends_on IS NULL)),
+  CHECK (ends_on IS NULL OR (ends_on >= starts_on AND ends_on - starts_on <= 92))
+);
+CREATE INDEX IF NOT EXISTS friend_groups_owner_idx ON public.friend_groups (owner_id);
+
+CREATE TABLE IF NOT EXISTS public.friend_group_members (
+  group_id BIGINT NOT NULL REFERENCES public.friend_groups (id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES public.social_profiles (user_id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'invited' CHECK (status IN ('invited', 'joined')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (group_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS friend_group_members_user_idx
+  ON public.friend_group_members (user_id);
+
+-- Sem recursão nas regras: quem participa (ou criou) o grupo.
+CREATE OR REPLACE FUNCTION public.in_friend_group(p_group BIGINT)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.friend_group_members m
+    WHERE m.group_id = p_group AND m.user_id = (select auth.uid())::text
+  ) OR EXISTS (
+    SELECT 1 FROM public.friend_groups g
+    WHERE g.id = p_group AND g.owner_id = (select auth.uid())::text
+  );
+$$;
+REVOKE ALL ON FUNCTION public.in_friend_group(BIGINT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.in_friend_group(BIGINT) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.owns_friend_group(p_group BIGINT)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.friend_groups g
+    WHERE g.id = p_group AND g.owner_id = (select auth.uid())::text
+  );
+$$;
+REVOKE ALL ON FUNCTION public.owns_friend_group(BIGINT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.owns_friend_group(BIGINT) TO authenticated;
+
+ALTER TABLE public.friend_groups ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Participantes veem o grupo" ON public.friend_groups;
+CREATE POLICY "Participantes veem o grupo" ON public.friend_groups
+  FOR SELECT TO authenticated
+  -- O dono direto na linha: assim o grupo recém-criado já volta no RETURNING.
+  USING (owner_id = (select auth.uid())::text OR public.in_friend_group(id));
+DROP POLICY IF EXISTS "Cria grupos em seu nome" ON public.friend_groups;
+CREATE POLICY "Cria grupos em seu nome" ON public.friend_groups
+  FOR INSERT TO authenticated WITH CHECK (owner_id = (select auth.uid())::text);
+DROP POLICY IF EXISTS "O dono edita o grupo" ON public.friend_groups;
+CREATE POLICY "O dono edita o grupo" ON public.friend_groups
+  FOR UPDATE TO authenticated
+  USING (owner_id = (select auth.uid())::text)
+  WITH CHECK (owner_id = (select auth.uid())::text);
+DROP POLICY IF EXISTS "O dono apaga o grupo" ON public.friend_groups;
+CREATE POLICY "O dono apaga o grupo" ON public.friend_groups
+  FOR DELETE TO authenticated USING (owner_id = (select auth.uid())::text);
+
+ALTER TABLE public.friend_group_members ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Participantes veem quem está no grupo" ON public.friend_group_members;
+CREATE POLICY "Participantes veem quem está no grupo" ON public.friend_group_members
+  FOR SELECT TO authenticated
+  USING (
+    user_id = (select auth.uid())::text OR public.in_friend_group(group_id)
+  );
+DROP POLICY IF EXISTS "O dono entra e convida amigos" ON public.friend_group_members;
+CREATE POLICY "O dono entra e convida amigos" ON public.friend_group_members
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    public.owns_friend_group(group_id)
+    AND (
+      user_id = (select auth.uid())::text
+      OR (status = 'invited' AND public.are_friends(user_id))
+    )
+  );
+DROP POLICY IF EXISTS "O convidado aceita" ON public.friend_group_members;
+CREATE POLICY "O convidado aceita" ON public.friend_group_members
+  FOR UPDATE TO authenticated
+  USING (user_id = (select auth.uid())::text)
+  WITH CHECK (user_id = (select auth.uid())::text);
+DROP POLICY IF EXISTS "Sai do grupo ou o dono remove" ON public.friend_group_members;
+CREATE POLICY "Sai do grupo ou o dono remove" ON public.friend_group_members
+  FOR DELETE TO authenticated
+  USING (
+    user_id = (select auth.uid())::text OR public.owns_friend_group(group_id)
+  );
+-- Aceitar muda só o status; ninguém se move de grupo.
+REVOKE UPDATE ON public.friend_group_members FROM anon, authenticated;
+GRANT UPDATE (status) ON public.friend_group_members TO authenticated;
+
+-- ============================================================
+-- Agenda da semana e lembrete de treino. A função "reminders" lê esta
+-- tabela (com a chave de serviço) e avisa no horário escolhido.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.training_plans (
+  user_id TEXT PRIMARY KEY,
+  -- {"days": [null | {"id": "...", "name": "Push"}] × 7}, domingo primeiro.
+  plan JSONB NOT NULL DEFAULT '{}'::jsonb CHECK (pg_column_size(plan) < 8000),
+  reminder_enabled BOOLEAN NOT NULL DEFAULT false,
+  reminder_minute INTEGER NOT NULL DEFAULT 1080
+    CHECK (reminder_minute BETWEEN 0 AND 1439),
+  time_zone TEXT NOT NULL DEFAULT 'America/Sao_Paulo'
+    CHECK (char_length(time_zone) <= 64),
+  last_sent_on DATE,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.training_plans ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Cada um cuida da própria agenda" ON public.training_plans;
+CREATE POLICY "Cada um cuida da própria agenda" ON public.training_plans
+  FOR ALL TO authenticated
+  USING (user_id = (select auth.uid())::text)
+  WITH CHECK (user_id = (select auth.uid())::text);
+
+-- A cada 10 minutos o próprio Supabase chama a função "reminders", que só
+-- avisa quem tem lembrete vencido e ainda não avisado hoje (chamar de novo
+-- não repete nada). Precisa das extensões pg_cron e pg_net; sem elas o
+-- resto do app funciona e só o lembrete fica parado.
+DO $$
+BEGIN
+  CREATE EXTENSION IF NOT EXISTS pg_cron;
+  CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+  PERFORM cron.schedule(
+    'forgeflow-reminders',
+    '*/10 * * * *',
+    $job$
+      SELECT net.http_post(
+        url := 'https://vuotoadogfazkycjfbrv.supabase.co/functions/v1/reminders',
+        headers := '{"Content-Type": "application/json"}'::jsonb,
+        body := '{}'::jsonb
+      );
+    $job$
+  );
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Lembretes de treino: ative pg_cron e pg_net (%).', SQLERRM;
+END $$;
+
+-- ============================================================
 -- Notificações com o app fechado (Web Push)
 -- Cada aparelho que ativou as notificações; a função "push"
 -- (supabase/functions/push) envia para eles.
@@ -576,6 +771,10 @@ BEGIN
   -- O treino em andamento e as reações (dadas e recebidas).
   DELETE FROM public.live_workouts WHERE user_id = me;
   DELETE FROM public.workout_reactions WHERE me IN (owner_id, user_id);
+  DELETE FROM public.training_plans WHERE user_id = me;
+  DELETE FROM public.workout_comments WHERE me IN (owner_id, user_id);
+  DELETE FROM public.friend_group_members WHERE user_id = me;
+  DELETE FROM public.friend_groups WHERE owner_id = me;
 END;
 $$;
 

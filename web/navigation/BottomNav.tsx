@@ -213,7 +213,7 @@ function CenterButton({
       }
       className="pressable -mt-5 flex flex-col items-center gap-1"
     >
-      <span className="relative grid size-14 place-items-center rounded-2xl bg-brand text-on-brand shadow-[0_8px_24px_rgb(255_122_26/0.35)]">
+      <span className="relative grid size-14 place-items-center rounded-2xl bg-brand text-on-brand shadow-[0_8px_24px_color-mix(in_srgb,var(--color-brand)_35%,transparent)]">
         {resting && (
           <svg
             className="absolute -inset-1.5 -rotate-90"

@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowDown,
   ArrowUp,
+  Calculator,
   Check,
   ChevronDown,
   ChevronUp,
   Dumbbell,
   Flag,
   Flame,
+  Hourglass,
   Info,
   MoreHorizontal,
   Pencil,
@@ -47,9 +49,17 @@ import {
   type RecordBests,
 } from '../lib/training';
 import { haptic } from '../lib/haptics';
+import { celebrate } from '../lib/celebrate';
+import { primeRestSound } from '../lib/restAlert';
 import { useNavigation } from '../navigation/Navigator';
 import { Button, IconButton } from '../ui/Button';
-import { EmptyState, ExerciseThumb, Medal, RecordBadge } from '../ui/Feedback';
+import {
+  EmptyState,
+  ExerciseThumb,
+  InlineNotice,
+  Medal,
+  RecordBadge,
+} from '../ui/Feedback';
 import { NumericInput, TextField } from '../ui/Form';
 import {
   ActionSheet,
@@ -67,6 +77,9 @@ import {
 } from '../ui/core';
 import { ExercisePicker } from './ExercisePicker';
 import { RestTimerBar } from './RestTimer';
+import { HoldTimerSheet, PlateCalculatorSheet } from './WorkoutTools';
+import { MuscleMapCard, activeMuscleWork } from './MuscleMap';
+import { isTimedExercise } from '../lib/plates';
 import { ExerciseDetailView } from '../screens/ExerciseDetailScreen';
 import { SwipeToDelete, usePullDown } from '../ui/Swipe';
 import { DragHandle, SortableList, type DragHandleProps } from '../ui/Sortable';
@@ -313,43 +326,53 @@ export function ActiveWorkoutScreen({
               message="Adicione os exercícios que você vai fazer hoje. Carga e repetições do último treino aparecem como referência."
             />
           ) : (
-            <SortableList
-              label="Exercícios do treino"
-              ids={exerciseKeys}
-              nameOf={(key) =>
-                workout.exercises[exerciseKeys.indexOf(key)]?.exerciseName ?? ''
-              }
-              onMove={actions.reorderActiveExercise}
-              className="space-y-3"
-              renderOverlay={(key) => {
-                const exercise = workout.exercises[exerciseKeys.indexOf(key)];
-                return exercise ? (
-                  <ExercisePreview exercise={exercise} />
-                ) : null;
-              }}
-            >
-              {(key, index, { handle, sorting }) => {
-                const exercise = workout.exercises[index];
-                return (
-                  <ExerciseBlock
-                    exercise={exercise}
-                    index={index}
-                    total={workout.exercises.length}
-                    current={index === currentIndex}
-                    previous={previousSetsFor(
-                      history,
-                      exercise.exerciseId,
-                      exercise.exerciseName,
-                    )}
-                    bests={bests.get(exercise.exerciseId)}
-                    handle={handle}
-                    compact={sorting}
-                    onShowInfo={() => setInfoExerciseId(exercise.exerciseId)}
-                    onSwap={() => setSwapIndex(index)}
-                  />
-                );
-              }}
-            </SortableList>
+            <>
+              {workout.deload && (
+                <InlineNotice tone="info">
+                  Semana de deload: metade das séries e cargas confortáveis. O
+                  objetivo é recuperar, não bater recorde.
+                </InlineNotice>
+              )}
+              <WorkoutMuscles exercises={workout.exercises} />
+              <SortableList
+                label="Exercícios do treino"
+                ids={exerciseKeys}
+                nameOf={(key) =>
+                  workout.exercises[exerciseKeys.indexOf(key)]?.exerciseName ??
+                  ''
+                }
+                onMove={actions.reorderActiveExercise}
+                className="space-y-3"
+                renderOverlay={(key) => {
+                  const exercise = workout.exercises[exerciseKeys.indexOf(key)];
+                  return exercise ? (
+                    <ExercisePreview exercise={exercise} />
+                  ) : null;
+                }}
+              >
+                {(key, index, { handle, sorting }) => {
+                  const exercise = workout.exercises[index];
+                  return (
+                    <ExerciseBlock
+                      exercise={exercise}
+                      index={index}
+                      total={workout.exercises.length}
+                      current={index === currentIndex}
+                      previous={previousSetsFor(
+                        history,
+                        exercise.exerciseId,
+                        exercise.exerciseName,
+                      )}
+                      bests={bests.get(exercise.exerciseId)}
+                      handle={handle}
+                      compact={sorting}
+                      onShowInfo={() => setInfoExerciseId(exercise.exerciseId)}
+                      onSwap={() => setSwapIndex(index)}
+                    />
+                  );
+                }}
+              </SortableList>
+            </>
           )}
 
           <div className="pt-2">
@@ -477,6 +500,53 @@ function ElapsedClock({ startedAt }: { startedAt: string }) {
   );
 }
 
+const MAP_KEY = 'forgeflow_workout_map';
+
+/** Today's muscles lighting up as sets are done; folds away on a tap. */
+function WorkoutMuscles({ exercises }: { exercises: ActiveExerciseSession[] }) {
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(MAP_KEY) !== 'closed';
+    } catch {
+      return true;
+    }
+  });
+  const work = useMemo(() => activeMuscleWork(exercises), [exercises]);
+  const toggle = () => {
+    setOpen(!open);
+    try {
+      localStorage.setItem(MAP_KEY, open ? 'closed' : 'open');
+    } catch {
+      // Remembered for this visit only.
+    }
+  };
+  return (
+    <section className="rounded-lg border border-line bg-surface">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+      >
+        <span className="text-callout font-semibold">Músculos de hoje</span>
+        {open ? (
+          <ChevronUp size={18} className="text-ink-3" aria-hidden="true" />
+        ) : (
+          <ChevronDown size={18} className="text-ink-3" aria-hidden="true" />
+        )}
+      </button>
+      {open && (
+        <MuscleMapCard
+          work={work}
+          full={6}
+          height={140}
+          className="px-3 pb-3"
+        />
+      )}
+    </section>
+  );
+}
+
 /** One segment per exercise, sized by its sets and filled as they are done. */
 function SessionProgress({
   exercises,
@@ -538,7 +608,17 @@ function ExerciseBlock({
   const [menuOpen, setMenuOpen] = useState(false);
   const [restOpen, setRestOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [platesOpen, setPlatesOpen] = useState(false);
+  const [timerOpen, setTimerOpen] = useState(false);
   const [collapsedChoice, setCollapsedChoice] = useState<boolean | null>(null);
+  const timed = isTimedExercise(exercise.exerciseName);
+  // The tools fill the next set still to do (or the last one).
+  const nextSet = Math.max(
+    0,
+    exercise.sets.findIndex((set) => !set.completed) === -1
+      ? exercise.sets.length - 1
+      : exercise.sets.findIndex((set) => !set.completed),
+  );
   const labels = setLabels(exercise.sets);
   const previousBySet = alignPreviousSets(exercise.sets, previous);
   const rest = exercise.restSeconds ?? 90;
@@ -604,6 +684,20 @@ function ExerciseBlock({
       },
     },
     { label: 'Trocar exercício', icon: Replace, onSelect: onSwap },
+    {
+      label: 'Calculadora de anilhas',
+      icon: Calculator,
+      onSelect: () => setPlatesOpen(true),
+    },
+    ...(!timed
+      ? [
+          {
+            label: 'Cronômetro',
+            icon: Hourglass,
+            onSelect: () => setTimerOpen(true),
+          },
+        ]
+      : []),
     { label: 'Ver detalhes do exercício', icon: Info, onSelect: onShowInfo },
     ...(index > 0
       ? [
@@ -720,6 +814,16 @@ function ExerciseBlock({
               <Timer size={14} className="text-brand-ink" aria-hidden="true" />
               {rest > 0 ? formatClock(rest) : 'Sem descanso'}
             </button>
+            {timed && (
+              <button
+                type="button"
+                onClick={() => setTimerOpen(true)}
+                className="text-footnote inline-flex h-8 items-center gap-1.5 rounded-full bg-brand-soft px-3 font-semibold text-brand-ink active:bg-overlay"
+              >
+                <Hourglass size={14} aria-hidden="true" />
+                Cronômetro
+              </button>
+            )}
             {!exercise.notes && !noteOpen && (
               <button
                 type="button"
@@ -759,7 +863,7 @@ function ExerciseBlock({
             <span className="text-center">Série</span>
             <span>Última vez</span>
             <span className="text-center">kg</span>
-            <span className="text-center">Reps</span>
+            <span className="text-center">{timed ? 'Seg' : 'Reps'}</span>
             <span className="grid place-items-center">
               <Check size={14} strokeWidth={3} />
             </span>
@@ -808,6 +912,29 @@ function ExerciseBlock({
         onClose={() => setMenuOpen(false)}
         title={exercise.exerciseName}
         actions={menu}
+      />
+      <PlateCalculatorSheet
+        open={platesOpen}
+        onClose={() => setPlatesOpen(false)}
+        initialKg={exercise.sets[nextSet]?.weightKg ?? 0}
+        onUse={(weightKg) =>
+          exercise.sets[nextSet] &&
+          actions.updateSetActiveWorkout(index, nextSet, { weightKg })
+        }
+      />
+      <HoldTimerSheet
+        open={timerOpen}
+        onClose={() => setTimerOpen(false)}
+        exerciseName={exercise.exerciseName}
+        onRecord={(seconds) => {
+          if (!exercise.sets[nextSet]) return;
+          setCollapsedChoice(false);
+          actions.updateSetActiveWorkout(index, nextSet, {
+            repetitions: seconds,
+            completed: true,
+          });
+          haptic('success');
+        }}
       />
       <ActionSheet
         open={restOpen}
@@ -876,6 +1003,7 @@ function SetRow({
 }) {
   const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [platesOpen, setPlatesOpen] = useState(false);
   const repsRef = useRef<HTMLInputElement>(null);
   const warmup = set.setType === 'warmup';
   const update = (updates: Partial<SetEntry>) =>
@@ -883,7 +1011,9 @@ function SetRow({
 
   const isRecord = set.completed && records.length > 0;
 
-  const toggle = () => {
+  const toggle = (event: MouseEvent<HTMLButtonElement>) => {
+    // A tap here lets the end of the rest play a sound later.
+    primeRestSound();
     if (!set.completed && set.repetitions <= 0) {
       toast({
         tone: 'error',
@@ -901,6 +1031,11 @@ function SetRow({
     const completedNow = update({ completed: !set.completed });
     haptic(completedNow ? 'success' : 'tap');
     if (completedNow && beaten.length > 0) {
+      const box = event.currentTarget.getBoundingClientRect();
+      celebrate('light', {
+        x: box.left + box.width / 2,
+        y: box.top + box.height / 2,
+      });
       toast({
         tone: 'record',
         title: 'Novo recorde pessoal!',
@@ -1039,7 +1174,9 @@ function SetRow({
             onClick={toggle}
             className={cx(
               'pressable grid size-10 place-items-center rounded-md',
-              set.completed ? 'bg-brand text-on-brand' : 'bg-raised text-ink-3',
+              set.completed
+                ? 'animate-set-shine bg-brand text-on-brand'
+                : 'bg-raised text-ink-3',
             )}
           >
             <Check
@@ -1067,6 +1204,11 @@ function SetRow({
                   icon: Flame,
                   onSelect: () => update({ setType: 'warmup' }),
                 },
+            {
+              label: 'Calculadora de anilhas',
+              icon: Calculator,
+              onSelect: () => setPlatesOpen(true),
+            },
             ...(canRemove
               ? [
                   {
@@ -1078,6 +1220,12 @@ function SetRow({
                 ]
               : []),
           ]}
+        />
+        <PlateCalculatorSheet
+          open={platesOpen}
+          onClose={() => setPlatesOpen(false)}
+          initialKg={set.weightKg || previous?.weightKg || 0}
+          onUse={set.completed ? undefined : (weightKg) => update({ weightKg })}
         />
       </div>
     </SwipeToDelete>

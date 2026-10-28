@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MapPin, Share2, Target } from 'lucide-react';
-import { actions, useStoreValue, type FinishResult } from '../store';
+import { actions, getState, useStoreValue, type FinishResult } from '../store';
+import { levelOf, totalXp, workoutXp } from '../lib/achievements';
 import {
   formatDurationMinutes,
   formatNumber,
@@ -9,15 +10,21 @@ import {
 } from '../lib/format';
 import { RECORD_LABELS } from '../lib/training';
 import { Button } from '../ui/Button';
-import { useToast } from '../ui/Overlay';
-import { shareWorkout } from './shareWorkout';
+import { shareWorkout, shareWorkoutImage } from './shareWorkout';
+import { ShareSheet } from './ShareSheet';
 import { Medal } from '../ui/Feedback';
 import { Stat } from '../ui/Layout';
 import { CountUp } from '../ui/Motion';
+import { MuscleMapCard, historyMuscleWork } from './MuscleMap';
 import { celebrate } from '../lib/celebrate';
 import { cx, useBackLayer, usePresence, useScrollLock } from '../ui/core';
 import { GymChips } from './GymPicker';
 import { RoutineUpdateCard } from './RoutineUpdateCard';
+
+/** XP this result earned: the workout and any goal it completed. */
+function gainedXp(result: FinishResult): number {
+  return workoutXp(result.workout) + 100 * result.goalsReached.length;
+}
 
 /** Full-screen celebration after saving a workout. */
 export function WorkoutSummary({
@@ -30,18 +37,26 @@ export function WorkoutSummary({
   onOpenWorkout: (workoutId: string) => void;
 }) {
   const open = result !== null;
-  const toast = useToast();
+  const [sharing, setSharing] = useState(false);
   const { mounted, closing, onExited } = usePresence(open, 300);
   useBackLayer(open, onClose);
   useScrollLock(mounted);
 
-  // Confetti as it opens: a bigger burst for records and goals.
+  const xpAfter = useStoreValue((current) =>
+    totalXp(current.history, current.goals),
+  );
+
+  // Confetti as it opens: a bigger burst for records, goals and new levels.
   useEffect(() => {
     if (!result) return;
+    const { history, goals } = getState();
+    const after = totalXp(history, goals);
+    const before = after - gainedXp(result);
+    const levelUp = levelOf(before).level < levelOf(after).level;
     const timer = setTimeout(
       () =>
         celebrate(
-          result.records.length > 0 || result.goalsReached.length > 0
+          result.records.length > 0 || result.goalsReached.length > 0 || levelUp
             ? 'strong'
             : 'light',
         ),
@@ -65,6 +80,9 @@ export function WorkoutSummary({
   const { workout, records, goalsReached, workoutNumber, routineUpdate } =
     shown;
   const hasRecords = records.length > 0;
+  const gained = gainedXp(shown);
+  const level = levelOf(xpAfter);
+  const levelUp = levelOf(xpAfter - gained).level < level.level;
 
   return createPortal(
     <div
@@ -116,6 +134,19 @@ export function WorkoutSummary({
           >
             {workout.name}
           </p>
+          <p
+            className="mt-3 flex animate-pop flex-wrap items-center justify-center gap-2"
+            style={{ animationDelay: '420ms' }}
+          >
+            <span className="text-footnote rounded-full bg-brand-soft px-3 py-1 font-bold text-brand-ink tabular">
+              +{gained} XP
+            </span>
+            {levelUp && (
+              <span className="text-footnote rounded-full bg-record-soft px-3 py-1 font-bold text-record">
+                ⬆ Nível {level.level} · {level.title}
+              </span>
+            )}
+          </p>
 
           <div
             className="mt-8 grid w-full animate-rise grid-cols-3 gap-3 rounded-lg bg-surface p-4 text-left"
@@ -145,6 +176,14 @@ export function WorkoutSummary({
               size="sm"
             />
           </div>
+
+          <section
+            className="mt-4 w-full animate-rise rounded-lg bg-surface p-4 text-left"
+            style={{ animationDelay: '330ms' }}
+            aria-label="Músculos trabalhados"
+          >
+            <MuscleMapCard work={historyMuscleWork([workout])} full={6} />
+          </section>
 
           {routineUpdate && (
             // Keyed by workout: a new result starts with the question again.
@@ -230,23 +269,17 @@ export function WorkoutSummary({
             variant="secondary"
             block
             icon={Share2}
-            onClick={async () => {
-              const result = await shareWorkout(workout);
-              if (result === 'copied')
-                toast({
-                  tone: 'success',
-                  title: 'Treino copiado',
-                  description: 'Cole no WhatsApp ou onde quiser.',
-                });
-              else if (result === 'failed')
-                toast({
-                  tone: 'error',
-                  title: 'Não foi possível compartilhar',
-                });
-            }}
+            onClick={() => setSharing(true)}
           >
             Compartilhar treino
           </Button>
+          <ShareSheet
+            open={sharing}
+            onClose={() => setSharing(false)}
+            title="Compartilhar treino"
+            text={() => shareWorkout(workout)}
+            image={() => shareWorkoutImage(workout)}
+          />
           <Button
             size="lg"
             variant="ghost"

@@ -1,6 +1,6 @@
 // Supabase Edge Function "push": notifies a friend's devices (Web Push) when
-// someone messages them, sends or accepts a friend request, sends a routine
-// or reacts to one of their workouts. The app calls it right after the action with the person's own
+// someone messages them, sends or accepts a friend request, sends a routine,
+// reacts to or comments on one of their workouts, or invites them to a group. The app calls it right after the action with the person's own
 // session; the function re-reads the row and only sends when the caller
 // really is the one who did it.
 //
@@ -37,7 +37,8 @@ function reply(body: unknown, status = 200) {
 }
 
 interface Notice {
-  to: string;
+  /** One person, or several (a group invite). */
+  to: string | string[];
   title: string;
   body: string;
   link: string;
@@ -171,6 +172,46 @@ Deno.serve(async (req) => {
       }
       break;
     }
+    case 'comment': {
+      const { data } = await admin
+        .from('workout_comments')
+        .select('owner_id, workout_id, user_id, body')
+        .eq('id', id)
+        .maybeSingle();
+      if (data?.user_id === me && data.owner_id !== me)
+        notice = {
+          to: data.owner_id,
+          title: `${await nameOf(me)} comentou no seu treino`,
+          body: String(data.body).slice(0, 160),
+          link: `mine:${data.workout_id}`,
+          tag: `comment-${id}`,
+        };
+      break;
+    }
+    case 'group': {
+      const { data } = await admin
+        .from('friend_groups')
+        .select('owner_id, name, metric')
+        .eq('id', id)
+        .maybeSingle();
+      if (data?.owner_id === me) {
+        const { data: invited } = await admin
+          .from('friend_group_members')
+          .select('user_id')
+          .eq('group_id', id)
+          .eq('status', 'invited');
+        const to = (invited ?? []).map((row) => row.user_id as string);
+        if (to.length > 0)
+          notice = {
+            to,
+            title: `${await nameOf(me)} te chamou ${data.metric ? 'para um desafio' : 'para um grupo'}`,
+            body: String(data.name).slice(0, 80),
+            link: 'social',
+            tag: `group-${id}`,
+          };
+      }
+      break;
+    }
     default:
       return reply({ error: 'unknown type' }, 400);
   }
@@ -179,7 +220,7 @@ Deno.serve(async (req) => {
   const { data: devices } = await admin
     .from('push_subscriptions')
     .select('endpoint, p256dh, auth')
-    .eq('user_id', notice.to);
+    .in('user_id', Array.isArray(notice.to) ? notice.to : [notice.to]);
 
   const payload = JSON.stringify({
     title: notice.title,

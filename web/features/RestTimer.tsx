@@ -3,7 +3,12 @@ import { Pause, Play } from 'lucide-react';
 import { actions, useAppStore } from '../store';
 import { restRemainingMs } from '../lib/rest';
 import { formatClock } from '../lib/format';
-import { haptic } from '../lib/haptics';
+import {
+  getRestAlertPrefs,
+  playCountdownTick,
+  playRestSound,
+  vibrateRestEnd,
+} from '../lib/restAlert';
 import { Button } from '../ui/Button';
 import { useToast } from '../ui/Overlay';
 import { useNow } from '../ui/core';
@@ -129,8 +134,13 @@ export function RestTimerBar() {
 export function RestTimerWatcher() {
   const { restTimer, notificationPrefs } = useAppStore();
   const toast = useToast();
-  const now = useNow(500, restTimer.status === 'running');
+  const now = useNow(250, restTimer.status === 'running');
   const firedFor = useRef<number | null>(null);
+  const tickedAt = useRef<number | null>(null);
+  const secondsLeft =
+    restTimer.status === 'running' && restTimer.endsAt !== null
+      ? Math.ceil((restTimer.endsAt - now) / 1000)
+      : null;
   const expired =
     restTimer.status === 'running' &&
     restTimer.endsAt !== null &&
@@ -149,7 +159,8 @@ export function RestTimerWatcher() {
     notifyRestEnded();
     refreshWorkoutNotification();
     if (notificationPrefs.restTimerAlerts) {
-      haptic('warning');
+      vibrateRestEnd();
+      if (document.visibilityState === 'visible') playRestSound();
       toast({
         tone: 'success',
         title: 'Descanso concluído',
@@ -157,6 +168,22 @@ export function RestTimerWatcher() {
       });
     }
   }, [expired, restTimer.endsAt, notificationPrefs.restTimerAlerts, toast]);
+
+  // 3, 2, 1: a short tick each second, when the person turned it on.
+  useEffect(() => {
+    if (
+      secondsLeft === null ||
+      secondsLeft < 1 ||
+      secondsLeft > 3 ||
+      tickedAt.current === secondsLeft ||
+      !notificationPrefs.restTimerAlerts ||
+      !getRestAlertPrefs().countdown ||
+      document.visibilityState !== 'visible'
+    )
+      return;
+    tickedAt.current = secondsLeft;
+    playCountdownTick();
+  }, [secondsLeft, notificationPrefs.restTimerAlerts]);
 
   return null;
 }
