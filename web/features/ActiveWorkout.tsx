@@ -641,6 +641,7 @@ function ExerciseBlock({
   const doneCount = exercise.sets.filter((set) => set.completed).length;
   const allDone =
     exercise.sets.length > 0 && doneCount === exercise.sets.length;
+  // A finished exercise stays open; the person folds it if they want.
   const collapsed = compact || (allDone && collapsedChoice === true);
   const volume = exercise.sets
     .filter((set) => set.completed && set.setType === 'working')
@@ -664,17 +665,6 @@ function ExerciseBlock({
       ),
       beats,
     )[setIndex];
-
-  // A finished exercise folds away shortly after its last set, unless the
-  // person already chose to keep it open.
-  useEffect(() => {
-    if (!allDone) return;
-    const id = setTimeout(
-      () => setCollapsedChoice((choice) => choice ?? true),
-      1400,
-    );
-    return () => clearTimeout(id);
-  }, [allDone]);
 
   const remove = async () => {
     if (doneCount > 0) {

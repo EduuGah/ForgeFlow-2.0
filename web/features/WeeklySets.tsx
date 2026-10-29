@@ -114,7 +114,7 @@ function GroupRow({ item }: { item: WeeklyGroup }) {
   );
 }
 
-function CardioRow({ week }: { week: WeeklySets }) {
+function CardioRow({ week, onEdit }: { week: WeeklySets; onEdit: () => void }) {
   const { target, minutes } = week.cardio;
   if (target <= 0) return null;
   return (
@@ -124,8 +124,18 @@ function CardioRow({ week }: { week: WeeklySets }) {
           <HeartPulse size={15} className="text-brand-ink" aria-hidden="true" />
           Cardio
         </span>
-        <span className="text-footnote text-ink-2 tabular">
-          <span className="font-semibold text-ink">{minutes}</span>/{target} min
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="text-footnote text-ink-2 tabular">
+            <span className="font-semibold text-ink">{minutes}</span>/{target}{' '}
+            min
+          </span>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="text-footnote font-semibold text-brand-ink"
+          >
+            Mudar meta
+          </button>
         </span>
       </div>
       <ProgressBar
@@ -287,7 +297,7 @@ function WeeklyDetails({
         {week.groups.map((item) => (
           <GroupRow key={item.group} item={item} />
         ))}
-        <CardioRow week={week} />
+        <CardioRow week={week} onEdit={onEdit} />
       </ul>
     </div>
   );
@@ -311,7 +321,7 @@ export function WeeklyTargetsSheet({
       open={open}
       onClose={onClose}
       title="Metas semanais"
-      description="Séries de trabalho por semana. Use 0 para não acompanhar um grupo."
+      description="Séries de trabalho por músculo e minutos de cardio por semana. Use 0 para não acompanhar."
     >
       <div className="space-y-5">
         <div className="grid grid-cols-3 gap-2">
@@ -350,8 +360,26 @@ export function WeeklyTargetsSheet({
               }
             />
           ))}
+        </div>
+        <div className="space-y-3 rounded-lg border border-line p-3">
+          <p className="flex items-start gap-2">
+            <HeartPulse
+              size={18}
+              className="mt-0.5 shrink-0 text-brand-ink"
+              aria-hidden="true"
+            />
+            <span className="min-w-0">
+              <span className="text-callout block font-semibold">
+                Cardio por semana
+              </span>
+              <span className="text-footnote block text-ink-2">
+                Minutos somados dos exercícios de cardio. A recomendação de
+                saúde é 150 min. Use 0 para não acompanhar.
+              </span>
+            </span>
+          </p>
           <Stepper
-            label="Cardio (min)"
+            label="Minutos por semana"
             value={weeklyCardioMinutes}
             min={0}
             max={1200}

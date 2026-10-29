@@ -59,7 +59,11 @@ import { NotificationBell } from '../features/NotificationBell';
 import { MessagesButton } from '../features/MessagesButton';
 import { useWorkoutLauncher } from '../features/useWorkoutLauncher';
 import { WorkoutCard } from '../features/WorkoutCard';
-import { OfflineNotice, SyncButton } from '../features/StatusBits';
+import {
+  DesktopModeNotice,
+  OfflineNotice,
+  SyncButton,
+} from '../features/StatusBits';
 import { Button } from '../ui/Button';
 import {
   Avatar,
@@ -137,6 +141,7 @@ export function HomeScreen() {
 
       <div className="app-column space-y-6 px-4 pt-2">
         <OfflineNotice />
+        <DesktopModeNotice />
         <InstallBanner />
         <DuoInviteBanner />
         <TodayCard />

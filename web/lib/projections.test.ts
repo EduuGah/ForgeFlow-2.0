@@ -78,10 +78,11 @@ describe('strengthTrend', () => {
   it('projects a rising lift and needs 3 sessions for a pace', () => {
     const history = [bench(1, 90), bench(15, 85), bench(29, 80)];
     const trend = strengthTrend(history, 'supino', 'Supino', now);
-    expect(trend?.sessions.map((s) => s.oneRepMax)).toEqual([93.3, 99.2, 105]);
+    expect(trend?.sessions.map((s) => s.value)).toEqual([93.3, 99.2, 105]);
     expect(trend?.perMonthKg).toBeGreaterThan(10);
+    expect(trend?.direction).toBe('up');
     expect(trend?.projections.map((p) => p.weeks)).toEqual([4, 12]);
-    expect(trend?.projections[0].oneRepMax).toBeGreaterThan(105);
+    expect(trend?.projections[0].value).toBeGreaterThan(105);
 
     const two = strengthTrend(history.slice(0, 2), 'supino', 'Supino', now);
     expect(two?.perMonthKg).toBeNull();
@@ -90,9 +91,47 @@ describe('strengthTrend', () => {
 
   it('has no projection when going down', () => {
     const history = [bench(1, 80), bench(15, 85), bench(29, 90)];
-    expect(
-      strengthTrend(history, 'supino', 'Supino', now)?.projections,
-    ).toEqual([]);
+    const trend = strengthTrend(history, 'supino', 'Supino', now);
+    expect(trend?.projections).toEqual([]);
+    expect(trend?.direction).toBe('down');
+  });
+
+  it('calls a tiny change steady, with no projection below today', () => {
+    // 1RM up and down around the same mark: the line is flat.
+    const history = [
+      bench(1, 15),
+      bench(8, 15.1),
+      bench(15, 15),
+      bench(22, 15.1),
+    ];
+    const trend = strengthTrend(history, 'supino', 'Supino', now);
+    expect(trend?.direction).toBe('flat');
+    expect(trend?.projections).toEqual([]);
+  });
+
+  it('follows the heaviest load or the volume when asked', () => {
+    const history = [bench(1, 90), bench(15, 85), bench(29, 80)];
+    const weight = strengthTrend(
+      history,
+      'supino',
+      'Supino',
+      now,
+      180,
+      'weight',
+    );
+    expect(weight?.sessions.map((s) => s.value)).toEqual([80, 85, 90]);
+    const volume = strengthTrend(
+      history,
+      'supino',
+      'Supino',
+      now,
+      180,
+      'volume',
+    );
+    expect(volume?.latest).toBe(90 * 5 * 3);
+    // Volume shows the trend but never a strength projection.
+    expect(volume?.direction).toBe('up');
+    expect(volume?.projections).toEqual([]);
   });
 });
 

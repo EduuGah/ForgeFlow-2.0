@@ -37,19 +37,20 @@ import { measurementSeries } from '../lib/measurements';
 import {
   strengthTrend,
   trackedLifts,
+  type StrengthMetric,
   weeklySetsByMuscle,
   weightTrend,
   type VolumeZone,
 } from '../lib/projections';
 import { filterByGym, type GymFilter } from '../lib/gyms';
 import { Button, IconButton } from '../ui/Button';
-import { EmptyState, Medal } from '../ui/Feedback';
+import { EmptyState, ExerciseThumb, Medal } from '../ui/Feedback';
 import { NumberField, SegmentedControl, TextField } from '../ui/Form';
 import { ActionSheet, Sheet } from '../ui/Overlay';
 import { Card, Delta, SectionHeader, Stat, TabHeader } from '../ui/Layout';
 import { cx } from '../ui/core';
-import { OptionPicker } from '../ui/OptionPicker';
 import { ProgressScene } from '../ui/Scenes';
+import { ExercisePicker } from '../features/ExercisePicker';
 import { MuscleMapCard, historyMuscleWork } from '../features/MuscleMap';
 import { WeeklySetsCard } from '../features/WeeklySets';
 import { SummarySheet } from '../features/SummarySheet';
@@ -671,18 +672,72 @@ function BodyWeightCard() {
   );
 }
 
-/** Estimated 1RM per session of the most trained lifts, and where it heads. */
+const STRENGTH_METRICS: {
+  value: StrengthMetric;
+  label: string;
+  title: string;
+  explain: string;
+}[] = [
+  {
+    value: 'oneRepMax',
+    label: '1RM',
+    title: '1RM estimado por treino',
+    explain:
+      'Quanto você levantaria em 1 repetição, calculado pela melhor série do treino (carga × repetições). Compara treinos com cargas e repetições diferentes.',
+  },
+  {
+    value: 'weight',
+    label: 'Maior carga',
+    title: 'Maior carga por treino',
+    explain: 'O peso mais alto que você usou no exercício em cada treino.',
+  },
+  {
+    value: 'volume',
+    label: 'Volume',
+    title: 'Volume por treino',
+    explain:
+      'Carga × repetições somadas de todas as séries de trabalho do exercício em cada treino.',
+  },
+];
+
+function formatStrength(metric: StrengthMetric, value: number): string {
+  return metric === 'volume' ? formatCompact(value) : formatWeight(value);
+}
+
+/** A lift per session (1RM, heaviest load or volume) and where it heads. */
 function StrengthCard() {
   const { history } = useAppStore();
   const { push } = useNavigation();
   const lifts = useMemo(() => trackedLifts(history), [history]);
+  const choices = useMemo(
+    () =>
+      lifts
+        .map((item) => findExercise(item.exerciseId))
+        .filter((exercise) => exercise !== undefined),
+    [lifts],
+  );
   const [chosen, setChosen] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [metric, setMetric] = useState<StrengthMetric>('oneRepMax');
   const lift = lifts.find((item) => item.exerciseId === chosen) ?? lifts[0];
   const trend = useMemo(
     () =>
-      lift ? strengthTrend(history, lift.exerciseId, lift.exerciseName) : null,
-    [history, lift],
+      lift
+        ? strengthTrend(
+            history,
+            lift.exerciseId,
+            lift.exerciseName,
+            new Date(),
+            180,
+            metric,
+          )
+        : null,
+    [history, lift, metric],
   );
+  const info =
+    STRENGTH_METRICS.find((item) => item.value === metric) ??
+    STRENGTH_METRICS[0];
+  const twelveWeeks = trend?.projections.find((item) => item.weeks === 12);
 
   return (
     <section aria-labelledby="stats-strength">
@@ -714,72 +769,119 @@ function StrengthCard() {
         </Card>
       ) : (
         <Card className="p-4">
-          <OptionPicker
-            label="Exercício"
-            value={lift.exerciseId}
-            onChange={setChosen}
-            options={lifts.map((item) => ({
-              value: item.exerciseId,
-              label: item.exerciseName,
-              detail: `${item.sessions} ${item.sessions === 1 ? 'treino' : 'treinos'} nos últimos 6 meses`,
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            aria-label={`Exercício: ${lift.exerciseName}. Trocar`}
+            className="pressable flex w-full items-center gap-3 rounded-md border border-line bg-raised p-2 text-left"
+          >
+            <ExerciseThumb
+              muscle={findExercise(lift.exerciseId)?.primaryMuscleGroup}
+              exerciseId={lift.exerciseId}
+              size={40}
+            />
+            <span className="min-w-0 flex-1">
+              <span className="text-callout block truncate font-semibold">
+                {lift.exerciseName}
+              </span>
+              <span className="text-caption block text-ink-2">
+                {lift.sessions} {lift.sessions === 1 ? 'treino' : 'treinos'} em
+                6 meses
+              </span>
+            </span>
+            <span className="text-footnote inline-flex shrink-0 items-center gap-0.5 font-semibold text-brand-ink">
+              Trocar
+              <ChevronDown size={16} aria-hidden="true" />
+            </span>
+          </button>
+
+          <SegmentedControl
+            label="O que o gráfico mostra"
+            options={STRENGTH_METRICS.map(({ value, label }) => ({
+              value,
+              label,
             }))}
-            className="mb-3"
+            value={metric}
+            onChange={setMetric}
+            className="mt-3"
           />
-          <div className="grid grid-cols-3 gap-2">
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
             <Stat
-              label="1RM estimado"
-              value={formatWeight(trend.latest)}
+              label="Último treino"
+              value={formatStrength(metric, trend.latest)}
               unit="kg"
               size="sm"
             />
             <Stat
-              label="Ritmo"
-              value={
-                trend.perMonthKg === null
-                  ? '—'
-                  : `${trend.perMonthKg > 0 ? '+' : ''}${formatNumber(trend.perMonthKg, 1)}`
-              }
-              unit={trend.perMonthKg === null ? undefined : 'kg/mês'}
+              label="Recorde"
+              value={formatStrength(metric, trend.best)}
+              unit="kg"
               size="sm"
-              tone={
-                trend.perMonthKg !== null && trend.perMonthKg > 0
-                  ? 'success'
-                  : 'default'
-              }
+              tone="record"
             />
             <Stat
-              label="Em 3 meses"
+              label="Tendência"
               value={
-                trend.projections.length > 0
-                  ? formatWeight(trend.projections[1].oneRepMax)
-                  : '—'
+                trend.direction === null
+                  ? '—'
+                  : trend.direction === 'flat'
+                    ? 'Estável'
+                    : `${trend.direction === 'up' ? '+' : ''}${formatStrength(metric, trend.perMonthKg ?? 0)}`
               }
-              unit={trend.projections.length > 0 ? 'kg' : undefined}
+              unit={
+                trend.direction === 'up' || trend.direction === 'down'
+                  ? 'kg/mês'
+                  : undefined
+              }
               size="sm"
-              tone={trend.projections.length > 0 ? 'brand' : 'default'}
+              tone={trend.direction === 'up' ? 'success' : 'default'}
             />
           </div>
-          <div className="mt-3">
+
+          <p className="text-footnote mt-4 font-semibold">
+            {info.title} <span className="font-normal text-ink-3">(kg)</span>
+          </p>
+          <div className="mt-1">
             <LineChart
               zoom
               height={150}
               data={trend.sessions.map((session) => ({
                 key: session.date,
                 label: formatShortDate(session.date),
-                value: session.oneRepMax,
+                value: session.value,
               }))}
-              label={`1RM estimado de ${lift.exerciseName} por treino`}
-              formatValue={(value) => `${formatWeight(value)} kg`}
-              formatTick={(value) => formatNumber(value, 0)}
+              label={`${info.title} de ${lift.exerciseName}`}
+              formatValue={(value) => `${formatStrength(metric, value)} kg`}
+              formatTick={(value) =>
+                metric === 'volume'
+                  ? formatCompact(value)
+                  : formatNumber(value, 0)
+              }
             />
           </div>
-          <p className="text-caption mt-2 text-ink-3">
-            {trend.perMonthKg === null
-              ? 'Com 3 treinos desse exercício aparece o ritmo e a projeção.'
-              : trend.projections.length > 0
-                ? `Projeção pela tendência dos últimos 6 meses: ${formatWeight(trend.projections[0].oneRepMax)} kg em 4 semanas. Na prática o ganho desacelera com o tempo.`
-                : 'Estável ou caindo nos últimos 6 meses: vale revisar carga, volume e descanso.'}
+          <p className="text-caption mt-2 text-ink-3">{info.explain}</p>
+          <p className="text-footnote mt-2 text-ink-2">
+            {trend.direction === null
+              ? 'Com 3 treinos desse exercício aparece a tendência.'
+              : trend.direction === 'up'
+                ? twelveWeeks
+                  ? `Subindo. Mantendo o ritmo, chega perto de ${formatWeight(twelveWeeks.value)} kg em 3 meses (na prática o ganho desacelera com o tempo).`
+                  : 'Subindo nos últimos 6 meses. Continue assim.'
+                : trend.direction === 'flat'
+                  ? 'Estável nos últimos 6 meses. Para voltar a subir, tente +1 repetição ou um pouco mais de carga a cada semana.'
+                  : 'Caindo nos últimos 6 meses: vale revisar carga, volume, sono e descanso.'}
           </p>
+          <ExercisePicker
+            open={picking}
+            onClose={() => setPicking(false)}
+            mode="single"
+            title="Escolher exercício"
+            exercises={choices}
+            currentId={lift.exerciseId}
+            allowCreate={false}
+            onConfirm={([exercise]) => exercise && setChosen(exercise.id)}
+          />
         </Card>
       )}
     </section>

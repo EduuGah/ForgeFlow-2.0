@@ -90,19 +90,39 @@ export function dateToReach(
 /* Strength                                                            */
 /* ------------------------------------------------------------------ */
 
+/** What the strength chart follows per session. */
+export type StrengthMetric = 'oneRepMax' | 'weight' | 'volume';
+
+export type TrendDirection = 'up' | 'flat' | 'down';
+
 export interface StrengthTrend {
   exerciseId: string;
   exerciseName: string;
-  /** Best estimated 1RM per session, oldest first. */
-  sessions: { date: string; oneRepMax: number }[];
+  metric: StrengthMetric;
+  /** The metric per session, oldest first. */
+  sessions: { date: string; value: number }[];
   latest: number;
   best: number;
   /** Kg per month along the trend; null with fewer than 3 sessions. */
   perMonthKg: number | null;
-  /** Where the line points in 4 and 12 weeks (only when going up). */
-  projections: { weeks: number; oneRepMax: number }[];
+  /** Null with fewer than 3 sessions. */
+  direction: TrendDirection | null;
+  /**
+   * Where the line points in 4 and 12 weeks: only for load (not volume),
+   * only when clearly going up and above the latest session.
+   */
+  projections: { weeks: number; value: number }[];
   trend: Trend | null;
 }
+
+const SESSION_VALUE: Record<
+  StrengthMetric,
+  (session: ReturnType<typeof exerciseSessions>[number]) => number
+> = {
+  oneRepMax: (session) => session.bestOneRepMax,
+  weight: (session) => session.bestWeightKg,
+  volume: (session) => session.volumeKg,
+};
 
 export function strengthTrend(
   history: CompletedWorkout[],
@@ -110,16 +130,18 @@ export function strengthTrend(
   exerciseName: string,
   now: Date = new Date(),
   windowDays = 180,
+  metric: StrengthMetric = 'oneRepMax',
 ): StrengthTrend | null {
   const since = now.getTime() - windowDays * DAY;
+  const read = SESSION_VALUE[metric];
   const sessions = exerciseSessions(history, exerciseId, exerciseName)
     .filter(
       (session) =>
-        session.bestOneRepMax > 0 && Date.parse(session.completedAt) >= since,
+        read(session) > 0 && Date.parse(session.completedAt) >= since,
     )
     .map((session) => ({
       date: session.completedAt,
-      oneRepMax: Math.round(session.bestOneRepMax * 10) / 10,
+      value: Math.round(read(session) * 10) / 10,
     }))
     .reverse();
   if (sessions.length === 0) return null;
@@ -128,26 +150,41 @@ export function strengthTrend(
       ? linearTrend(
           sessions.map((session) => ({
             time: Date.parse(session.date),
-            value: session.oneRepMax,
+            value: session.value,
           })),
         )
       : null;
-  const latest = sessions[sessions.length - 1].oneRepMax;
-  const best = Math.max(...sessions.map((session) => session.oneRepMax));
+  const latest = sessions[sessions.length - 1].value;
+  const best = Math.max(...sessions.map((session) => session.value));
+  const perMonth = trend ? trend.slopePerDay * 30 : null;
+  // Smaller changes than this are noise: the lift is holding steady.
+  const steady = metric === 'volume' ? latest * 0.02 : 0.25;
+  const direction: TrendDirection | null =
+    perMonth === null
+      ? null
+      : perMonth >= steady
+        ? 'up'
+        : perMonth <= -steady
+          ? 'down'
+          : 'flat';
   const base = trend ? trendAt(trend, now.getTime()) : latest;
   return {
     exerciseId,
     exerciseName,
+    metric,
     sessions,
     latest,
     best,
-    perMonthKg: trend ? Math.round(trend.slopePerDay * 30 * 10) / 10 : null,
+    perMonthKg: perMonth === null ? null : Math.round(perMonth * 10) / 10,
+    direction,
     projections:
-      trend && trend.slopePerDay > 0
-        ? [4, 12].map((weeks) => ({
-            weeks,
-            oneRepMax: roundHalf(base + trend.slopePerDay * weeks * 7),
-          }))
+      trend && direction === 'up' && metric !== 'volume'
+        ? [4, 12]
+            .map((weeks) => ({
+              weeks,
+              value: roundHalf(base + trend.slopePerDay * weeks * 7),
+            }))
+            .filter((item) => item.value > latest)
         : [],
     trend,
   };
@@ -158,7 +195,7 @@ export function trackedLifts(
   history: CompletedWorkout[],
   now: Date = new Date(),
   windowDays = 180,
-  limit = 8,
+  limit = Infinity,
 ): { exerciseId: string; exerciseName: string; sessions: number }[] {
   const since = now.getTime() - windowDays * DAY;
   const counts = new Map<

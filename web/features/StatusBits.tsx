@@ -4,6 +4,7 @@ import { actions, useAppStore } from '../store';
 import { formatRelativeDay, formatTime } from '../lib/format';
 import { Button, IconButton, Spinner } from '../ui/Button';
 import { InlineNotice } from '../ui/Feedback';
+import { looksLikeDesktopMode } from '../lib/deviceMode';
 import { Sheet, useToast } from '../ui/Overlay';
 import { cx } from '../ui/core';
 
@@ -163,6 +164,31 @@ export function OfflineNotice() {
   return (
     <InlineNotice tone="offline" className="animate-rise">
       Sem conexão. Tudo continua funcionando e fica salvo neste aparelho.
+    </InlineNotice>
+  );
+}
+
+/** Explains the stretched "computer" layout when Chrome's desktop mode is on. */
+export function DesktopModeNotice() {
+  const [desktop] = useState(() => {
+    try {
+      return looksLikeDesktopMode({
+        screenWidth: window.screen.width,
+        screenHeight: window.screen.height,
+        viewportWidth: window.innerWidth,
+        touchPoints: navigator.maxTouchPoints ?? 0,
+      });
+    } catch {
+      return false;
+    }
+  });
+  if (!desktop) return null;
+  return (
+    <InlineNotice tone="info">
+      O Chrome está abrindo o ForgeFlow no modo computador, por isso a tela fica
+      esticada. Para corrigir: abra o Chrome › ⋮ › Configurações › Configurações
+      do site › Site para computador, desative (ou tire o ForgeFlow das
+      exceções) e abra o app de novo.
     </InlineNotice>
   );
 }

@@ -305,6 +305,9 @@ export function ExercisePicker({
   mode = 'multi',
   title = 'Adicionar exercícios',
   excludeIds = NO_IDS,
+  exercises,
+  currentId,
+  allowCreate = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -312,11 +315,19 @@ export function ExercisePicker({
   mode?: 'multi' | 'single';
   title?: string;
   excludeIds?: string[];
+  /** Only these exercises (default: the whole catalog and custom ones). */
+  exercises?: Exercise[];
+  /** Shown as already chosen (single mode). */
+  currentId?: string;
+  allowCreate?: boolean;
 }) {
   const { allExercises, favorites } = useAppStore();
   const available = useMemo(
-    () => allExercises.filter((exercise) => !excludeIds.includes(exercise.id)),
-    [allExercises, excludeIds],
+    () =>
+      (exercises ?? allExercises).filter(
+        (exercise) => !excludeIds.includes(exercise.id),
+      ),
+    [exercises, allExercises, excludeIds],
   );
   const filter = useExerciseFilter(available, favorites);
   const { state, update } = filter;
@@ -353,14 +364,16 @@ export function ExercisePicker({
         title={title}
         size="tall"
         headerAction={
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={Plus}
-            onClick={() => setCreating(true)}
-          >
-            Criar
-          </Button>
+          allowCreate ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={Plus}
+              onClick={() => setCreating(true)}
+            >
+              Criar
+            </Button>
+          ) : undefined
         }
         footer={
           mode === 'multi' ? (
@@ -391,7 +404,10 @@ export function ExercisePicker({
               key={exercise.id}
               exercise={exercise}
               favorite={favorites.includes(exercise.id)}
-              selected={selected.some((item) => item.id === exercise.id)}
+              selected={
+                exercise.id === currentId ||
+                selected.some((item) => item.id === exercise.id)
+              }
               onPress={() => toggle(exercise)}
             />
           )}
@@ -399,15 +415,21 @@ export function ExercisePicker({
             <EmptyState
               art="search"
               title="Nenhum exercício encontrado"
-              message="Tente outro termo, limpe os filtros ou crie um exercício personalizado."
+              message={
+                allowCreate
+                  ? 'Tente outro termo, limpe os filtros ou crie um exercício personalizado.'
+                  : 'Tente outro termo ou limpe os filtros.'
+              }
               action={
-                <Button
-                  variant="secondary"
-                  icon={Plus}
-                  onClick={() => setCreating(true)}
-                >
-                  Criar exercício
-                </Button>
+                allowCreate ? (
+                  <Button
+                    variant="secondary"
+                    icon={Plus}
+                    onClick={() => setCreating(true)}
+                  >
+                    Criar exercício
+                  </Button>
+                ) : undefined
               }
             />
           }
