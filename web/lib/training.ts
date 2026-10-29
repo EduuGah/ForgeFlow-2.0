@@ -35,12 +35,19 @@ export const MUSCLE_GROUPS = [
   'Triceps',
   'Antebracos',
   'Core',
+  'Cardio',
 ];
+
+/** Cardio exercises log time and distance instead of load × reps. */
+export function isCardio(group: string | null | undefined): boolean {
+  return group === 'Cardio';
+}
 
 const MUSCLE_LABELS: Record<string, string> = {
   Abdomen: 'Abdômen',
   Antebracos: 'Antebraços',
   Biceps: 'Bíceps',
+  Obliquos: 'Oblíquos',
   Gluteos: 'Glúteos',
   Quadriceps: 'Quadríceps',
   Trapezio: 'Trapézio',
@@ -74,10 +81,41 @@ export function muscleCode(group: string | null | undefined): string {
 /* Sets & sessions                                                     */
 /* ------------------------------------------------------------------ */
 
-export function isCountedSet(
-  set: Pick<SetEntry, 'setType' | 'completed' | 'repetitions'>,
+/** A cardio set with something to show: time or distance. */
+export function hasCardioResult(set: {
+  durationSeconds?: number;
+  distanceKm?: number;
+}): boolean {
+  return (set.durationSeconds ?? 0) > 0 || (set.distanceKm ?? 0) > 0;
+}
+
+/** Done with something recorded: reps, or time/distance for cardio. */
+export function hasResult(
+  set: Pick<SetEntry, 'repetitions' | 'durationSeconds' | 'distanceKm'>,
 ): boolean {
-  return set.completed && set.setType === 'working' && set.repetitions > 0;
+  return set.repetitions > 0 || hasCardioResult(set);
+}
+
+export function isCountedSet(
+  set: Pick<
+    SetEntry,
+    'setType' | 'completed' | 'repetitions' | 'durationSeconds' | 'distanceKm'
+  >,
+): boolean {
+  return set.completed && set.setType === 'working' && hasResult(set);
+}
+
+/** Time and distance of a cardio set, only the parts that were filled. */
+export function cardioFields(set: {
+  durationSeconds?: number;
+  distanceKm?: number;
+}): { durationSeconds?: number; distanceKm?: number } {
+  return {
+    ...((set.durationSeconds ?? 0) > 0
+      ? { durationSeconds: set.durationSeconds }
+      : {}),
+    ...((set.distanceKm ?? 0) > 0 ? { distanceKm: set.distanceKm } : {}),
+  };
 }
 
 export function setVolume(set: {
@@ -161,7 +199,7 @@ export function buildCompletedWorkout(
   const exercises: CompletedExercise[] = active.exercises
     .map((exercise: ActiveExerciseSession) => {
       const done = exercise.sets.filter(
-        (set) => set.completed && set.repetitions > 0,
+        (set) => set.completed && hasResult(set),
       );
       const working = done.filter((set) => set.setType === 'working');
       const volume = working.reduce((sum, set) => sum + setVolume(set), 0);
@@ -183,6 +221,7 @@ export function buildCompletedWorkout(
           type: set.setType,
           weightKg: set.weightKg,
           repetitions: set.repetitions,
+          ...cardioFields(set),
         })),
       };
       const notes = exercise.notes?.trim();
@@ -803,10 +842,10 @@ export function previousSetsFor(
   exerciseId: string,
   exerciseName: string,
 ): CompletedSet[] | null {
-  // Only lifted sets are a useful reference: a failed attempt (0 reps) or a
-  // cardio entry would suggest "0 reps" for the next session.
+  // Only sets with a result are a useful reference: a failed attempt (0 reps)
+  // would suggest "0 reps" for the next session.
   for (const session of exerciseSessions(history, exerciseId, exerciseName)) {
-    const lifted = session.sets?.filter((set) => set.repetitions > 0) ?? [];
+    const lifted = session.sets?.filter(hasResult) ?? [];
     if (lifted.length > 0) return lifted;
   }
   return null;

@@ -10,6 +10,7 @@ import {
 import { actions, findExercise, useAppStore } from '../store';
 import type { TemplateExercise } from '../lib/types';
 import { formatRepRange, formatRestLabel } from '../lib/format';
+import { isCardio } from '../lib/training';
 import { folderLabel, sortFolders } from '../lib/folders';
 import { useNavigation } from '../navigation/Navigator';
 import { ExercisePicker } from '../features/ExercisePicker';
@@ -273,14 +274,23 @@ export function RoutineEditorScreen({
             ...current,
             ...exercises.map((exercise) => ({
               key: uid('row'),
-              item: {
-                exerciseId: exercise.id,
-                exerciseName: exercise.name,
-                targetSets: 3,
-                targetReps: 10,
-                targetWeightKg: 0,
-                restSeconds: 90,
-              },
+              item: isCardio(exercise.primaryMuscleGroup)
+                ? {
+                    exerciseId: exercise.id,
+                    exerciseName: exercise.name,
+                    targetSets: 1,
+                    targetReps: 0,
+                    targetMinutes: 20,
+                    restSeconds: 0,
+                  }
+                : {
+                    exerciseId: exercise.id,
+                    exerciseName: exercise.name,
+                    targetSets: 3,
+                    targetReps: 10,
+                    targetWeightKg: 0,
+                    restSeconds: 90,
+                  },
             })),
           ])
         }
@@ -305,8 +315,10 @@ function RoutineExercisePreview({ item }: { item: TemplateExercise }) {
   );
 }
 
-/** "2A + 3 × 10": warm-ups (if any) plus working sets × reps. */
+/** "2A + 3 × 10": warm-ups (if any) plus working sets × reps; "20 min". */
 function setsLabel(item: TemplateExercise): string {
+  if (item.targetMinutes)
+    return `${item.targetSets > 1 ? `${item.targetSets} × ` : ''}${item.targetMinutes} min`;
   const warmups = item.warmupSets ?? 0;
   return `${warmups > 0 ? `${warmups}A + ` : ''}${item.targetSets} × ${formatRepRange(item.targetReps, item.targetRepsMax)}`;
 }
@@ -334,6 +346,7 @@ function RoutineExerciseCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const muscle = findExercise(item.exerciseId)?.primaryMuscleGroup;
+  const cardio = item.targetMinutes !== undefined || isCardio(muscle);
 
   return (
     <div className={cx('rounded-lg bg-surface', compact ? 'p-3' : 'p-4')}>
@@ -371,7 +384,37 @@ function RoutineExerciseCard({
           />
         )}
       </div>
-      {!compact && (
+      {!compact && cardio && (
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <Stepper
+            label="Séries"
+            value={item.targetSets}
+            min={1}
+            max={20}
+            onChange={(targetSets) => onChange({ targetSets })}
+          />
+          <NumberField
+            label="Tempo"
+            suffix="min"
+            max={600}
+            value={item.targetMinutes ?? 0}
+            onValueChange={(targetMinutes) =>
+              onChange({ targetMinutes: Math.max(1, targetMinutes) })
+            }
+          />
+          <SelectField
+            label="Descanso entre séries"
+            containerClassName="col-span-2"
+            value={String(item.restSeconds)}
+            onChange={(value) => onChange({ restSeconds: Number(value) })}
+            options={REST_CHOICES.map((seconds) => ({
+              value: String(seconds),
+              label: formatRestLabel(seconds),
+            }))}
+          />
+        </div>
+      )}
+      {!compact && !cardio && (
         <div className="mt-3 grid grid-cols-2 gap-3">
           <Stepper
             label="Aquecimento"

@@ -300,4 +300,62 @@ export const BICEPS_GUIDES: GuideMap = {
     ],
     mistakes: ['Girar o tronco.', 'Tirar o cotovelo do lugar.'],
   },
+  '1173': {
+    muscles: 'Bíceps (cabeça longa, bem alongada); antebraço ajuda.',
+    setup: [
+      'Polia baixa atrás de você, alça na mão.',
+      'Dê um passo à frente para o braço ficar esticado e um pouco atrás do corpo.',
+    ],
+    steps: [
+      'Dobre o cotovelo trazendo a alça até o ombro, sem mover o braço.',
+      'Volte devagar até esticar e sentir alongar o bíceps. Troque de lado.',
+    ],
+    breathing: 'Solte o ar ao subir e inspire ao descer.',
+    tips: [
+      'O braço para trás alonga o bíceps: carga menor que na rosca comum.',
+      'Mantenha o cotovelo parado.',
+    ],
+    mistakes: [
+      'Levar o cotovelo à frente ao subir.',
+      'Inclinar o tronco para ajudar.',
+    ],
+  },
+  '1174': {
+    muscles: 'Bíceps; antebraço ajuda.',
+    setup: [
+      'Em pé, barra com pegada na largura dos ombros, palmas para cima.',
+      'Cotovelos colados ao corpo.',
+    ],
+    steps: [
+      '7 repetições da parte de baixo até a metade (cotovelo a 90°).',
+      '7 repetições da metade até em cima.',
+      '7 repetições completas, sem pausa entre as partes.',
+    ],
+    breathing: 'Solte o ar ao subir e inspire ao descer.',
+    tips: [
+      'Use uns 60–70% da carga da rosca normal.',
+      'Conte as 21 como uma série só.',
+    ],
+    mistakes: [
+      'Usar embalo nas últimas repetições.',
+      'Encurtar a amplitude das parciais.',
+    ],
+  },
+  '1175': {
+    muscles: 'Bíceps.',
+    setup: [
+      'Ajuste o banco para a parte de trás dos braços apoiar inteira na almofada.',
+      'Cotovelos alinhados com o eixo da máquina.',
+    ],
+    steps: [
+      'Dobre os cotovelos trazendo as pegadas em direção aos ombros.',
+      'Volte devagar até quase esticar.',
+    ],
+    breathing: 'Solte o ar ao subir e inspire ao descer.',
+    tips: [
+      'A máquina tira o embalo: ótima para terminar o treino de bíceps.',
+      'Segure 1 segundo em cima.',
+    ],
+    mistakes: ['Tirar os braços da almofada.', 'Soltar o peso na volta.'],
+  },
 };

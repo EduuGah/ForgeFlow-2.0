@@ -42,6 +42,9 @@ import {
   beatsRecord,
   bestRecordValues,
   countPendingSets,
+  hasCardioResult,
+  hasResult,
+  isCardio,
   previousSetsFor,
   recordsBySet,
   setLabels,
@@ -165,8 +168,7 @@ export function ActiveWorkoutScreen({
     const completed = workout.exercises.reduce(
       (total, exercise) =>
         total +
-        exercise.sets.filter((set) => set.completed && set.repetitions > 0)
-          .length,
+        exercise.sets.filter((set) => set.completed && hasResult(set)).length,
       0,
     );
     if (completed === 0) {
@@ -624,7 +626,8 @@ function ExerciseBlock({
   const [platesOpen, setPlatesOpen] = useState(false);
   const [timerOpen, setTimerOpen] = useState(false);
   const [collapsedChoice, setCollapsedChoice] = useState<boolean | null>(null);
-  const timed = isTimedExercise(exercise.exerciseName);
+  const cardio = isCardio(exercise.primaryMuscleGroup);
+  const timed = !cardio && isTimedExercise(exercise.exerciseName);
   // The tools fill the next set still to do (or the last one).
   const nextSet = Math.max(
     0,
@@ -688,20 +691,28 @@ function ExerciseBlock({
   };
 
   const menu: SheetAction[] = [
-    {
-      label: 'Adicionar série de aquecimento',
-      icon: Flame,
-      onSelect: () => {
-        setCollapsedChoice(false);
-        actions.addSetToActiveExercise(index, 'warmup');
-      },
-    },
+    ...(!cardio
+      ? [
+          {
+            label: 'Adicionar série de aquecimento',
+            icon: Flame,
+            onSelect: () => {
+              setCollapsedChoice(false);
+              actions.addSetToActiveExercise(index, 'warmup');
+            },
+          },
+        ]
+      : []),
     { label: 'Trocar exercício', icon: Replace, onSelect: onSwap },
-    {
-      label: 'Calculadora de anilhas',
-      icon: Calculator,
-      onSelect: () => setPlatesOpen(true),
-    },
+    ...(!cardio
+      ? [
+          {
+            label: 'Calculadora de anilhas',
+            icon: Calculator,
+            onSelect: () => setPlatesOpen(true),
+          },
+        ]
+      : []),
     ...(!timed
       ? [
           {
@@ -769,11 +780,20 @@ function ExerciseBlock({
             {allDone ? (
               <span className="inline-flex items-center gap-1 font-semibold text-brand-ink">
                 <Check size={12} strokeWidth={3} aria-hidden="true" />
-                Concluído · {formatWeight(volume)} kg
+                {/* Cardio shows time and distance alone: they fill the line. */}
+                {cardio
+                  ? cardioTotal(exercise.sets)
+                  : `Concluído · ${formatWeight(volume)} kg`}
               </span>
             ) : (
               <>
                 {doneCount}/{exercise.sets.length} séries
+                {exercise.targetMinutes && (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>Meta {exercise.targetMinutes} min</span>
+                  </>
+                )}
                 {exercise.targetReps && (
                   <>
                     <span aria-hidden="true">·</span>
@@ -875,8 +895,10 @@ function ExerciseBlock({
           >
             <span className="text-center">Série</span>
             <span>Última vez</span>
-            <span className="text-center">kg</span>
-            <span className="text-center">{timed ? 'Seg' : 'Reps'}</span>
+            <span className="text-center">{cardio ? 'Min' : 'kg'}</span>
+            <span className="text-center">
+              {cardio ? 'Km' : timed ? 'Seg' : 'Reps'}
+            </span>
             <span className="grid place-items-center">
               <Check size={14} strokeWidth={3} />
             </span>
@@ -901,6 +923,7 @@ function ExerciseBlock({
                 recordsIfCompleted={() => recordsIfCompleted(setIndex)}
                 bests={bests}
                 canRemove={exercise.sets.length > 1}
+                cardio={cardio}
               />
             ))}
           </div>
@@ -943,7 +966,9 @@ function ExerciseBlock({
           if (!exercise.sets[nextSet]) return;
           setCollapsedChoice(false);
           actions.updateSetActiveWorkout(index, nextSet, {
-            repetitions: seconds,
+            ...(cardio
+              ? { durationSeconds: seconds }
+              : { repetitions: seconds }),
             completed: true,
           });
           haptic('success');
@@ -988,6 +1013,29 @@ function ExercisePreview({ exercise }: { exercise: ActiveExerciseSession }) {
 /* Set row                                                             */
 /* ------------------------------------------------------------------ */
 
+/** "20min · 3,2km" for the "last time" column. */
+function cardioShort(set: { durationSeconds?: number; distanceKm?: number }) {
+  const parts: string[] = [];
+  if (set.durationSeconds)
+    parts.push(`${formatNumber(set.durationSeconds / 60, 1)}min`);
+  if (set.distanceKm) parts.push(`${formatNumber(set.distanceKm, 1)}km`);
+  return parts.join(' · ') || '—';
+}
+
+/** "25 min · 4,1 km": what the completed cardio sets add up to. */
+function cardioTotal(sets: SetEntry[]): string {
+  const done = sets.filter((set) => set.completed);
+  const seconds = done.reduce(
+    (sum, set) => sum + (set.durationSeconds ?? 0),
+    0,
+  );
+  const km = done.reduce((sum, set) => sum + (set.distanceKm ?? 0), 0);
+  const parts: string[] = [];
+  if (seconds > 0) parts.push(`${formatNumber(seconds / 60, 1)} min`);
+  if (km > 0) parts.push(`${formatNumber(km, 2)} km`);
+  return parts.join(' · ') || 'cardio';
+}
+
 function SetRow({
   set,
   label,
@@ -1000,6 +1048,7 @@ function SetRow({
   recordsIfCompleted,
   bests,
   canRemove,
+  cardio,
 }: {
   set: SetEntry;
   label: string;
@@ -1013,11 +1062,14 @@ function SetRow({
   recordsIfCompleted: () => PersonalRecordType[];
   bests: RecordBests | undefined;
   canRemove: boolean;
+  /** Time and distance instead of load × reps. */
+  cardio: boolean;
 }) {
   const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const [platesOpen, setPlatesOpen] = useState(false);
   const repsRef = useRef<HTMLInputElement>(null);
+  const minutesRef = useRef<HTMLInputElement>(null);
   const warmup = set.setType === 'warmup';
   const update = (updates: Partial<SetEntry>) =>
     actions.updateSetActiveWorkout(exerciseIndex, setIndex, updates);
@@ -1027,7 +1079,16 @@ function SetRow({
   const toggle = (event: MouseEvent<HTMLButtonElement>) => {
     // A tap here lets the end of the rest play a sound later.
     primeRestSound();
-    if (!set.completed && set.repetitions <= 0) {
+    if (cardio && !set.completed && !hasCardioResult(set)) {
+      toast({
+        tone: 'error',
+        title: 'Informe o tempo',
+        description: 'Digite os minutos (ou a distância) desta série.',
+      });
+      minutesRef.current?.focus();
+      return;
+    }
+    if (!cardio && !set.completed && set.repetitions <= 0) {
       toast({
         tone: 'error',
         title: 'Informe as repetições',
@@ -1064,9 +1125,21 @@ function SetRow({
 
   const copyPrevious = () => {
     if (!previous || set.completed) return;
-    update({ weightKg: previous.weightKg, repetitions: previous.repetitions });
+    update(
+      cardio
+        ? {
+            durationSeconds: previous.durationSeconds ?? 0,
+            distanceKm: previous.distanceKm ?? 0,
+          }
+        : { weightKg: previous.weightKg, repetitions: previous.repetitions },
+    );
     haptic('tap');
   };
+  const previousText = !previous
+    ? '—'
+    : cardio
+      ? cardioShort(previous)
+      : `${formatWeight(previous.weightKg)}kg × ${previous.repetitions}`;
 
   const inputClass = cx(
     'text-body h-10 w-full rounded-md text-center font-semibold tabular outline-none transition-colors placeholder:font-normal placeholder:text-ink-3 focus:ring-2 focus:ring-brand-ink',
@@ -1143,36 +1216,72 @@ function SetRow({
             className="text-footnote truncate text-left text-ink-3 tabular disabled:cursor-default"
             aria-label={
               previous
-                ? `Copiar anterior: ${formatWeight(previous.weightKg)} kg por ${previous.repetitions}`
+                ? `Copiar anterior: ${previousText}`
                 : 'Sem registro anterior'
             }
           >
-            {previous
-              ? `${formatWeight(previous.weightKg)}kg × ${previous.repetitions}`
-              : '—'}
+            {previousText}
           </button>
         )}
 
-        <NumericInput
-          aria-label={`Carga da série ${label} em kg`}
-          value={set.weightKg}
-          decimal
-          max={2000}
-          zeroAsEmpty
-          placeholder={previous ? formatWeight(previous.weightKg) : '0'}
-          onValueChange={(weightKg) => update({ weightKg })}
-          className={inputClass}
-        />
-        <NumericInput
-          ref={repsRef}
-          aria-label={`Repetições da série ${label}`}
-          value={set.repetitions}
-          max={999}
-          zeroAsEmpty
-          placeholder={previous ? String(previous.repetitions) : '0'}
-          onValueChange={(repetitions) => update({ repetitions })}
-          className={inputClass}
-        />
+        {cardio ? (
+          <>
+            <NumericInput
+              ref={minutesRef}
+              aria-label={`Minutos da série ${label}`}
+              value={Math.round((set.durationSeconds ?? 0) / 6) / 10}
+              decimal
+              max={600}
+              zeroAsEmpty
+              placeholder={
+                previous?.durationSeconds
+                  ? formatNumber(previous.durationSeconds / 60, 1)
+                  : '0'
+              }
+              onValueChange={(minutes) =>
+                update({ durationSeconds: Math.round(minutes * 60) })
+              }
+              className={inputClass}
+            />
+            <NumericInput
+              aria-label={`Distância da série ${label} em km`}
+              value={set.distanceKm ?? 0}
+              decimal
+              max={500}
+              zeroAsEmpty
+              placeholder={
+                previous?.distanceKm
+                  ? formatNumber(previous.distanceKm, 2)
+                  : '—'
+              }
+              onValueChange={(distanceKm) => update({ distanceKm })}
+              className={inputClass}
+            />
+          </>
+        ) : (
+          <>
+            <NumericInput
+              aria-label={`Carga da série ${label} em kg`}
+              value={set.weightKg}
+              decimal
+              max={2000}
+              zeroAsEmpty
+              placeholder={previous ? formatWeight(previous.weightKg) : '0'}
+              onValueChange={(weightKg) => update({ weightKg })}
+              className={inputClass}
+            />
+            <NumericInput
+              ref={repsRef}
+              aria-label={`Repetições da série ${label}`}
+              value={set.repetitions}
+              max={999}
+              zeroAsEmpty
+              placeholder={previous ? String(previous.repetitions) : '0'}
+              onValueChange={(repetitions) => update({ repetitions })}
+              className={inputClass}
+            />
+          </>
+        )}
 
         <span className="relative grid place-items-center">
           <button
@@ -1206,22 +1315,26 @@ function SetRow({
           onClose={() => setMenuOpen(false)}
           title={`${exerciseName} · série ${label}`}
           actions={[
-            warmup
-              ? {
-                  label: 'Marcar como série de trabalho',
-                  icon: Dumbbell,
-                  onSelect: () => update({ setType: 'working' }),
-                }
-              : {
-                  label: 'Marcar como aquecimento',
-                  icon: Flame,
-                  onSelect: () => update({ setType: 'warmup' }),
-                },
-            {
-              label: 'Calculadora de anilhas',
-              icon: Calculator,
-              onSelect: () => setPlatesOpen(true),
-            },
+            ...(cardio
+              ? []
+              : [
+                  warmup
+                    ? {
+                        label: 'Marcar como série de trabalho',
+                        icon: Dumbbell,
+                        onSelect: () => update({ setType: 'working' }),
+                      }
+                    : {
+                        label: 'Marcar como aquecimento',
+                        icon: Flame,
+                        onSelect: () => update({ setType: 'warmup' }),
+                      },
+                  {
+                    label: 'Calculadora de anilhas',
+                    icon: Calculator,
+                    onSelect: () => setPlatesOpen(true),
+                  },
+                ]),
             ...(canRemove
               ? [
                   {

@@ -413,4 +413,125 @@ export const CHEST_GUIDES: GuideMap = {
     ],
     mistakes: ['Usar impulso.', 'Abrir além da linha dos ombros.'],
   },
+  '1141': {
+    muscles: 'Peitoral maior; tríceps e parte da frente do ombro ajudam.',
+    setup: [
+      'Banco reto centralizado sob a barra do smith, que deve descer na linha do meio do peito.',
+      'Pegada um pouco mais larga que os ombros; escápulas juntas e pés firmes.',
+    ],
+    steps: [
+      'Destrave a barra girando os punhos.',
+      'Desça controlando até perto do peito.',
+      'Empurre de volta sem travar os cotovelos com força.',
+    ],
+    breathing: 'Inspire ao descer e solte o ar ao empurrar.',
+    tips: [
+      'O trilho fixo permite focar no peito sem se preocupar com equilíbrio.',
+      'Ajuste as travas de segurança um pouco acima do peito.',
+    ],
+    mistakes: [
+      'Banco mal posicionado, fazendo a barra descer no pescoço ou na barriga.',
+      'Quicar a barra no peito.',
+    ],
+  },
+  '1142': {
+    muscles: 'Parte superior do peitoral; ombro (frente) e tríceps ajudam.',
+    setup: [
+      'Banco inclinado entre 30° e 45° sob a barra do smith.',
+      'A barra deve descer na parte de cima do peito, logo abaixo da clavícula.',
+    ],
+    steps: [
+      'Destrave a barra e desça devagar até perto do peito.',
+      'Empurre para cima mantendo as escápulas apoiadas.',
+    ],
+    breathing: 'Inspire ao descer e solte o ar ao empurrar.',
+    tips: [
+      'Inclinação maior que 45° passa o trabalho para os ombros.',
+      'Cotovelos a uns 45° do tronco protegem o ombro.',
+    ],
+    mistakes: [
+      'Tirar o quadril do banco para empurrar mais.',
+      'Abrir demais os cotovelos.',
+    ],
+  },
+  '1143': {
+    muscles: 'Peitoral; tríceps e ombros ajudam. Versão mais leve da flexão.',
+    setup: [
+      'Mãos no chão um pouco mais largas que os ombros, joelhos apoiados (use um colchonete).',
+      'Corpo reto dos joelhos à cabeça, abdômen firme.',
+    ],
+    steps: [
+      'Desça o peito em direção ao chão dobrando os cotovelos.',
+      'Empurre o chão até estender os braços.',
+    ],
+    breathing: 'Inspire ao descer e solte o ar ao empurrar.',
+    tips: [
+      'Quando fizer 15 repetições fácil, passe para a flexão normal.',
+      'Mantenha o quadril alinhado, sem empinar.',
+    ],
+    mistakes: [
+      'Deixar o quadril para trás, virando uma "reverência".',
+      'Descer só a cabeça em vez do peito.',
+    ],
+  },
+  '1144': {
+    muscles: 'Peitoral e dorsal; tríceps estabiliza.',
+    setup: [
+      'Deite-se atravessado ou ao longo do banco, segurando um halter com as duas mãos acima do peito.',
+      'Cotovelos levemente dobrados e fixos.',
+    ],
+    steps: [
+      'Leve o halter para trás da cabeça em arco, até sentir alongar o peito.',
+      'Volte pelo mesmo arco até acima do peito.',
+    ],
+    breathing: 'Inspire ao levar para trás e solte o ar ao voltar.',
+    tips: [
+      'Use uma carga moderada: o ombro fica numa posição alongada.',
+      'Mantenha o quadril baixo e o abdômen firme.',
+    ],
+    mistakes: [
+      'Dobrar e esticar os cotovelos (vira tríceps).',
+      'Descer além do que o ombro aguenta.',
+    ],
+  },
+  '1145': {
+    muscles: 'Parte superior do peitoral; frente do ombro ajuda.',
+    setup: [
+      'Banco inclinado entre duas polias baixas, uma alça em cada mão.',
+      'Cotovelos levemente dobrados, braços abertos na altura do peito.',
+    ],
+    steps: [
+      'Junte as mãos à frente do peito em arco, como num abraço.',
+      'Volte abrindo devagar até sentir alongar o peito.',
+    ],
+    breathing: 'Inspire ao descer e solte o ar ao empurrar.',
+    tips: [
+      'O cabo mantém tensão até o fim do movimento: aperte o peito ao juntar.',
+      'Pense em aproximar os braços, não as mãos.',
+    ],
+    mistakes: [
+      'Dobrar os cotovelos e virar um supino.',
+      'Abrir demais e forçar o ombro.',
+    ],
+  },
+  '1146': {
+    muscles: 'Parte inferior do peitoral; tríceps ajuda.',
+    setup: [
+      'Ajuste o banco para as pegadas ficarem na linha da parte de baixo do peito.',
+      'Costas apoiadas e pés firmes.',
+    ],
+    steps: [
+      'Empurre as pegadas para a frente e para baixo até quase estender os braços.',
+      'Volte devagar até sentir alongar o peito.',
+    ],
+    breathing: 'Inspire ao descer e solte o ar ao empurrar.',
+    tips: [
+      'A máquina permite ir perto da falha com segurança.',
+      'Mantenha as escápulas juntas no encosto.',
+    ],
+    mistakes: [
+      'Tirar as costas do encosto.',
+      'Voltar soltando o peso de uma vez.',
+    ],
+  },
 };

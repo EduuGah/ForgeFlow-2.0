@@ -35,11 +35,18 @@ import {
   hydrationDate,
   mealDate,
   previousSetsFor,
+  cardioFields,
+  isCardio,
   repairExerciseRefs,
   replayRecords,
   sortByCompletedDesc,
 } from './lib/training';
 import { deloadSets } from './lib/trainingPlan';
+import {
+  DEFAULT_CARDIO_MINUTES,
+  DEFAULT_WEEKLY_TARGETS,
+  type WeeklyTargets,
+} from './lib/weeklySets';
 import { reconcileCollection } from './lib/sync';
 import {
   describeRoutineChanges,
@@ -123,6 +130,10 @@ interface PersistedData {
   nutritionTargetProtein: number;
   nutritionTargetCarbs: number;
   nutritionTargetFat: number;
+  /** Weekly working sets wanted per muscle group (missing = default). */
+  weeklySetTargets: WeeklyTargets;
+  /** Weekly cardio minutes wanted; 0 = not tracked. */
+  weeklyCardioMinutes: number;
   meals: MealItem[];
   /** Body measurements, newest first. */
   measurements: BodyMeasurement[];
@@ -194,6 +205,8 @@ function defaultData(user: AppUser | null): PersistedData {
     nutritionTargetProtein: 160,
     nutritionTargetCarbs: 240,
     nutritionTargetFat: 70,
+    weeklySetTargets: DEFAULT_WEEKLY_TARGETS,
+    weeklyCardioMinutes: DEFAULT_CARDIO_MINUTES,
     meals: [],
     measurements: [],
     activeWorkout: null,
@@ -244,6 +257,15 @@ function catalogLookup(customExercises: Exercise[]) {
     customExercises.map((exercise) => [exercise.id, exercise.name]),
   );
   return (id: string) => systemNames.get(id) ?? custom.get(id);
+}
+
+function readTargets(value: unknown): WeeklyTargets {
+  const targets = { ...DEFAULT_WEEKLY_TARGETS };
+  if (value && typeof value === 'object')
+    for (const [group, sets] of Object.entries(value))
+      if (typeof sets === 'number' && sets >= 0)
+        targets[group] = Math.min(40, Math.round(sets));
+  return targets;
 }
 
 /** Reads and migrates data saved by any previous version of the app. */
@@ -306,6 +328,11 @@ function loadData(user: AppUser | null): PersistedData {
       Number(raw.nutritionTargetCarbs) || defaults.nutritionTargetCarbs,
     nutritionTargetFat:
       Number(raw.nutritionTargetFat) || defaults.nutritionTargetFat,
+    weeklySetTargets: readTargets(raw.weeklySetTargets),
+    weeklyCardioMinutes:
+      typeof raw.weeklyCardioMinutes === 'number'
+        ? Math.max(0, raw.weeklyCardioMinutes)
+        : defaults.weeklyCardioMinutes,
     meals: byDateDesc(asArray<MealItem>(raw.meals, []), mealDate),
     measurements: byDateDesc(
       asArray<BodyMeasurement>(raw.measurements, []),
@@ -406,6 +433,8 @@ function pickPersisted(source: AppState): PersistedData {
     nutritionTargetProtein: source.nutritionTargetProtein,
     nutritionTargetCarbs: source.nutritionTargetCarbs,
     nutritionTargetFat: source.nutritionTargetFat,
+    weeklySetTargets: source.weeklySetTargets,
+    weeklyCardioMinutes: source.weeklyCardioMinutes,
     meals: source.meals,
     measurements: source.measurements,
     activeWorkout: source.activeWorkout,
@@ -958,6 +987,7 @@ function newSet(
   setType: SetType,
   weightKg: number,
   repetitions: number,
+  cardio: { durationSeconds?: number; distanceKm?: number } = {},
 ): SetEntry {
   return {
     id: uid('set'),
@@ -966,17 +996,15 @@ function newSet(
     weightKg,
     repetitions,
     completed: false,
+    ...cardioFields(cardio),
   };
 }
 
-function sessionFromExercise(
-  exercise: Exercise,
-  restSeconds = DEFAULT_REST_SECONDS,
-): ActiveExerciseSession {
+function sessionFromExercise(exercise: Exercise): ActiveExerciseSession {
   const previous = previousSetsFor(state.history, exercise.id, exercise.name);
   const sets = previous?.length
     ? previous.map((set, i) =>
-        newSet(i + 1, set.type, set.weightKg, set.repetitions),
+        newSet(i + 1, set.type, set.weightKg, set.repetitions, set),
       )
     : [newSet(1, 'working', 0, 0)];
   return {
@@ -985,7 +1013,10 @@ function sessionFromExercise(
     exerciseName: exercise.name,
     primaryMuscleGroup: exercise.primaryMuscleGroup,
     equipment: exercise.equipment,
-    restSeconds,
+    // Cardio has no rest between "sets".
+    restSeconds: isCardio(exercise.primaryMuscleGroup)
+      ? 0
+      : DEFAULT_REST_SECONDS,
     sets,
   };
 }
@@ -1148,6 +1179,7 @@ export const actions = {
     const exercises: ActiveExerciseSession[] = template.exercises.map(
       (item) => {
         const catalog = findExercise(item.exerciseId);
+        const minutes = item.targetMinutes ?? 0;
         return {
           key: uid('ex'),
           exerciseId: item.exerciseId,
@@ -1155,10 +1187,14 @@ export const actions = {
           primaryMuscleGroup: catalog?.primaryMuscleGroup ?? 'Geral',
           equipment: catalog?.equipment ?? null,
           restSeconds: item.restSeconds ?? DEFAULT_REST_SECONDS,
-          targetReps: {
-            min: item.targetReps,
-            ...(item.targetRepsMax ? { max: item.targetRepsMax } : {}),
-          },
+          ...(minutes > 0
+            ? { targetMinutes: minutes }
+            : {
+                targetReps: {
+                  min: item.targetReps,
+                  ...(item.targetRepsMax ? { max: item.targetRepsMax } : {}),
+                },
+              }),
           sets: renumber([
             // Warm-ups first, empty: their loads vary too much to suggest.
             ...Array.from({ length: Math.max(0, item.warmupSets ?? 0) }, () =>
@@ -1169,7 +1205,8 @@ export const actions = {
                 0,
                 'working',
                 item.targetWeightKg ?? 0,
-                item.targetReps ?? 0,
+                minutes > 0 ? 0 : (item.targetReps ?? 0),
+                { durationSeconds: minutes * 60 },
               ),
             ),
           ]),
@@ -1253,6 +1290,9 @@ export const actions = {
         restSeconds: current.restSeconds,
         // The slot keeps the routine's goal for it.
         ...(current.targetReps ? { targetReps: current.targetReps } : {}),
+        ...(current.targetMinutes
+          ? { targetMinutes: current.targetMinutes }
+          : {}),
         sets: current.sets.map((set) => {
           const last = lastOf[set.setType][used[set.setType]++];
           return newSet(
@@ -1260,6 +1300,7 @@ export const actions = {
             set.setType,
             last?.weightKg ?? 0,
             last?.repetitions ?? 0,
+            last,
           );
         }),
       };
@@ -1313,6 +1354,7 @@ export const actions = {
         setType,
         last?.weightKg ?? 0,
         last?.repetitions ?? 0,
+        last,
       );
       // Warm-ups go before the working sets, like on a real session.
       const sets =
@@ -1910,6 +1952,15 @@ export const actions = {
 
   setHydrationTarget: (targetMl: number) => {
     setState({ hydrationTargetMl: targetMl });
+  },
+
+  /* Weekly sets */
+  setWeeklySetTargets: (targets: WeeklyTargets) => {
+    setState({ weeklySetTargets: { ...state.weeklySetTargets, ...targets } });
+  },
+
+  setWeeklyCardioMinutes: (minutes: number) => {
+    setState({ weeklyCardioMinutes: Math.max(0, Math.round(minutes)) });
   },
 
   /* Nutrition */

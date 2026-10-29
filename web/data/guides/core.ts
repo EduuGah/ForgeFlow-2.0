@@ -340,4 +340,78 @@ export const CORE_GUIDES: GuideMap = {
     ],
     mistakes: ['Dobrar os cotovelos.', 'Girar só os ombros.'],
   },
+  '1179': {
+    muscles: 'Abdômen e oblíquos; ombros estabilizam.',
+    setup: [
+      'Posição de flexão (prancha alta), mãos sob os ombros.',
+      'Pés um pouco afastados para dar equilíbrio.',
+    ],
+    steps: [
+      'Tire uma mão do chão e toque o ombro oposto.',
+      'Volte e troque de mão, sem balançar o quadril.',
+    ],
+    breathing: 'Respire curto e contínuo, sem prender o ar.',
+    tips: [
+      'Quanto mais afastados os pés, mais fácil.',
+      'Faça devagar: o objetivo é o quadril não girar.',
+    ],
+    mistakes: [
+      'Balançar o quadril de um lado para o outro.',
+      'Empinar o bumbum.',
+    ],
+  },
+  '1180': {
+    muscles: 'Core anti-rotação: oblíquos e abdômen.',
+    setup: [
+      'Polia na altura do peito, fique de lado para ela.',
+      'Segure a alça com as duas mãos junto ao peito, pés na largura dos ombros.',
+    ],
+    steps: [
+      'Empurre as mãos à frente até esticar os braços, sem deixar o tronco girar.',
+      'Segure 2 segundos e volte ao peito. Troque de lado.',
+    ],
+    breathing: 'Respire curto e contínuo, sem prender o ar.',
+    tips: [
+      'O exercício é resistir ao giro, não girar.',
+      'Afaste-se da polia para aumentar a dificuldade.',
+    ],
+    mistakes: [
+      'Deixar o tronco virar para o lado do cabo.',
+      'Usar carga demais e perder a postura.',
+    ],
+  },
+  '1181': {
+    muscles: 'Abdômen (parte inferior) e flexores do quadril.',
+    setup: [
+      'Sente na ponta do banco e segure as laterais atrás do quadril.',
+      'Incline o tronco para trás e estique as pernas à frente.',
+    ],
+    steps: [
+      'Traga os joelhos em direção ao peito enquanto aproxima o tronco.',
+      'Volte esticando as pernas sem apoiar os pés no chão.',
+    ],
+    breathing: 'Solte o ar ao encolher e inspire ao esticar.',
+    tips: [
+      'Mantenha o abdômen contraído o tempo todo.',
+      'Faça devagar para não usar embalo.',
+    ],
+    mistakes: ['Arquear a lombar ao esticar as pernas.', 'Balançar as pernas.'],
+  },
+  '1182': {
+    muscles: 'Abdômen inteiro (isometria).',
+    setup: [
+      'Deite de costas, braços esticados acima da cabeça.',
+      'Pressione a lombar contra o chão.',
+    ],
+    steps: [
+      'Tire ombros e pernas do chão, formando uma "canoa".',
+      'Segure a posição pelo tempo da série.',
+    ],
+    breathing: 'Respire curto e contínuo, sem prender o ar.',
+    tips: [
+      'Para facilitar, dobre os joelhos ou traga os braços para o lado do corpo.',
+      'A lombar não pode sair do chão.',
+    ],
+    mistakes: ['Deixar a lombar arquear.', 'Prender a respiração.'],
+  },
 };

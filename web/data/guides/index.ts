@@ -1,6 +1,7 @@
 import { BACK_GUIDES } from './back';
 import { BICEPS_GUIDES } from './biceps';
 import { CHEST_GUIDES } from './chest';
+import { CARDIO_GUIDES } from './cardio';
 import { CORE_GUIDES } from './core';
 import { FOREARM_GUIDES } from './forearms';
 import { LEG_GUIDES } from './legs';
@@ -13,6 +14,7 @@ export type { ExerciseGuide } from './types';
 export const GUIDES: GuideMap = {
   ...BACK_GUIDES,
   ...BICEPS_GUIDES,
+  ...CARDIO_GUIDES,
   ...CHEST_GUIDES,
   ...CORE_GUIDES,
   ...FOREARM_GUIDES,

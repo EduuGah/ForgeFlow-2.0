@@ -114,6 +114,9 @@ export function MuscleMapCard({
                 </span>
               </li>
             ))}
+            <li className="text-micro pt-0.5 text-ink-3">
+              Músculos de sinergia contam meia série
+            </li>
           </ul>
         )}
       </div>

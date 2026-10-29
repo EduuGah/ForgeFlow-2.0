@@ -45,6 +45,7 @@ import { InstallBanner } from '../features/InstallApp';
 import { FriendsTrainingNow } from '../features/TrainingNow';
 import { QuickAccess } from '../features/QuickAccess';
 import { DuoInviteBanner } from '../features/Duo';
+import { WeeklySetsCard } from '../features/WeeklySets';
 import { MuscleMapCard, historyMuscleWork } from '../features/MuscleMap';
 import { monthForecast } from '../lib/projections';
 import {
@@ -88,7 +89,10 @@ const WEEKDAY_NAMES = [
 function estimateMinutes(template: WorkoutTemplateItem): number {
   const seconds = template.exercises.reduce(
     (total, exercise) =>
-      total + exercise.targetSets * (40 + (exercise.restSeconds ?? 90)),
+      total +
+      exercise.targetSets *
+        ((exercise.targetMinutes ? exercise.targetMinutes * 60 : 40) +
+          (exercise.restSeconds ?? 90)),
     0,
   );
   return Math.max(10, Math.round(seconds / 60 / 5) * 5);
@@ -140,6 +144,7 @@ export function HomeScreen() {
         <DeloadSuggestion />
         <FriendsTrainingNow />
         <WeekHeat />
+        <WeeklySetsCard compact />
         <MonthCard />
         <HealthTiles />
         <GoalsPreview />

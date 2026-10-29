@@ -1,12 +1,14 @@
 import { systemExercises } from '../../src/data/seeds/systemExercises';
 import { GUIDES, exerciseGuide } from './guides';
-import { MEDIA_FOLDERS, exerciseMedia } from './exerciseMedia';
+import { MEDIA_FOLDERS, WITHOUT_PHOTO, exerciseMedia } from './exerciseMedia';
 import { exerciseAliases } from './aliases';
 
 describe('exercise guides and media', () => {
   it('cover every catalog exercise', () => {
     const missingGuide = systemExercises.filter((e) => !exerciseGuide(e.id));
-    const missingMedia = systemExercises.filter((e) => !exerciseMedia(e.id));
+    const missingMedia = systemExercises.filter(
+      (e) => !exerciseMedia(e.id) && !WITHOUT_PHOTO.has(e.id.slice(-4)),
+    );
     expect(missingGuide.map((e) => e.name)).toEqual([]);
     expect(missingMedia.map((e) => e.name)).toEqual([]);
     expect(Object.keys(GUIDES)).toHaveLength(systemExercises.length);

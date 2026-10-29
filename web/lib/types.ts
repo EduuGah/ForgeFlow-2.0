@@ -8,6 +8,9 @@ export interface SetEntry {
   repetitions: number;
   completed: boolean;
   notes?: string;
+  /** Cardio: time and distance take the place of load × reps. */
+  durationSeconds?: number;
+  distanceKm?: number;
 }
 
 export interface ActiveExerciseSession {
@@ -21,6 +24,8 @@ export interface ActiveExerciseSession {
   restSeconds?: number;
   /** The routine's reps goal for this exercise (e.g. 8–12), when it has one. */
   targetReps?: { min: number; max?: number };
+  /** Cardio: the routine's minutes per set. */
+  targetMinutes?: number;
   notes?: string;
   sets: SetEntry[];
 }
@@ -102,6 +107,8 @@ export interface TemplateExercise {
   /** Top of a rep range (e.g. 8–12, with `targetReps` = 8); missing = fixed. */
   targetRepsMax?: number;
   targetWeightKg?: number;
+  /** Cardio: minutes per set (reps and load do not apply). */
+  targetMinutes?: number;
   restSeconds: number;
 }
 

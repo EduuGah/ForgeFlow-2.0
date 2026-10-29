@@ -401,4 +401,139 @@ export const BACK_GUIDES: GuideMap = {
     ],
     mistakes: ['Usar impulso dos joelhos.', 'Girar os ombros.'],
   },
+  '1147': {
+    muscles: 'Dorsal; bíceps e antebraço ajudam.',
+    setup: [
+      'Prenda o triângulo (pegada neutra, palmas viradas uma para a outra) na polia alta.',
+      'Sente com as coxas presas no apoio e o tronco levemente inclinado para trás.',
+    ],
+    steps: [
+      'Puxe a pegada até a parte de cima do peito, levando os cotovelos para baixo.',
+      'Volte esticando os braços até sentir alongar as costas.',
+    ],
+    breathing: 'Solte o ar ao puxar e inspire ao voltar.',
+    tips: [
+      'Pense em puxar com os cotovelos, não com as mãos.',
+      'A pegada neutra costuma ser mais confortável para o ombro.',
+    ],
+    mistakes: [
+      'Balançar o tronco para trás para puxar mais peso.',
+      'Encolher os ombros perto das orelhas.',
+    ],
+  },
+  '1148': {
+    muscles: 'Costas (meio e dorsal); lombar segura a posição.',
+    setup: [
+      'Barra no chão, pés na largura do quadril, tronco quase paralelo ao chão.',
+      'Pegada um pouco mais larga que os ombros, coluna neutra.',
+    ],
+    steps: [
+      'Puxe a barra do chão até a parte de baixo do peito, rápido e firme.',
+      'Devolva a barra ao chão a cada repetição.',
+      'Reajuste a posição antes da próxima.',
+    ],
+    breathing: 'Solte o ar ao puxar e inspire ao voltar.',
+    tips: [
+      'Cada repetição começa parada no chão: nada de embalo.',
+      'Mantenha o tronco parado; quem mexe são os braços.',
+    ],
+    mistakes: [
+      'Levantar o tronco para ajudar a puxar.',
+      'Arredondar a lombar.',
+    ],
+  },
+  '1149': {
+    muscles: 'Meio das costas e dorsal; bíceps ajuda.',
+    setup: [
+      'Banco inclinado (30°–45°), deite de bruços com o peito apoiado.',
+      'Um halter em cada mão, braços estendidos para baixo.',
+    ],
+    steps: [
+      'Puxe os halteres levando os cotovelos para trás e para cima.',
+      'Junte as escápulas no alto e desça devagar.',
+    ],
+    breathing: 'Solte o ar ao puxar e inspire ao voltar.',
+    tips: [
+      'O apoio no peito tira a lombar da jogada: dá para focar só nas costas.',
+      'Mantenha o peito colado no banco.',
+    ],
+    mistakes: [
+      'Tirar o peito do banco para puxar.',
+      'Puxar com os punhos dobrados.',
+    ],
+  },
+  '1150': {
+    muscles: 'Dorsal; bíceps ajuda.',
+    setup: [
+      'Ajuste o banco para as pegadas ficarem um pouco acima da cabeça.',
+      'Coxas presas no apoio, peito aberto.',
+    ],
+    steps: [
+      'Puxe as pegadas para baixo até a altura do peito.',
+      'Volte devagar até os braços quase esticarem.',
+    ],
+    breathing: 'Solte o ar ao puxar e inspire ao voltar.',
+    tips: [
+      'As alavancas independentes mostram se um lado está mais fraco.',
+      'Segure 1 segundo embaixo apertando as costas.',
+    ],
+    mistakes: ['Soltar o peso na volta.', 'Inclinar muito o tronco para trás.'],
+  },
+  '1151': {
+    muscles: 'Costas, glúteos, posterior de coxa e quadríceps.',
+    setup: [
+      'Fique no centro da trap bar, pés na largura do quadril.',
+      'Desça o quadril, segure as alças no meio e deixe a coluna neutra.',
+    ],
+    steps: [
+      'Empurre o chão com os pés e levante a barra estendendo joelhos e quadril juntos.',
+      'Fique em pé com o glúteo contraído.',
+      'Desça controlando, quadril para trás.',
+    ],
+    breathing:
+      'Inspire antes de subir, segure o abdômen firme e solte o ar no fim.',
+    tips: [
+      'A carga fica na linha do corpo: é mais fácil manter a coluna neutra que no terra com barra.',
+      'Use as alças altas se tiver pouca mobilidade.',
+    ],
+    mistakes: [
+      'Arredondar a lombar ao sair do chão.',
+      'Subir o quadril antes do peito.',
+    ],
+  },
+  '1152': {
+    muscles: 'Lombar e eretores da coluna; glúteos ajudam.',
+    setup: [
+      'Deite de bruços com os braços esticados à frente.',
+      'Olhe para o chão, pescoço alinhado.',
+    ],
+    steps: [
+      'Levante braços, peito e pernas do chão ao mesmo tempo.',
+      'Segure 2 segundos no alto.',
+      'Desça devagar.',
+    ],
+    breathing: 'Solte o ar ao subir e inspire ao descer.',
+    tips: [
+      'Movimento pequeno e controlado: o objetivo é ativar, não arquear ao máximo.',
+      'Aperte o glúteo para proteger a lombar.',
+    ],
+    mistakes: ['Jogar a cabeça para trás.', 'Subir com tranco.'],
+  },
+  '1153': {
+    muscles: 'Dorsal e meio das costas; bíceps ajuda.',
+    setup: [
+      'Peito apoiado no encosto, uma mão na pegada e a outra no apoio.',
+      'Braço estendido e ombro solto à frente.',
+    ],
+    steps: [
+      'Puxe a pegada levando o cotovelo para trás, perto do corpo.',
+      'Volte devagar até alongar as costas. Troque de lado.',
+    ],
+    breathing: 'Solte o ar ao puxar e inspire ao voltar.',
+    tips: [
+      'Treinar um lado por vez ajuda a corrigir diferenças de força.',
+      'Não gire o tronco para puxar.',
+    ],
+    mistakes: ['Encolher o ombro na puxada.', 'Tirar o peito do apoio.'],
+  },
 };

@@ -174,3 +174,26 @@ export function topRegions(
       sets: Math.round(sets * 10) / 10,
     }));
 }
+
+/** How strongly the map lights the muscles that only help (synergists). */
+export const SYNERGIST_GLOW = 0.4;
+
+/**
+ * One exercise on the map: its main muscle fully lit, the ones that help
+ * (synergists) lit softly.
+ */
+export function exerciseIntensity(
+  primary: string | null | undefined,
+  secondary: string[],
+): Partial<Record<BodyRegion, number>> {
+  const intensity: Partial<Record<BodyRegion, number>> = {};
+  const light = (region: BodyRegion, value: number) => {
+    intensity[region] = Math.max(intensity[region] ?? 0, value);
+  };
+  for (const name of secondary)
+    for (const [region] of secondaryRegions(name))
+      light(region, SYNERGIST_GLOW);
+  for (const [region, weight] of regionsOf(primary))
+    light(region, weight >= 1 ? 1 : SYNERGIST_GLOW);
+  return intensity;
+}

@@ -322,4 +322,95 @@ export const SHOULDER_GUIDES: GuideMap = {
     ],
     mistakes: ['Inclinar o corpo para trás.', 'Subir com impulso.'],
   },
+  '1168': {
+    muscles: 'Parte lateral do ombro.',
+    setup: [
+      'Ajuste o banco para os ombros ficarem alinhados com o eixo da máquina.',
+      'Braços nas almofadas, peito no apoio.',
+    ],
+    steps: [
+      'Levante os braços para os lados até a altura dos ombros.',
+      'Desça devagar.',
+    ],
+    breathing: 'Solte o ar ao subir e inspire ao descer.',
+    tips: [
+      'A máquina mantém tensão na parte de baixo, onde o halter fica leve.',
+      'Lidere com os cotovelos.',
+    ],
+    mistakes: ['Encolher os ombros para subir.', 'Soltar o peso na descida.'],
+  },
+  '1169': {
+    muscles: 'Parte de trás do ombro; romboides e trapézio ajudam.',
+    setup: [
+      'Duas polias na altura dos ombros, cabos cruzados (mão direita no cabo esquerdo e vice-versa).',
+      'Braços esticados à frente.',
+    ],
+    steps: [
+      'Abra os braços para os lados e para trás, mantendo-os quase esticados.',
+      'Volte devagar até cruzar à frente.',
+    ],
+    breathing: 'Solte o ar ao puxar e inspire ao voltar.',
+    tips: [
+      'Pense em empurrar as mãos para longe, não em juntar as escápulas.',
+      'Carga leve: é um músculo pequeno.',
+    ],
+    mistakes: [
+      'Dobrar os cotovelos e virar uma remada.',
+      'Jogar o tronco para trás.',
+    ],
+  },
+  '1170': {
+    muscles: 'Ombros; tríceps ajuda e o core estabiliza.',
+    setup: [
+      'Kettlebell na altura do ombro, apoiado no antebraço.',
+      'Em pé, glúteo e abdômen firmes.',
+    ],
+    steps: [
+      'Empurre o kettlebell para cima até esticar o braço.',
+      'Desça controlando de volta ao ombro. Troque de lado.',
+    ],
+    breathing: 'Inspire ao descer e solte o ar ao empurrar.',
+    tips: [
+      'Mantenha o punho reto e o cotovelo embaixo do peso.',
+      'Não incline o tronco para o lado.',
+    ],
+    mistakes: [
+      'Arquear a lombar para empurrar.',
+      'Deixar o punho dobrar para trás.',
+    ],
+  },
+  '1171': {
+    muscles: 'Parte de baixo do trapézio e ombro; ajuda a postura.',
+    setup: [
+      'Deite de bruços num banco inclinado, halteres leves nas mãos.',
+      'Braços esticados para baixo, polegares para cima.',
+    ],
+    steps: [
+      'Levante os braços à frente e para os lados, formando um "Y".',
+      'Segure 1 segundo e desça devagar.',
+    ],
+    breathing: 'Solte o ar ao subir e inspire ao descer.',
+    tips: [
+      'Use pesos bem leves: 1 a 4 kg já bastam.',
+      'Puxe as escápulas para baixo e para trás antes de subir.',
+    ],
+    mistakes: ['Encolher os ombros.', 'Tirar o peito do banco.'],
+  },
+  '1172': {
+    muscles: 'Parte lateral do ombro e trapézio.',
+    setup: [
+      'Em pé, um halter em cada mão à frente das coxas.',
+      'Pegada na largura do quadril.',
+    ],
+    steps: [
+      'Suba os halteres rente ao corpo, levando os cotovelos para os lados e para cima.',
+      'Pare com os cotovelos na altura dos ombros e desça devagar.',
+    ],
+    breathing: 'Solte o ar ao puxar e inspire ao voltar.',
+    tips: [
+      'Os halteres deixam os punhos livres: mais confortável que a barra.',
+      'Não suba acima da linha dos ombros.',
+    ],
+    mistakes: ['Usar embalo do corpo.', 'Subir os cotovelos acima dos ombros.'],
+  },
 };

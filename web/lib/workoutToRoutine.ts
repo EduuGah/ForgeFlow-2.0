@@ -1,3 +1,4 @@
+import { hasCardioResult, isCardio } from './training';
 import type { CompletedWorkout, TemplateExercise } from './types';
 
 /*
@@ -24,6 +25,19 @@ export function workoutToRoutine(
         ) ?? [];
       const warmups =
         exercise.sets?.filter((set) => set.type === 'warmup').length ?? 0;
+      const cardio = exercise.sets?.filter(hasCardioResult) ?? [];
+      if (isCardio(exercise.primaryMuscleGroup) || cardio.length > 0)
+        return {
+          exerciseId: exercise.exerciseId as string,
+          exerciseName: exercise.exerciseName,
+          targetSets: Math.max(1, cardio.length),
+          targetReps: 0,
+          targetMinutes: Math.max(
+            1,
+            Math.round((cardio[0]?.durationSeconds ?? 1200) / 60),
+          ),
+          restSeconds: 0,
+        };
       return {
         exerciseId: exercise.exerciseId as string,
         exerciseName: exercise.exerciseName,

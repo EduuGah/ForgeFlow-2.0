@@ -18,7 +18,6 @@ import {
 import {
   RECORD_LABELS,
   exerciseSessions,
-  muscleLabel,
   recordDate,
   recordOrigin,
   setLabels,
@@ -30,6 +29,7 @@ import { useNavigation } from '../navigation/Navigator';
 import { exerciseGuide } from '../data/guides';
 import { exerciseMedia } from '../data/exerciseMedia';
 import { ExerciseAnimation } from '../features/ExerciseAnimation';
+import { ExerciseMuscles } from '../features/ExerciseMuscles';
 import { Button, IconButton } from '../ui/Button';
 import { LineChart } from '../ui/Charts';
 import { EmptyState, ExerciseThumb, Medal, RecordBadge } from '../ui/Feedback';
@@ -183,20 +183,16 @@ export function ExerciseDetailView({
             )}
             <div className="min-w-0">
               <h2 className="text-title font-bold">{exercise.name}</h2>
-              <p className="text-callout text-ink-2">
-                Primário: {muscleLabel(exercise.primaryMuscleGroup)}
-              </p>
-              {exercise.secondaryMuscleGroups.length > 0 && (
-                <p className="text-callout text-ink-2">
-                  Secundário:{' '}
-                  {exercise.secondaryMuscleGroups.map(muscleLabel).join(', ')}
-                </p>
-              )}
               {exercise.equipment && (
-                <p className="text-footnote text-ink-3">{exercise.equipment}</p>
+                <p className="text-callout text-ink-2">{exercise.equipment}</p>
               )}
             </div>
           </div>
+          <ExerciseMuscles
+            primary={exercise.primaryMuscleGroup}
+            secondary={exercise.secondaryMuscleGroups}
+            className="mt-4"
+          />
 
           {activeWorkout && !inWorkout && (
             <Button

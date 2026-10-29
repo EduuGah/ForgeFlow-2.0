@@ -153,7 +153,74 @@ const MEDIA: Record<string, string> = {
   '1138': 'Farmers_Walk',
   '1139': 'Plate_Pinch',
   '1140': 'Finger_Curls',
+  // Peito
+  '1141': 'Smith_Machine_Bench_Press',
+  '1142': 'Smith_Machine_Incline_Bench_Press',
+  '1143': 'Pushups',
+  '1144': 'Bent-Arm_Dumbbell_Pullover',
+  '1145': 'Incline_Cable_Flye',
+  '1146': 'Leverage_Decline_Chest_Press',
+  // Costas
+  '1147': 'V-Bar_Pulldown',
+  '1148': 'Bent_Over_Barbell_Row',
+  '1149': 'Dumbbell_Incline_Row',
+  '1150': 'Leverage_High_Row',
+  '1151': 'Trap_Bar_Deadlift',
+  '1152': 'Superman',
+  '1153': 'Leverage_Iso_Row',
+  // Pernas
+  '1154': 'Thigh_Abductor',
+  '1155': 'Thigh_Adductor',
+  '1156': 'Plie_Dumbbell_Squat',
+  '1157': 'Dumbbell_Lunges',
+  '1158': 'Dumbbell_Rear_Lunge',
+  '1159': 'Dumbbell_Step_Ups',
+  '1160': 'Single_Leg_Glute_Bridge',
+  '1161': 'One-Legged_Cable_Kickback',
+  '1162': 'Side_Leg_Raises',
+  '1163': 'Stiff-Legged_Dumbbell_Deadlift',
+  '1164': 'Weighted_Sissy_Squat',
+  '1165': 'Natural_Glute_Ham_Raise',
+  '1166': 'Standing_Dumbbell_Calf_Raise',
+  '1167': 'Narrow_Stance_Leg_Press',
+  // Ombros
+  '1168': 'Cable_Seated_Lateral_Raise',
+  '1169': 'Cable_Rear_Delt_Fly',
+  '1170': 'Alternating_Kettlebell_Press',
+  '1171': 'Straight_Raises_on_Incline_Bench',
+  '1172': 'Standing_Dumbbell_Upright_Row',
+  // Braços
+  '1173': 'Standing_One-Arm_Cable_Curl',
+  '1174': 'Barbell_Curl',
+  '1175': 'Machine_Bicep_Curl',
+  '1176': 'Tricep_Dumbbell_Kickback',
+  '1177': 'Dip_Machine',
+  '1178': 'JM_Press',
+  // Core
+  '1179': 'Pushups',
+  '1180': 'Pallof_Press',
+  '1181': 'Flat_Bench_Leg_Pull-In',
+  '1182': 'Flutter_Kicks',
+  // Cardio (Natação, 1197, has no photo in the source)
+  '1183': 'Jogging_Treadmill',
+  '1184': 'Walking_Treadmill',
+  '1185': 'Walking_Treadmill',
+  '1186': 'Running_Treadmill',
+  '1187': 'Bicycling_Stationary',
+  '1188': 'Bicycling_Stationary',
+  '1189': 'Bicycling_Stationary',
+  '1190': 'Elliptical_Trainer',
+  '1191': 'Rowing_Stationary',
+  '1192': 'Stairmaster',
+  '1193': 'Rope_Jumping',
+  '1194': 'Trail_Running_Walking',
+  '1195': 'Trail_Running_Walking',
+  '1196': 'Bicycling',
+  '1198': 'Star_Jump',
 };
+
+/** Catalog exercises the photo source has nothing close to. */
+export const WITHOUT_PHOTO = new Set(['1197']);
 
 const CATALOG_PREFIX = '00000000-0000-4000-8000-00000000';
 

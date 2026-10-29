@@ -85,6 +85,9 @@ function toShared(
       ...(exercise.targetWeightKg !== undefined
         ? { targetWeightKg: exercise.targetWeightKg }
         : {}),
+      ...(exercise.targetMinutes
+        ? { targetMinutes: exercise.targetMinutes }
+        : {}),
       restSeconds: exercise.restSeconds,
     })),
   };
@@ -202,6 +205,7 @@ export function readSharePayload(raw: unknown): SharePayload | null {
           const warmupSets = Math.round(count(exercise.warmupSets, 0, 10, 0));
           const targetReps = count(exercise.targetReps, 0, 100, 10);
           const repsMax = count(exercise.targetRepsMax, 0, 100, 0);
+          const minutes = Math.round(count(exercise.targetMinutes, 0, 600, 0));
           return {
             exerciseId: text(exercise.exerciseId, 100),
             exerciseName: text(exercise.exerciseName, SHARE_LIMITS.name),
@@ -210,6 +214,7 @@ export function readSharePayload(raw: unknown): SharePayload | null {
             targetReps,
             ...(repsMax > targetReps ? { targetRepsMax: repsMax } : {}),
             ...(weight >= 0 ? { targetWeightKg: weight } : {}),
+            ...(minutes > 0 ? { targetMinutes: minutes } : {}),
             restSeconds: count(exercise.restSeconds, 0, 900, 90),
           };
         })

@@ -251,7 +251,7 @@ describe('exercise matching', () => {
       [
         'Bench Press (Barbell)',
         'Lat Pulldown (Cable)',
-        'Seated Dip Machine',
+        'Triceps Press (Plate Loaded)',
         'Supino reto com barra',
         'extensora KikosPro',
       ],
@@ -267,7 +267,7 @@ describe('exercise matching', () => {
       recognized: true,
     });
     expect(matches[2]).toMatchObject({
-      exerciseId: 'custom-import-seated-dip-machine',
+      exerciseId: 'custom-import-triceps-press-plate-loaded',
       recognized: false,
       primaryMuscleGroup: 'Triceps',
     });
@@ -326,10 +326,8 @@ describe('planImport', () => {
       totalVolumeKg: 0,
     });
     expect(first.workouts[1].exercises[0].notes).toBeUndefined();
-    expect(first.newExercises.map((e) => e.name).sort()).toEqual([
-      'Seated Dip Machine',
-      'Treadmill',
-    ]);
+    // "Seated Dip Machine" is in the catalog now (Mergulho na máquina).
+    expect(first.newExercises.map((e) => e.name).sort()).toEqual(['Treadmill']);
     expect(first.newExercises[0].ownerUserId).toBe('u1');
     expect(first.totalSets).toBe(6);
     expect(first.extras).toEqual({

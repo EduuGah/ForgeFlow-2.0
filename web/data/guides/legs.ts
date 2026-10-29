@@ -427,4 +427,273 @@ export const LEG_GUIDES: GuideMap = {
     ],
     mistakes: ['Dobrar os joelhos.', 'Deixar os pés escorregarem.'],
   },
+  '1154': {
+    muscles: 'Glúteo médio e mínimo (lateral do quadril).',
+    setup: [
+      'Sente com as costas apoiadas e as almofadas por fora dos joelhos.',
+      'Escolha uma carga que permita abrir bem.',
+    ],
+    steps: [
+      'Abra as pernas o máximo que conseguir.',
+      'Segure 1 segundo e volte devagar.',
+    ],
+    breathing: 'Solte o ar ao abrir e inspire ao fechar.',
+    tips: [
+      'Inclinar o tronco um pouco à frente aumenta o trabalho do glúteo.',
+      'Controle a volta: não deixe as placas baterem.',
+    ],
+    mistakes: ['Usar embalo do tronco.', 'Fazer meia amplitude.'],
+  },
+  '1155': {
+    muscles: 'Adutores (parte interna da coxa).',
+    setup: [
+      'Sente com as costas apoiadas e as almofadas por dentro dos joelhos.',
+      'Ajuste a abertura inicial para sentir alongar sem dor.',
+    ],
+    steps: [
+      'Feche as pernas até as almofadas se encontrarem.',
+      'Volte abrindo devagar.',
+    ],
+    breathing: 'Solte o ar ao fechar e inspire ao abrir.',
+    tips: [
+      'Comece com uma abertura menor e aumente com o tempo.',
+      'Fortalecer adutores ajuda no agachamento.',
+    ],
+    mistakes: [
+      'Abrir além do confortável logo de início.',
+      'Soltar o peso na volta.',
+    ],
+  },
+  '1156': {
+    muscles: 'Quadríceps, glúteos e adutores.',
+    setup: [
+      'Pés bem afastados, pontas viradas para fora.',
+      'Segure um halter pela ponta, entre as pernas, braços estendidos.',
+    ],
+    steps: [
+      'Desça o quadril com os joelhos apontando na direção dos pés.',
+      'Suba empurrando o chão, apertando o glúteo.',
+    ],
+    breathing:
+      'Inspire antes de subir, segure o abdômen firme e solte o ar no fim.',
+    tips: [
+      'Fique sobre dois steps para descer mais com o halter.',
+      'Tronco mais em pé que no agachamento comum.',
+    ],
+    mistakes: [
+      'Deixar os joelhos caírem para dentro.',
+      'Inclinar o tronco à frente.',
+    ],
+  },
+  '1157': {
+    muscles: 'Quadríceps e glúteos; posterior estabiliza.',
+    setup: [
+      'Em pé, um halter em cada mão ao lado do corpo.',
+      'Tronco ereto e abdômen firme.',
+    ],
+    steps: [
+      'Dê um passo à frente e desça até os dois joelhos ficarem perto de 90°.',
+      'Empurre com o pé da frente para voltar. Alterne as pernas.',
+    ],
+    breathing: 'Inspire ao descer e solte o ar ao empurrar.',
+    tips: [
+      'Passo mais longo trabalha mais o glúteo; mais curto, mais o quadríceps.',
+      'O joelho de trás quase encosta no chão.',
+    ],
+    mistakes: [
+      'Joelho da frente caindo para dentro.',
+      'Bater o joelho de trás no chão.',
+    ],
+  },
+  '1158': {
+    muscles: 'Glúteos e quadríceps.',
+    setup: ['Em pé, um halter em cada mão.', 'Pés na largura do quadril.'],
+    steps: [
+      'Dê um passo para trás e desça até o joelho de trás quase tocar o chão.',
+      'Empurre com o pé da frente para voltar. Alterne as pernas.',
+    ],
+    breathing: 'Inspire ao descer e solte o ar ao empurrar.',
+    tips: [
+      'Mais gentil com o joelho que o afundo à frente.',
+      'Mantenha o peso no calcanhar da perna da frente.',
+    ],
+    mistakes: [
+      'Passo curto demais, jogando o joelho da frente à frente.',
+      'Inclinar o tronco para os lados.',
+    ],
+  },
+  '1159': {
+    muscles: 'Quadríceps e glúteos.',
+    setup: [
+      'Um banco ou caixa na altura do joelho, halteres nas mãos.',
+      'Apoie o pé inteiro em cima do banco.',
+    ],
+    steps: [
+      'Suba empurrando com a perna de cima até ficar em pé no banco.',
+      'Desça devagar com a mesma perna. Troque de lado.',
+    ],
+    breathing: 'Inspire ao descer e solte o ar ao empurrar.',
+    tips: [
+      'Faça a força com a perna de cima: a de baixo só acompanha.',
+      'Banco mais alto trabalha mais o glúteo.',
+    ],
+    mistakes: [
+      'Dar impulso com a perna de baixo.',
+      'Joelho caindo para dentro.',
+    ],
+  },
+  '1160': {
+    muscles: 'Glúteos; posterior de coxa ajuda.',
+    setup: [
+      'Deite de costas, um pé no chão perto do quadril e a outra perna esticada no ar.',
+      'Braços no chão ao lado do corpo.',
+    ],
+    steps: [
+      'Suba o quadril empurrando com o calcanhar até alinhar ombro, quadril e joelho.',
+      'Segure 1 segundo e desça devagar. Troque de lado.',
+    ],
+    breathing: 'Solte o ar ao subir e inspire ao descer.',
+    tips: [
+      'Apoie as costas num banco para aumentar a amplitude.',
+      'Mantenha o quadril nivelado, sem girar.',
+    ],
+    mistakes: ['Arquear a lombar no alto.', 'Empurrar com a ponta do pé.'],
+  },
+  '1161': {
+    muscles: 'Glúteo máximo.',
+    setup: [
+      'Tornozeleira presa na polia baixa.',
+      'Fique de frente para o aparelho, segurando-se nele, tronco levemente inclinado.',
+    ],
+    steps: [
+      'Leve a perna para trás com o joelho quase esticado, apertando o glúteo.',
+      'Volte devagar sem apoiar o pé. Troque de lado.',
+    ],
+    breathing: 'Solte o ar ao chutar e inspire ao voltar.',
+    tips: [
+      'O movimento vem do quadril, não da lombar.',
+      'Pare quando sentir a lombar começar a arquear.',
+    ],
+    mistakes: ['Jogar a perna alto arqueando as costas.', 'Usar embalo.'],
+  },
+  '1162': {
+    muscles: 'Glúteo médio (lateral do quadril).',
+    setup: [
+      'Tornozeleira na polia baixa, presa na perna mais longe do aparelho.',
+      'Fique de lado para a polia, segurando-se nela.',
+    ],
+    steps: [
+      'Leve a perna para o lado, afastando-a do corpo.',
+      'Volte devagar cruzando um pouco à frente da outra. Troque de lado.',
+    ],
+    breathing: 'Solte o ar ao abrir e inspire ao voltar.',
+    tips: [
+      'Mantenha o tronco em pé: inclinar tira o trabalho do glúteo.',
+      'Carga leve e movimento controlado.',
+    ],
+    mistakes: [
+      'Girar o pé para cima (vira flexor do quadril).',
+      'Balançar o corpo.',
+    ],
+  },
+  '1163': {
+    muscles: 'Posterior de coxa e glúteos; lombar estabiliza.',
+    setup: [
+      'Em pé, um halter em cada mão à frente das coxas.',
+      'Joelhos levemente dobrados e fixos.',
+    ],
+    steps: [
+      'Leve o quadril para trás descendo os halteres rente às pernas.',
+      'Desça até sentir alongar o posterior, com a coluna neutra.',
+      'Suba empurrando o quadril à frente.',
+    ],
+    breathing:
+      'Inspire antes de subir, segure o abdômen firme e solte o ar no fim.',
+    tips: [
+      'Os halteres permitem uma posição mais natural das mãos que a barra.',
+      'Pense em "fechar uma gaveta com o quadril".',
+    ],
+    mistakes: [
+      'Arredondar as costas para descer mais.',
+      'Dobrar demais os joelhos (vira agachamento).',
+    ],
+  },
+  '1164': {
+    muscles: 'Quadríceps.',
+    setup: [
+      'Em pé, segure-se em um apoio com uma mão.',
+      'Pés na largura do quadril, na ponta dos pés.',
+    ],
+    steps: [
+      'Leve os joelhos à frente e o tronco para trás, mantendo quadril e tronco alinhados.',
+      'Desça até onde controlar e volte empurrando com o quadríceps.',
+    ],
+    breathing: 'Inspire ao descer e solte o ar ao empurrar.',
+    tips: [
+      'Comece com pouca amplitude: é um exercício intenso para o joelho.',
+      'Segure uma anilha no peito para progredir.',
+    ],
+    mistakes: [
+      'Sentar o quadril para trás (vira agachamento).',
+      'Descer rápido sem controle.',
+    ],
+  },
+  '1165': {
+    muscles: 'Posterior de coxa (excêntrico forte).',
+    setup: [
+      'Ajoelhe-se num colchonete com os tornozelos presos (por um aparelho ou parceiro).',
+      'Corpo reto dos joelhos à cabeça.',
+    ],
+    steps: [
+      'Incline o corpo à frente o mais devagar que conseguir.',
+      'Apoie com as mãos no chão no fim e empurre para voltar.',
+    ],
+    breathing:
+      'Inspire antes de descer e solte o ar devagar durante a descida.',
+    tips: [
+      'Quanto mais lenta a descida, melhor.',
+      'Comece com poucas repetições: dá muita dor muscular no início.',
+    ],
+    mistakes: [
+      'Dobrar o quadril em vez de manter o corpo reto.',
+      'Cair de uma vez.',
+    ],
+  },
+  '1166': {
+    muscles: 'Panturrilhas.',
+    setup: [
+      'Pé na borda de um degrau, halter na mão do mesmo lado.',
+      'Segure-se num apoio com a outra mão.',
+    ],
+    steps: [
+      'Desça o calcanhar abaixo do degrau.',
+      'Suba na ponta do pé o mais alto que conseguir e segure 1 segundo. Troque de lado.',
+    ],
+    breathing: 'Solte o ar ao subir e inspire ao descer.',
+    tips: [
+      'Uma perna por vez dobra a carga sem precisar de muito peso.',
+      'Pausa embaixo tira o efeito mola do tendão.',
+    ],
+    mistakes: ['Quicar no fundo.', 'Fazer amplitude curta.'],
+  },
+  '1167': {
+    muscles: 'Quadríceps e glúteos.',
+    setup: [
+      'Sente no leg press e apoie um pé no meio da plataforma.',
+      'A outra perna fica fora, com o pé no chão ou apoiado.',
+    ],
+    steps: [
+      'Destrave e desça a plataforma dobrando o joelho até perto de 90°.',
+      'Empurre de volta sem travar o joelho. Troque de lado.',
+    ],
+    breathing: 'Inspire ao descer e solte o ar ao empurrar.',
+    tips: [
+      'Use cerca de metade da carga do leg press com as duas pernas.',
+      'Bom para igualar a força entre as pernas.',
+    ],
+    mistakes: [
+      'Tirar o quadril do banco no fundo.',
+      'Joelho caindo para dentro.',
+    ],
+  },
 };

@@ -294,4 +294,58 @@ export const TRICEPS_GUIDES: GuideMap = {
     ],
     mistakes: ['Usar o tronco para empurrar.', 'Deixar a carga bater.'],
   },
+  '1176': {
+    muscles: 'Tríceps.',
+    setup: [
+      'Polia baixa, alça (ou cabo sem pegador) em uma mão.',
+      'Tronco inclinado à frente, braço colado ao corpo com o cotovelo dobrado.',
+    ],
+    steps: [
+      'Estique o cotovelo levando a mão para trás.',
+      'Segure 1 segundo e volte devagar. Troque de lado.',
+    ],
+    breathing: 'Solte o ar ao esticar e inspire ao voltar.',
+    tips: [
+      'O cabo mantém tensão no início, onde o halter fica leve.',
+      'Só o antebraço se move.',
+    ],
+    mistakes: ['Balançar o braço inteiro.', 'Deixar o cotovelo cair.'],
+  },
+  '1177': {
+    muscles: 'Tríceps; peito e ombros ajudam.',
+    setup: [
+      'Sente com as costas apoiadas e segure as pegadas ao lado do corpo.',
+      'Cotovelos apontando para trás.',
+    ],
+    steps: [
+      'Empurre as pegadas para baixo até esticar os braços.',
+      'Volte devagar até os cotovelos passarem de 90°.',
+    ],
+    breathing: 'Inspire ao descer e solte o ar ao empurrar.',
+    tips: [
+      'Mais fácil de dosar que o mergulho no paralelo.',
+      'Tronco em pé foca mais no tríceps.',
+    ],
+    mistakes: ['Abrir os cotovelos para os lados.', 'Encolher os ombros.'],
+  },
+  '1178': {
+    muscles: 'Tríceps; peito ajuda.',
+    setup: [
+      'Deitado no banco, barra com pegada fechada (um pouco menos que os ombros).',
+      'Braços esticados acima do peito.',
+    ],
+    steps: [
+      'Desça a barra em direção ao queixo, dobrando os cotovelos e deixando-os ir um pouco à frente.',
+      'Empurre de volta esticando os braços.',
+    ],
+    breathing: 'Inspire ao descer e solte o ar ao empurrar.',
+    tips: [
+      'É um meio-termo entre supino fechado e tríceps testa.',
+      'Comece leve até pegar a trajetória.',
+    ],
+    mistakes: [
+      'Abrir os cotovelos para os lados.',
+      'Descer a barra no pescoço sem controle.',
+    ],
+  },
 };

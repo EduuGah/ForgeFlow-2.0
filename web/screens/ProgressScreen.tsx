@@ -51,6 +51,7 @@ import { cx } from '../ui/core';
 import { OptionPicker } from '../ui/OptionPicker';
 import { ProgressScene } from '../ui/Scenes';
 import { MuscleMapCard, historyMuscleWork } from '../features/MuscleMap';
+import { WeeklySetsCard } from '../features/WeeklySets';
 import { SummarySheet } from '../features/SummarySheet';
 import { MedalPreview } from '../features/Medals';
 import { YearCalendar } from '../features/YearCalendar';
@@ -351,6 +352,11 @@ export function ProgressScreen() {
         <StrengthCard />
 
         <BodyWeightCard />
+
+        <section aria-labelledby="stats-weekly">
+          <SectionHeader id="stats-weekly" title="Meta semanal de séries" />
+          <WeeklySetsCard />
+        </section>
 
         <section aria-labelledby="stats-muscles">
           <SectionHeader id="stats-muscles" title="Séries por grupo muscular" />

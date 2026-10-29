@@ -1,3 +1,4 @@
+import { hasResult, isCardio } from './training';
 import type {
   ActiveWorkoutState,
   TemplateExercise,
@@ -5,6 +6,7 @@ import type {
 } from './types';
 
 const DEFAULT_REST_SECONDS = 90;
+const DEFAULT_CARDIO_MINUTES = 20;
 
 /**
  * The routine this session would become: its exercises in order, with the
@@ -26,7 +28,22 @@ export function routineFromSession(
     const working = exercise.sets.filter((set) => set.setType !== 'warmup');
     // The first set actually done says more than one left empty.
     const first =
-      working.find((set) => set.completed && set.repetitions > 0) ?? working[0];
+      working.find((set) => set.completed && hasResult(set)) ?? working[0];
+    const rest =
+      exercise.restSeconds ?? known?.restSeconds ?? DEFAULT_REST_SECONDS;
+    if (isCardio(exercise.primaryMuscleGroup) || known?.targetMinutes)
+      return {
+        exerciseId: exercise.exerciseId,
+        exerciseName: exercise.exerciseName,
+        targetSets: Math.max(1, working.length),
+        targetReps: 0,
+        targetMinutes:
+          known?.targetMinutes ??
+          exercise.targetMinutes ??
+          (Math.round((first?.durationSeconds ?? 0) / 60) ||
+            DEFAULT_CARDIO_MINUTES),
+        restSeconds: rest,
+      };
     const weight = known ? known.targetWeightKg : first?.weightKg;
     // A swapped-in exercise inherits the goal of the slot it took.
     const repsMax = known ? known.targetRepsMax : exercise.targetReps?.max;
@@ -41,8 +58,7 @@ export function routineFromSession(
         (first?.repetitions || 10),
       ...(repsMax ? { targetRepsMax: repsMax } : {}),
       ...(weight ? { targetWeightKg: weight } : {}),
-      restSeconds:
-        exercise.restSeconds ?? known?.restSeconds ?? DEFAULT_REST_SECONDS,
+      restSeconds: rest,
     };
   });
 }

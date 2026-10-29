@@ -1,84 +1,109 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Check, Plus, Search, Star } from 'lucide-react';
+import { Check, Clock, Plus, Search, Star, X } from 'lucide-react';
 import type { Exercise } from '../../src/domain/training/entities';
 import { actions, useAppStore } from '../store';
-import { searchKey } from '../lib/format';
 import { MUSCLE_GROUPS, muscleLabel } from '../lib/training';
+import {
+  EMPTY_FILTER,
+  EQUIPMENT_KINDS,
+  countBy,
+  equipmentKinds,
+  filterExercises,
+  recentExerciseIds,
+  type ExerciseFilterState,
+  type ExerciseOnly,
+} from '../lib/exerciseFilter';
 import { exerciseAliases } from '../data/aliases';
 import { Button } from '../ui/Button';
 import { EmptyState, ExerciseThumb } from '../ui/Feedback';
-import {
-  SegmentedControl,
-  SelectField,
-  TextAreaField,
-  TextField,
-} from '../ui/Form';
+import { SelectField, TextAreaField, TextField } from '../ui/Form';
+import { OptionPicker } from '../ui/OptionPicker';
 import { Sheet, useToast } from '../ui/Overlay';
 import { cx } from '../ui/core';
 
-const FILTERS = [
-  { value: 'all', label: 'Todos' },
-  { value: 'favorites', label: 'Favoritos' },
-  ...MUSCLE_GROUPS.map((group) => ({
-    value: group,
-    label: muscleLabel(group),
-  })),
-];
-
-export function useExerciseFilter(exercises: Exercise[], favorites: string[]) {
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState('all');
-
-  const filtered = useMemo(() => {
-    const key = searchKey(query);
-    return exercises
-      .filter((exercise) => {
-        if (filter === 'favorites' && !favorites.includes(exercise.id))
-          return false;
-        if (
-          filter !== 'all' &&
-          filter !== 'favorites' &&
-          exercise.primaryMuscleGroup !== filter &&
-          !exercise.secondaryMuscleGroups.includes(filter)
-        ) {
-          return false;
-        }
-        if (!key) return true;
-        return (
-          searchKey(exercise.name).includes(key) ||
-          searchKey(exercise.primaryMuscleGroup).includes(key) ||
-          searchKey(exercise.equipment ?? '').includes(key) ||
-          exerciseAliases(exercise.id).some((alias) =>
-            searchKey(alias).includes(key),
-          )
-        );
-      })
-      .sort((a, b) => {
-        // With a muscle picked, exercises focused on it come first and those
-        // that only work it on the side (pull-ups for forearms) after.
-        const muscle = filter !== 'all' && filter !== 'favorites';
-        const side = (exercise: Exercise) =>
-          muscle && exercise.primaryMuscleGroup !== filter ? 1 : 0;
-        return side(a) - side(b) || a.name.localeCompare(b.name, 'pt-BR');
-      });
-  }, [exercises, favorites, filter, query]);
-
-  return { query, setQuery, filter, setFilter, filtered };
+function plural(count: number, one: string, many: string) {
+  return `${count} ${count === 1 ? one : many}`;
 }
 
-export function ExerciseSearchBar({
-  query,
-  onQuery,
-  filter,
-  onFilter,
+export function useExerciseFilter(exercises: Exercise[], favorites: string[]) {
+  const { history } = useAppStore();
+  const recent = useMemo(() => recentExerciseIds(history), [history]);
+  const [state, setState] = useState<ExerciseFilterState>(EMPTY_FILTER);
+  const update = (patch: Partial<ExerciseFilterState>) =>
+    setState((current) => ({ ...current, ...patch }));
+
+  const { main, synergy } = useMemo(
+    () =>
+      filterExercises(exercises, state, {
+        favorites,
+        recent,
+        aliases: exerciseAliases,
+      }),
+    [exercises, state, favorites, recent],
+  );
+  const counts = useMemo(
+    () => ({
+      muscle: countBy(exercises, (exercise) => [exercise.primaryMuscleGroup]),
+      equipment: countBy(exercises, (exercise) =>
+        equipmentKinds(exercise.equipment),
+      ),
+    }),
+    [exercises],
+  );
+
+  return {
+    state,
+    update,
+    reset: () => setState({ ...EMPTY_FILTER, query: state.query }),
+    /** Something besides the search narrows the list. */
+    narrowed:
+      state.muscle !== 'all' ||
+      state.equipment !== 'all' ||
+      state.only !== 'all',
+    hasRecent: recent.length > 0,
+    counts,
+    main,
+    synergy,
+  };
+}
+
+export type ExerciseFilter = ReturnType<typeof useExerciseFilter>;
+
+function Toggle({
+  active,
+  icon: Icon,
+  label,
+  onPress,
 }: {
-  query: string;
-  onQuery: (value: string) => void;
-  filter: string;
-  onFilter: (value: string) => void;
+  active: boolean;
+  icon: typeof Star;
+  label: string;
+  onPress: () => void;
 }) {
   return (
-    <div className="space-y-3">
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onPress}
+      className={cx(
+        'pressable text-footnote inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-semibold',
+        active ? 'bg-brand text-on-brand' : 'bg-raised text-ink-2',
+      )}
+    >
+      <Icon size={14} aria-hidden="true" />
+      {label}
+    </button>
+  );
+}
+
+export function ExerciseSearchBar({ filter }: { filter: ExerciseFilter }) {
+  const { state, update, counts } = filter;
+  const only = (value: ExerciseOnly) =>
+    update({ only: state.only === value ? 'all' : value });
+  const detail = (count: number | undefined) =>
+    plural(count ?? 0, 'exercício', 'exercícios');
+  return (
+    <div className="space-y-2.5">
       <label className="relative block">
         <span className="sr-only">Buscar exercício</span>
         <Search
@@ -88,18 +113,68 @@ export function ExerciseSearchBar({
         />
         <input
           type="search"
-          value={query}
-          onChange={(event) => onQuery(event.target.value)}
+          value={state.query}
+          onChange={(event) => update({ query: event.target.value })}
           placeholder="Buscar exercício"
           className="text-body h-11 w-full rounded-md bg-raised pr-3 pl-10 outline-none placeholder:text-ink-3 focus:ring-2 focus:ring-brand-ink"
         />
       </label>
-      <SegmentedControl
-        label="Filtrar por grupo muscular"
-        options={FILTERS}
-        value={filter}
-        onChange={onFilter}
-      />
+      <div className="grid grid-cols-2 gap-2">
+        <OptionPicker
+          label="Músculo"
+          value={state.muscle}
+          onChange={(muscle) => update({ muscle })}
+          options={[
+            { value: 'all', label: 'Todos' },
+            ...MUSCLE_GROUPS.map((group) => ({
+              value: group,
+              label: muscleLabel(group),
+              detail: detail(counts.muscle.get(group)),
+            })),
+          ]}
+        />
+        <OptionPicker
+          label="Equipamento"
+          value={state.equipment}
+          onChange={(equipment) => update({ equipment })}
+          options={[
+            { value: 'all', label: 'Todos' },
+            ...EQUIPMENT_KINDS.filter((kind) => counts.equipment.has(kind)).map(
+              (kind) => ({
+                value: kind,
+                label: kind,
+                detail: detail(counts.equipment.get(kind)),
+              }),
+            ),
+          ]}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <Toggle
+          active={state.only === 'favorites'}
+          icon={Star}
+          label="Favoritos"
+          onPress={() => only('favorites')}
+        />
+        {filter.hasRecent && (
+          <Toggle
+            active={state.only === 'recent'}
+            icon={Clock}
+            label="Recentes"
+            onPress={() => only('recent')}
+          />
+        )}
+        {filter.narrowed && (
+          <button
+            type="button"
+            onClick={filter.reset}
+            className="text-footnote ml-auto inline-flex h-8 items-center gap-1 px-1 font-semibold text-brand-ink"
+          >
+            <X size={14} aria-hidden="true" />
+            Limpar
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -117,6 +192,7 @@ export function ExerciseRow({
   onPress: () => void;
   trailing?: ReactNode;
 }) {
+  const helpers = exercise.secondaryMuscleGroups.map(muscleLabel);
   return (
     <li className="flex items-center">
       <button
@@ -124,7 +200,7 @@ export function ExerciseRow({
         onClick={onPress}
         aria-pressed={selected}
         className={cx(
-          'flex min-h-16 flex-1 items-center gap-3.5 rounded-md px-2 py-2 text-left transition-colors active:bg-raised',
+          'flex min-h-16 min-w-0 flex-1 items-center gap-3.5 rounded-md px-2 py-2 text-left transition-colors active:bg-raised',
           selected && 'bg-brand-soft',
         )}
       >
@@ -156,10 +232,66 @@ export function ExerciseRow({
             {exercise.equipment ? ` · ${exercise.equipment}` : ''}
             {!exercise.isSystem ? ' · Personalizado' : ''}
           </span>
+          {helpers.length > 0 && (
+            <span className="text-caption block truncate text-ink-3">
+              Sinergia: {helpers.join(', ')}
+            </span>
+          )}
         </span>
       </button>
       {trailing}
     </li>
+  );
+}
+
+/**
+ * The filtered list: exercises focused on the chosen muscle, then the ones
+ * where it only helps, under their own heading.
+ */
+export function ExerciseResults({
+  filter,
+  renderRow,
+  empty,
+  className,
+}: {
+  filter: ExerciseFilter;
+  renderRow: (exercise: Exercise) => ReactNode;
+  empty: ReactNode;
+  className?: string;
+}) {
+  const { main, synergy, state } = filter;
+  const total = main.length + synergy.length;
+  return (
+    <div className={className}>
+      <p className="text-footnote px-2 pt-1 pb-1 text-ink-3" aria-live="polite">
+        {plural(total, 'exercício', 'exercícios')}
+      </p>
+      {total === 0 ? (
+        empty
+      ) : (
+        <>
+          {main.length > 0 && (
+            <ul role="list" aria-label="Exercícios">
+              {main.map(renderRow)}
+            </ul>
+          )}
+          {synergy.length > 0 && (
+            <section aria-label="Exercícios de sinergia" className="mt-3">
+              <p className="px-2 pt-2 pb-1">
+                <span className="text-micro block font-semibold tracking-wider text-ink-3 uppercase">
+                  Sinergia
+                </span>
+                <span className="text-footnote block text-ink-2">
+                  {muscleLabel(state.muscle)} ajuda nestes exercícios (conta
+                  meia série)
+                </span>
+              </p>
+              <ul role="list">{synergy.map(renderRow)}</ul>
+            </section>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -186,10 +318,8 @@ export function ExercisePicker({
     () => allExercises.filter((exercise) => !excludeIds.includes(exercise.id)),
     [allExercises, excludeIds],
   );
-  const { query, setQuery, filter, setFilter, filtered } = useExerciseFilter(
-    available,
-    favorites,
-  );
+  const filter = useExerciseFilter(available, favorites);
+  const { state, update } = filter;
   const [selected, setSelected] = useState<Exercise[]>([]);
   const [creating, setCreating] = useState(false);
 
@@ -198,8 +328,7 @@ export function ExercisePicker({
     setWasOpen(open);
     if (open) {
       setSelected([]);
-      setQuery('');
-      setFilter('all');
+      update(EMPTY_FILTER);
     }
   }
 
@@ -252,46 +381,41 @@ export function ExercisePicker({
         }
         bodyClassName="px-3"
       >
-        <div className="sticky top-0 z-10 -mx-3 bg-surface px-5 pb-3">
-          <ExerciseSearchBar
-            query={query}
-            onQuery={setQuery}
-            filter={filter}
-            onFilter={setFilter}
-          />
+        <div className="sticky top-0 z-10 -mx-3 bg-surface px-5 pb-2">
+          <ExerciseSearchBar filter={filter} />
         </div>
-        {filtered.length === 0 ? (
-          <EmptyState
-            art="search"
-            title="Nenhum exercício encontrado"
-            message="Tente outro termo ou crie um exercício personalizado."
-            action={
-              <Button
-                variant="secondary"
-                icon={Plus}
-                onClick={() => setCreating(true)}
-              >
-                Criar exercício
-              </Button>
-            }
-          />
-        ) : (
-          <ul role="list" aria-label="Exercícios">
-            {filtered.map((exercise) => (
-              <ExerciseRow
-                key={exercise.id}
-                exercise={exercise}
-                favorite={favorites.includes(exercise.id)}
-                selected={selected.some((item) => item.id === exercise.id)}
-                onPress={() => toggle(exercise)}
-              />
-            ))}
-          </ul>
-        )}
+        <ExerciseResults
+          filter={filter}
+          renderRow={(exercise) => (
+            <ExerciseRow
+              key={exercise.id}
+              exercise={exercise}
+              favorite={favorites.includes(exercise.id)}
+              selected={selected.some((item) => item.id === exercise.id)}
+              onPress={() => toggle(exercise)}
+            />
+          )}
+          empty={
+            <EmptyState
+              art="search"
+              title="Nenhum exercício encontrado"
+              message="Tente outro termo, limpe os filtros ou crie um exercício personalizado."
+              action={
+                <Button
+                  variant="secondary"
+                  icon={Plus}
+                  onClick={() => setCreating(true)}
+                >
+                  Criar exercício
+                </Button>
+              }
+            />
+          }
+        />
       </Sheet>
       <CustomExerciseSheet
         open={creating}
-        initialName={query}
+        initialName={state.query}
         onClose={() => setCreating(false)}
         onCreated={(exercise) => {
           if (mode === 'single') {
@@ -299,7 +423,7 @@ export function ExercisePicker({
             onClose();
           } else {
             setSelected((current) => [...current, exercise]);
-            setQuery('');
+            update({ query: '' });
           }
         }}
       />
